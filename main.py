@@ -92,6 +92,13 @@ class InquiryCreate(BaseModel):
         return self
 
 
+class InquiryAccept(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    対応担当者: str = Field(min_length=1, max_length=20)
+
+
+
 @app.post("/api/inquiries")
 def create_inquiry_api(request: InquiryCreate):
 
@@ -232,6 +239,95 @@ def create_inquiry_api(request: InquiryCreate):
         "message": "問い合わせを登録しました",
         "問い合わせ番号": inquiry_number
     }
+
+
+@app.post("/api/inquiries/{inquiry_number}/accept")
+def accept_inquiry_api(
+    inquiry_number: int,
+    request: InquiryAccept,
+):
+    # 1. 対応担当者の存在確認と所属確認
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "職員番号", "所属"
+                FROM "職員"
+                WHERE "職員番号" = %s
+                ''',
+                (request.対応担当者,),
+            )
+            staff = cur.fetchone()
+
+    if staff is None:
+        raise HTTPException(
+            status_code=400,
+            detail="指定された対応担当者は登録されていません",
+        )
+
+    if staff[1] != "情報システム課":
+        raise HTTPException(
+            status_code=400,
+            detail="対応担当者が情シス職員として登録されていません",
+        )
+
+    # 2. 引き受け日時を決定
+    accepted_at = datetime.now()
+
+    # 3. 未引き受け・未完了の場合だけ更新
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = %s
+                WHERE
+                    "問い合わせ番号" = %s
+                    AND "引き受け日時" IS NULL
+                    AND "対応完了日時" IS NULL
+                RETURNING "問い合わせ番号", "引き受け日時"
+                ''',
+                (
+                    request.対応担当者,
+                    accepted_at,
+                    inquiry_number,
+                ),
+            )
+            inquiry = cur.fetchone()
+
+            # 4. 更新できなかった理由を確認
+            if inquiry is None:
+                cur.execute(
+                    '''
+                    SELECT 1
+                    FROM "問い合わせ"
+                    WHERE "問い合わせ番号" = %s
+                    ''',
+                    (inquiry_number,),
+                )
+                exists = cur.fetchone()
+
+                if exists is None:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="指定された問い合わせは存在しません",
+                    )
+
+                raise HTTPException(
+                    status_code=409,
+                    detail="この問い合わせは引き受けできない状態です",
+                )
+
+    return {
+        "message": "問い合わせを引き受けました",
+        "問い合わせ番号": inquiry[0],
+        "対応担当者": request.対応担当者,
+        "引き受け日時": inquiry[1],
+    }
+
+
 
 
 @app.get("/api/staff/{staff_number}")
