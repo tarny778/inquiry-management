@@ -96,7 +96,54 @@ class InquiryAccept(BaseModel):
 
     対応担当者: str = Field(min_length=1, max_length=20)
 
+class InquiryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
+    編集者職員番号: str = Field(min_length=1, max_length=20)
+
+    問い合わせ当時の所属: str = Field(min_length=1, max_length=30)
+    受付経路: str
+    問い合わせ分類: str = Field(min_length=1, max_length=30)
+    件名: str = Field(min_length=1, max_length=100)
+    緊急度: int
+    受付時の処理: int
+    問い合わせ詳細: str | None = Field(default=None, max_length=1000)
+    受信日時: datetime
+
+    @field_validator("受付経路")
+    @classmethod
+    def validate_受付経路(cls, value):
+        if value not in {"電話", "メール", "フォーム"}:
+            raise ValueError("受付経路が不正です")
+        return value
+
+    @field_validator("緊急度")
+    @classmethod
+    def validate_緊急度(cls, value):
+        if value not in {1, 2, 3}:
+            raise ValueError("緊急度は1、2、3のいずれかを指定してください")
+        return value
+
+    @field_validator("問い合わせ分類")
+    @classmethod
+    def validate_問い合わせ分類(cls, value):
+        if value not in ALLOWED_INQUIRY_CATEGORIES:
+            raise ValueError("問い合わせ分類が不正です")
+        return value
+
+    @field_validator("受付時の処理")
+    @classmethod
+    def validate_受付時の処理(cls, value):
+        if value not in {1, 2, 3}:
+            raise ValueError("受付時の処理は1、2、3のいずれかを指定してください")
+        return value
+
+    @model_validator(mode="after")
+    def validate_receipt_datetime(self):
+        if self.受信日時 is None:
+            raise ValueError("受信日時は必須です")
+
+        return self
 
 @app.post("/api/inquiries")
 def create_inquiry_api(request: InquiryCreate):
@@ -327,6 +374,129 @@ def accept_inquiry_api(
     }
 
 
+@app.put("/api/inquiries/{inquiry_number}")
+def update_inquiry_api(
+    request: InquiryUpdate,
+    inquiry_number: int = Path(ge=1),
+):
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 1. 現在の問い合わせ状態を取得し、更新中の競合を防ぐ
+            cur.execute(
+                """
+                SELECT
+                    "受付時の処理",
+                    "受付担当者",
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                FOR UPDATE
+                """,
+                (inquiry_number,),
+            )
+
+            row = cur.fetchone()
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせが存在しません。",
+                )
+
+            (
+                current_handling,
+                receptionist,
+                handler,
+                accepted_at,
+                completed_at,
+            ) = row
+
+            # 2. 現在の状態を判定し、編集権限を確認
+            if completed_at is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="対応完了した問い合わせは編集できません。",
+                )
+
+            if accepted_at is None:
+                # 未引き受け：受付担当者本人だけ編集可能
+                if request.編集者職員番号 != receptionist:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="未引き受けの問い合わせは受付担当者本人だけが編集できます。",
+                    )
+
+                # 未引き受けの問い合わせは、受付時の処理が要調査であることを前提とする
+                if current_handling != 2:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="問い合わせの状態と受付時の処理が一致していません。",
+                    )
+
+                # 即時解決（1）または他部署へ引き継ぎ（3）なら完了扱いにする
+                if request.受付時の処理 in (1, 3):
+                    new_completed_at = datetime.now()
+                else:
+                    new_completed_at = None
+
+            else:
+                # 対応中：現在の対応担当者本人だけ編集可能
+                if request.編集者職員番号 != handler:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="対応中の問い合わせは対応担当者本人だけが編集できます。",
+                    )
+
+                # 対応中は受付時の処理を変更できない
+                if request.受付時の処理 != current_handling:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="対応中の問い合わせでは受付時の処理を変更できません。",
+                    )
+
+                new_completed_at = None
+
+            # 3. 編集可能な項目を更新
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET
+                    "問い合わせ当時の所属" = %s,
+                    "受付経路" = %s,
+                    "問い合わせ分類" = %s,
+                    "件名" = %s,
+                    "緊急度" = %s,
+                    "受付時の処理" = %s,
+                    "問い合わせ詳細" = %s,
+                    "受信日時" = %s,
+                    "対応完了日時" = %s
+                WHERE "問い合わせ番号" = %s
+                """,
+                (
+                    request.問い合わせ当時の所属,
+                    request.受付経路,
+                    request.問い合わせ分類,
+                    request.件名,
+                    request.緊急度,
+                    request.受付時の処理,
+                    request.問い合わせ詳細,
+                    request.受信日時,
+                    new_completed_at,
+                    inquiry_number,
+                ),
+            )
+
+    return {
+        "message": "問い合わせを更新しました。",
+        "問い合わせ番号": inquiry_number,
+    }
+
+
+
+
+
 @app.get("/api/inquiries")
 def search_inquiries_api(
     問い合わせ番号: int | None = Query(default=None, ge=1),
@@ -530,3 +700,6 @@ def get_inquiry_api(
         "対応完了日時": row[14],
         "状態": 状態,
     }
+
+
+

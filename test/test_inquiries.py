@@ -647,4 +647,295 @@ def test_get_inquiry_status(detail_test_inquiries):
         assert response.json()["状態"] == expected_status
 
 
+def build_inquiry_update_payload(
+    inquiry_number,
+    editor_staff_number="J0001",
+    **overrides,
+):
+    """詳細取得APIの値を使って編集リクエストを作る。"""
+    response = client.get(f"/api/inquiries/{inquiry_number}")
+    assert response.status_code == 200, response.text
+
+    inquiry = response.json()
+
+    payload = {
+        "編集者職員番号": editor_staff_number,
+        "問い合わせ当時の所属": inquiry["問い合わせ当時の所属"],
+        "受付経路": inquiry["受付経路"],
+        "問い合わせ分類": inquiry["問い合わせ分類"],
+        "件名": inquiry["件名"],
+        "緊急度": inquiry["緊急度"],
+        "受付時の処理": inquiry["受付時の処理"],
+        "問い合わせ詳細": inquiry["問い合わせ詳細"],
+        "受信日時": inquiry["受信日時"],
+    }
+
+    payload.update(overrides)
+    return payload
+
+
+def test_update_pending_inquiry_success(pending_inquiry_number):
+    """受付担当者本人は未引き受けの問い合わせを編集できる。"""
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+        件名="編集APIテスト-件名変更",
+        問い合わせ詳細="編集APIで変更した詳細",
+    )
+
+    response = client.put(
+        f"/api/inquiries/{pending_inquiry_number}",
+        json=payload,
+    )
+
+    assert response.status_code == 200, response.text
+
+    result = response.json()
+    assert result["問い合わせ番号"] == pending_inquiry_number
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "件名", "問い合わせ詳細",
+                       "引き受け日時", "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] == "編集APIテスト-件名変更"
+    assert inquiry[1] == "編集APIで変更した詳細"
+    assert inquiry[2] is None
+    assert inquiry[3] is None
+
+
+def test_update_pending_inquiry_to_immediate_resolution(
+    pending_inquiry_number,
+):
+    """要調査から即時解決に変更すると対応完了日時が設定される。"""
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+        受付時の処理=1,
+    )
+
+    response = client.put(
+        f"/api/inquiries/{pending_inquiry_number}",
+        json=payload,
+    )
+
+    assert response.status_code == 200, response.text
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "受付時の処理", "引き受け日時",
+                       "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] == 1
+    assert inquiry[1] is None
+    assert inquiry[2] is not None
+
+
+def test_update_in_progress_inquiry_success(
+    pending_inquiry_number,
+):
+    """対応担当者本人は対応中の問い合わせを編集できる。"""
+    # J0002を対応担当者として設定する
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = NOW()
+                WHERE "問い合わせ番号" = %s
+                ''',
+                ("J0002", pending_inquiry_number),
+            )
+
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+        editor_staff_number="J0002",
+        件名="編集APIテスト-対応中の編集",
+    )
+
+    response = client.put(
+        f"/api/inquiries/{pending_inquiry_number}",
+        json=payload,
+    )
+
+    assert response.status_code == 200, response.text
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "件名", "受付時の処理",
+                       "引き受け日時", "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] == "編集APIテスト-対応中の編集"
+    assert inquiry[1] == 2
+    assert inquiry[2] is not None
+    assert inquiry[3] is None
+
+
+def test_update_in_progress_cannot_change_initial_handling(
+    pending_inquiry_number,
+):
+    """対応中に受付時の処理を変更すると、更新全体が拒否される。"""
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = NOW()
+                WHERE "問い合わせ番号" = %s
+                ''',
+                ("J0002", pending_inquiry_number),
+            )
+
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+        editor_staff_number="J0002",
+        件名="変更されてはいけない件名",
+        受付時の処理=1,
+    )
+
+    response = client.put(
+        f"/api/inquiries/{pending_inquiry_number}",
+        json=payload,
+    )
+
+    assert response.status_code == 409
+
+    # 件名も受付時の処理も変更されていないことを確認する
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "件名", "受付時の処理", "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] == "引き受けAPIテスト用問い合わせ"
+    assert inquiry[1] == 2
+    assert inquiry[2] is None
+
+
+def test_update_inquiry_by_unauthorized_staff(
+    pending_inquiry_number,
+):
+    """受付担当者でも対応担当者でもない職員は編集できない。"""
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+        editor_staff_number="J0002",
+        件名="変更されてはいけない件名",
+    )
+
+    response = client.put(
+        f"/api/inquiries/{pending_inquiry_number}",
+        json=payload,
+    )
+
+    assert response.status_code == 403
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "件名"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] == "引き受けAPIテスト用問い合わせ"
+
+
+def test_update_completed_inquiry_rejected(
+    pending_inquiry_number,
+):
+    """対応完了済みの問い合わせは編集できない。"""
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問い合わせ"
+                SET "対応完了日時" = NOW()
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+        件名="変更されてはいけない件名",
+    )
+
+    response = client.put(
+        f"/api/inquiries/{pending_inquiry_number}",
+        json=payload,
+    )
+
+    assert response.status_code == 409
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "件名", "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] == "引き受けAPIテスト用問い合わせ"
+    assert inquiry[1] is not None
+
+
+def test_update_inquiry_unknown_number(pending_inquiry_number):
+    """存在しない問い合わせ番号では404になる。"""
+    payload = build_inquiry_update_payload(
+        pending_inquiry_number,
+    )
+
+    response = client.put(
+        "/api/inquiries/999999999",
+        json=payload,
+    )
+
+    assert response.status_code == 404
+
 
