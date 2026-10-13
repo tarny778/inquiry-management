@@ -96,6 +96,12 @@ class InquiryAccept(BaseModel):
 
     対応担当者: str = Field(min_length=1, max_length=20)
 
+class InquiryBulkAccept(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    対応担当者: str = Field(min_length=1, max_length=20)
+    問い合わせ番号一覧: list[int] = Field(min_length=1)
+
 class InquiryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -372,6 +378,128 @@ def accept_inquiry_api(
         "対応担当者": request.対応担当者,
         "引き受け日時": inquiry[1],
     }
+
+
+@app.post("/api/inquiries/bulk-accept")
+def accept_inquiries_bulk_api(request: InquiryBulkAccept):
+    # 1. 対応担当者の存在確認と所属確認
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "職員番号", "所属"
+                FROM "職員"
+                WHERE "職員番号" = %s
+                ''',
+                (request.対応担当者,),
+            )
+            staff = cur.fetchone()
+
+            if staff is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="指定された対応担当者は登録されていません",
+                )
+
+            if staff[1] != "情報システム課":
+                raise HTTPException(
+                    status_code=400,
+                    detail="対応担当者が情シス職員として登録されていません",
+                )
+
+            # 2. 問い合わせ番号の重複を確認
+            inquiry_numbers = request.問い合わせ番号一覧
+
+            if len(inquiry_numbers) != len(set(inquiry_numbers)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="問い合わせ番号が重複しています",
+                )
+
+            # 3. 全件をロックして状態を確認
+            cur.execute(
+                '''
+                SELECT
+                    "問い合わせ番号",
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                ORDER BY "問い合わせ番号"
+                FOR UPDATE
+                ''',
+                (inquiry_numbers,),
+            )
+            inquiries = cur.fetchall()
+
+            # 4. 指定された番号がすべて存在するか確認
+            found_numbers = {row[0] for row in inquiries}
+            missing_numbers = [
+                number
+                for number in inquiry_numbers
+                if number not in found_numbers
+            ]
+
+            if missing_numbers:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "message": "指定された問い合わせが存在しません",
+                        "問い合わせ番号一覧": missing_numbers,
+                    },
+                )
+
+            # 5. 全件が引き受け可能か確認
+            invalid_numbers = [
+                row[0]
+                for row in inquiries
+                if (
+                    row[1] is not None
+                    or row[2] is not None
+                    or row[3] is not None
+                )
+            ]
+
+            if invalid_numbers:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "引き受けできない状態の問い合わせが含まれています",
+                        "問い合わせ番号一覧": invalid_numbers,
+                    },
+                )
+
+            # 6. 全件を更新
+            accepted_at = datetime.now()
+
+            cur.execute(
+                '''
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = %s
+                WHERE "問い合わせ番号" = ANY(%s)
+                RETURNING "問い合わせ番号"
+                ''',
+                (
+                    request.対応担当者,
+                    accepted_at,
+                    inquiry_numbers,
+                ),
+            )
+
+            updated_numbers = sorted(
+                row[0] for row in cur.fetchall()
+            )
+
+    return {
+        "message": "問い合わせを一括で引き受けました",
+        "対応担当者": request.対応担当者,
+        "問い合わせ番号一覧": updated_numbers,
+        "引き受け日時": accepted_at,
+    }
+
 
 
 @app.put("/api/inquiries/{inquiry_number}")

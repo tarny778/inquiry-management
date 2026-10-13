@@ -939,3 +939,299 @@ def test_update_inquiry_unknown_number(pending_inquiry_number):
     assert response.status_code == 404
 
 
+def create_pending_inquiry_for_bulk_test():
+    """一括引き受けテスト用の問い合わせを1件作成する。"""
+    response = client.post(
+        "/api/inquiries",
+        json={
+            "問い合わせ職員番号": "T0001",
+            "受付担当者": "J0001",
+            "受付経路": "電話",
+            "問い合わせ分類": "分類A",
+            "件名": "一括引き受けAPIテスト用問い合わせ",
+            "緊急度": 2,
+            "受付時の処理": 2,
+            "問い合わせ詳細": "一括引き受けテスト用データ",
+            "受信日時": None,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    return response.json()["問い合わせ番号"]
+
+
+def delete_inquiries_for_bulk_test(inquiry_numbers):
+    """一括引き受けテストで作成した問い合わせを削除する。"""
+    if not inquiry_numbers:
+        return
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                DELETE FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                ''',
+                (inquiry_numbers,),
+            )
+
+
+def test_bulk_accept_inquiries_success(pending_inquiry_number):
+    """未引き受けの問い合わせを複数件まとめて引き受けられる。"""
+    second_number = create_pending_inquiry_for_bulk_test()
+    inquiry_numbers = [pending_inquiry_number, second_number]
+
+    try:
+        response = client.post(
+            "/api/inquiries/bulk-accept",
+            json={
+                "対応担当者": "J0001",
+                "問い合わせ番号一覧": inquiry_numbers,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+
+        result = response.json()
+        assert result["対応担当者"] == "J0001"
+        assert sorted(result["問い合わせ番号一覧"]) == sorted(
+            inquiry_numbers
+        )
+
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    SELECT "問い合わせ番号", "対応担当者",
+                           "引き受け日時", "対応完了日時"
+                    FROM "問い合わせ"
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    ''',
+                    (inquiry_numbers,),
+                )
+                inquiries = cur.fetchall()
+
+        assert len(inquiries) == 2
+
+        for inquiry in inquiries:
+            assert inquiry[1] == "J0001"
+            assert inquiry[2] is not None
+            assert inquiry[3] is None
+
+    finally:
+        delete_inquiries_for_bulk_test([second_number])
+
+
+def test_bulk_accept_rejects_all_if_one_already_accepted(
+    pending_inquiry_number,
+):
+    """1件でも引き受け済みなら、全件を更新しない。"""
+    second_number = create_pending_inquiry_for_bulk_test()
+    inquiry_numbers = [pending_inquiry_number, second_number]
+
+    try:
+        # 2件目を先に引き受け済みにする
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    UPDATE "問い合わせ"
+                    SET "対応担当者" = %s,
+                        "引き受け日時" = NOW()
+                    WHERE "問い合わせ番号" = %s
+                    ''',
+                    ("J0002", second_number),
+                )
+
+        response = client.post(
+            "/api/inquiries/bulk-accept",
+            json={
+                "対応担当者": "J0001",
+                "問い合わせ番号一覧": inquiry_numbers,
+            },
+        )
+
+        assert response.status_code == 409
+
+        # 1件目も更新されていないことを確認
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    SELECT "対応担当者", "引き受け日時"
+                    FROM "問い合わせ"
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    ''',
+                    (inquiry_numbers,),
+                )
+                inquiries = cur.fetchall()
+
+        assert len(inquiries) == 2
+
+        inquiry_by_number = {
+            number: (handler, accepted_at)
+            for number, handler, accepted_at in [
+                (
+                    pending_inquiry_number,
+                    inquiries[0][0],
+                    inquiries[0][1],
+                ),
+                (
+                    second_number,
+                    inquiries[1][0],
+                    inquiries[1][1],
+                ),
+            ]
+        }
+
+        # 1件目は未引き受けのまま
+        assert inquiry_by_number[pending_inquiry_number] == (None, None)
+
+        # 2件目は、事前に設定した引き受け状態のまま
+        assert inquiry_by_number[second_number][0] == "J0002"
+        assert inquiry_by_number[second_number][1] is not None
+
+    finally:
+        delete_inquiries_for_bulk_test([second_number])
+
+
+def test_bulk_accept_rejects_all_if_one_already_accepted(
+    pending_inquiry_number,
+):
+    """1件でも引き受け済みなら、全件を更新しない。"""
+    second_number = create_pending_inquiry_for_bulk_test()
+    inquiry_numbers = [pending_inquiry_number, second_number]
+
+    try:
+        # 2件目を先に引き受け済みにする
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    UPDATE "問い合わせ"
+                    SET "対応担当者" = %s,
+                        "引き受け日時" = NOW()
+                    WHERE "問い合わせ番号" = %s
+                    ''',
+                    ("J0002", second_number),
+                )
+
+        response = client.post(
+            "/api/inquiries/bulk-accept",
+            json={
+                "対応担当者": "J0001",
+                "問い合わせ番号一覧": inquiry_numbers,
+            },
+        )
+
+        assert response.status_code == 409
+
+        # 1件目も更新されていないことを確認
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    SELECT "対応担当者", "引き受け日時"
+                    FROM "問い合わせ"
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    ''',
+                    (inquiry_numbers,),
+                )
+                inquiries = cur.fetchall()
+
+        assert len(inquiries) == 2
+
+        inquiry_by_number = {
+            number: (handler, accepted_at)
+            for number, handler, accepted_at in [
+                (
+                    pending_inquiry_number,
+                    inquiries[0][0],
+                    inquiries[0][1],
+                ),
+                (
+                    second_number,
+                    inquiries[1][0],
+                    inquiries[1][1],
+                ),
+            ]
+        }
+
+        # 1件目は未引き受けのまま
+        assert inquiry_by_number[pending_inquiry_number] == (None, None)
+
+        # 2件目は、事前に設定した引き受け状態のまま
+        assert inquiry_by_number[second_number][0] == "J0002"
+        assert inquiry_by_number[second_number][1] is not None
+
+    finally:
+        delete_inquiries_for_bulk_test([second_number])
+
+
+def test_bulk_accept_rejects_all_if_number_missing(
+    pending_inquiry_number,
+):
+    """存在しない問い合わせ番号が含まれていたら全件更新しない。"""
+    response = client.post(
+        "/api/inquiries/bulk-accept",
+        json={
+            "対応担当者": "J0001",
+            "問い合わせ番号一覧": [
+                pending_inquiry_number,
+                999999999,
+            ],
+        },
+    )
+
+    assert response.status_code == 404
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "対応担当者", "引き受け日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] is None
+    assert inquiry[1] is None
+
+
+def test_bulk_accept_rejects_duplicate_numbers(
+    pending_inquiry_number,
+):
+    """問い合わせ番号の重複を拒否し、DBを変更しない。"""
+    response = client.post(
+        "/api/inquiries/bulk-accept",
+        json={
+            "対応担当者": "J0001",
+            "問い合わせ番号一覧": [
+                pending_inquiry_number,
+                pending_inquiry_number,
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "対応担当者", "引き受け日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+    assert inquiry is not None
+    assert inquiry[0] is None
+    assert inquiry[1] is None
+
