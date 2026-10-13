@@ -8,8 +8,7 @@ DATABASE_NAME = os.getenv(
 from datetime import datetime
 
 import psycopg
-from fastapi import FastAPI, Form, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Path, Query
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -243,8 +242,8 @@ def create_inquiry_api(request: InquiryCreate):
 
 @app.post("/api/inquiries/{inquiry_number}/accept")
 def accept_inquiry_api(
-    inquiry_number: int,
     request: InquiryAccept,
+    inquiry_number: int = Path(ge=1),
 ):
     # 1. 対応担当者の存在確認と所属確認
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -328,87 +327,206 @@ def accept_inquiry_api(
     }
 
 
+@app.get("/api/inquiries")
+def search_inquiries_api(
+    問い合わせ番号: int | None = Query(default=None, ge=1),
+    件名: str | None = Query(default=None, min_length=1, max_length=100),
+    問い合わせ分類: str | None = Query(default=None,  min_length=1, max_length=30),
+    状態: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+):
+    # 1. 状態の指定値を確認
+    allowed_statuses = {
+        "引き受け待ち",
+        "対応中",
+        "対応完了",
+    }
+
+    if 状態 is not None and 状態 not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="状態の指定が不正です",
+        )
+    if 問い合わせ分類 is not None:
+        if 問い合わせ分類 not in ALLOWED_INQUIRY_CATEGORIES:
+            raise HTTPException(
+                status_code=400,
+                detail="問い合わせ分類が不正です",
+            )
+
+    # 2. 検索条件を組み立てる
+    conditions = []
+    params = []
+
+    if 問い合わせ番号 is not None:
+        conditions.append(
+            '"問い合わせ番号" = %s'
+        )
+        params.append(問い合わせ番号)
+
+    if 件名 is not None:
+        conditions.append(
+            '"件名" ILIKE %s'
+        )
+        params.append(f"%{件名}%")
+
+    if 問い合わせ分類 is not None:
+        conditions.append(
+            '"問い合わせ分類" = %s'
+        )
+        params.append(問い合わせ分類)
+
+    # 状態は日時カラムから判定する
+    if 状態 == "引き受け待ち":
+        conditions.append(
+            '"引き受け日時" IS NULL '
+            'AND "対応完了日時" IS NULL'
+        )
+    elif 状態 == "対応中":
+        conditions.append(
+            '"引き受け日時" IS NOT NULL '
+            'AND "対応完了日時" IS NULL'
+        )
+    elif 状態 == "対応完了":
+        conditions.append(
+            '"対応完了日時" IS NOT NULL'
+        )
+
+    where_sql = ""
+    if conditions:
+        where_sql = "WHERE " + " AND ".join(conditions)
+
+    # 3. 総件数と検索結果を取得する
+    offset = (page - 1) * page_size
+
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            # 検索条件に合致する総件数
+            cur.execute(
+                f'''
+                SELECT COUNT(*)
+                FROM "問い合わせ"
+                {where_sql}
+                ''',
+                tuple(params),
+            )
+            total = cur.fetchone()[0]
+
+            # 検索結果を受信日時の新しい順で取得
+            cur.execute(
+                f'''
+                SELECT
+                    "問い合わせ番号",
+                    "件名",
+                    "問い合わせ分類",
+                    "受信日時",
+                    CASE
+                        WHEN "対応完了日時" IS NOT NULL
+                            THEN '対応完了'
+                        WHEN "引き受け日時" IS NOT NULL
+                            THEN '対応中'
+                        ELSE '引き受け待ち'
+                    END AS "状態"
+                FROM "問い合わせ"
+                {where_sql}
+                ORDER BY
+                    "受信日時" DESC,
+                    "問い合わせ番号" DESC
+                LIMIT %s
+                OFFSET %s
+                ''',
+                tuple(params) + (page_size, offset),
+            )
+
+            rows = cur.fetchall()
+
+    # 4. APIレスポンスを作成する
+    items = [
+        {
+            "問い合わせ番号": row[0],
+            "件名": row[1],
+            "問い合わせ分類": row[2],
+            "受信日時": row[3],
+            "状態": row[4],
+        }
+        for row in rows
+    ]
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
 
 
-@app.get("/api/staff/{staff_number}")
-def get_staff(staff_number: str):
+@app.get("/api/inquiries/{inquiry_number}")
+def get_inquiry_api(
+    inquiry_number: int = Path(ge=1),
+):
+    print(f"詳細取得APIのDB: {DATABASE_NAME}")
+
+    # 1. 指定された問い合わせを取得する
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                SELECT "職員番号", "氏名", "所属"
-                FROM "職員"
-                WHERE "職員番号" = %s
+                SELECT
+                    "問い合わせ番号",
+                    "問い合わせ職員番号",
+                    "問い合わせ当時の所属",
+                    "受付経路",
+                    "問い合わせ分類",
+                    "件名",
+                    "緊急度",
+                    "受付時の処理",
+                    "問い合わせ詳細",
+                    "受付担当者",
+                    "対応担当者",
+                    "受信日時",
+                    "登録日時",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
                 ''',
-                (staff_number,)
+                (inquiry_number,),
             )
 
-            staff = cur.fetchone()
+            row = cur.fetchone()
 
-    if staff is None:
-        return {"message": "職員が見つかりません"}
+    # 2. 該当する問い合わせが存在しない場合
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="問い合わせが見つかりません",
+        )
 
+    # 3. 問い合わせ状態を判定する
+    if row[14] is not None:
+        状態 = "対応完了"
+    elif row[13] is not None:
+        状態 = "対応中"
+    else:
+        状態 = "引き受け待ち"
+
+    # 4. APIレスポンスを作成する
     return {
-        "職員番号": staff[0],
-        "氏名": staff[1],
-        "所属": staff[2],
+        "問い合わせ番号": row[0],
+        "問い合わせ職員番号": row[1],
+        "問い合わせ当時の所属": row[2],
+        "受付経路": row[3],
+        "問い合わせ分類": row[4],
+        "件名": row[5],
+        "緊急度": row[6],
+        "受付時の処理": row[7],
+        "問い合わせ詳細": row[8],
+        "受付担当者": row[9],
+        "対応担当者": row[10],
+        "受信日時": row[11],
+        "登録日時": row[12],
+        "引き受け日時": row[13],
+        "対応完了日時": row[14],
+        "状態": 状態,
     }
-
-
-
-
-
-
-
-
-
-@app.get("/", response_class=HTMLResponse)
-def inquiry_form():
-    return """
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <title>問い合わせ登録</title>
-    </head>
-    <body>
-        <h1>問い合わせ登録</h1>
-
-        <form action="/inquiries" method="post">
-            <p>
-                件名<br>
-                <input type="text" name="title">
-            </p>
-
-            <p>
-                会社名<br>
-                <input type="text" name="company">
-            </p>
-
-            <p>
-                内容<br>
-                <textarea name="content"></textarea>
-            </p>
-
-            <button type="submit">登録する</button>
-        </form>
-    </body>
-    </html>
-    """
-
-
-@app.post("/inquiries", response_class=HTMLResponse)
-def create_inquiry(
-    title: str = Form(...),
-    company: str = Form(...),
-    content: str = Form(...),
-):
-    return f"""
-    <h1>問い合わせを登録しました</h1>
-
-    <p><strong>件名：</strong>{title}</p>
-    <p><strong>会社名：</strong>{company}</p>
-    <p><strong>内容：</strong>{content}</p>
-
-    <a href="/">戻る</a>
-    """
