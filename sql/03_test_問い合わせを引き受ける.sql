@@ -16,7 +16,7 @@
 
 UPDATE "問い合わせ"
 SET
-    "対応担当者" = '鈴木一郎',
+    "対応担当者" = 'J0002',
     "引き受け日時" = CURRENT_TIMESTAMP
 WHERE "問い合わせ番号" = (
     SELECT MAX("問い合わせ番号")

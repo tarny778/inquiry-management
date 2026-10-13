@@ -18,22 +18,22 @@ from pydantic import (
     model_validator,
 )
 
+# このポートフォリオで使用する問い合わせ分類
+ALLOWED_INQUIRY_CATEGORIES = {
+    # 要件定義で決めた分類名を追加する
+    "分類A",
+    "分類B",
+    "分類C",
+}
 
 app = FastAPI()
-
-# 開発中の仮の情シス職員リスト
-ALLOWED_IS_STAFF = {
-    "情シス太郎",
-    "情シス次郎",
-    "情シス三郎",
-}
 
 
 class InquiryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     問い合わせ職員番号: str = Field(min_length=1, max_length=20)
-    受付担当者: str = Field(min_length=1, max_length=30)
+    受付担当者: str = Field(min_length=1, max_length=20)
 
     受付経路: str
     問い合わせ分類: str = Field(min_length=1, max_length=30)
@@ -41,7 +41,6 @@ class InquiryCreate(BaseModel):
     緊急度: int
     受付時の処理: int
     問い合わせ詳細: str | None = Field(default=None, max_length=1000)
-    対応担当者: str | None = Field(default=None, max_length=30)
     受信日時: datetime | None = None
 
     @field_validator("受付経路")
@@ -56,6 +55,13 @@ class InquiryCreate(BaseModel):
     def validate_緊急度(cls, value):
         if value not in {1, 2, 3}:
             raise ValueError("緊急度は1、2、3のいずれかを指定してください")
+        return value
+
+    @field_validator("問い合わせ分類")
+    @classmethod
+    def validate_問い合わせ分類(cls, value):
+        if value not in ALLOWED_INQUIRY_CATEGORIES:
+            raise ValueError("問い合わせ分類が不正です")
         return value
 
     @field_validator("受付時の処理")
@@ -112,16 +118,47 @@ def create_inquiry_api(request: InquiryCreate):
     # 2. 問い合わせ当時の所属を取得
     問い合わせ当時の所属 = staff[2]
 
+    if (
+        問い合わせ当時の所属 is None
+        or len(問い合わせ当時の所属) > 30
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="問い合わせ職員の所属が不正です"
+        )
+
     # 3. 受付担当者の取得
     # 開発中はPOSTリクエストから取得する
-    受付担当者氏名 = request.受付担当者
+    受付担当者職員番号 = request.受付担当者
 
-    # 4. 受付担当者が仮の情シス職員に該当するか確認
-    if 受付担当者氏名 not in ALLOWED_IS_STAFF:
+    
+    # 4. 受付担当者の存在確認と所属確認
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "職員番号", "所属"
+                FROM "職員"
+                WHERE "職員番号" = %s
+                ''',
+                (受付担当者職員番号,)
+            )
+            staff = cur.fetchone()
+
+    if staff is None:
+        raise HTTPException(
+            status_code=400,
+            detail="指定された受付担当者は登録されていません"
+        )
+
+    受付担当者所属 = staff[1]
+
+    if 受付担当者所属 != "情報システム課":
         raise HTTPException(
             status_code=400,
             detail="受付担当者が情シス職員として登録されていません"
         )
+
 
     # 5. 日時を決定
     now = datetime.now()
@@ -180,8 +217,8 @@ def create_inquiry_api(request: InquiryCreate):
                     request.緊急度,
                     request.受付時の処理,
                     request.問い合わせ詳細,
-                    受付担当者氏名,
-                    request.対応担当者,
+                    受付担当者職員番号,
+                    None,  # 対応担当者：引き受け時に設定
                     received_at,
                     registered_at,
                     accepted_at,

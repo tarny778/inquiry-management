@@ -39,7 +39,7 @@ CREATE TABLE "職員" (
 
 CREATE TABLE "問い合わせ" (
     "問い合わせ番号" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    "問い合わせ職員番号" VARCHAR(20) NOT NULL,
+    "問い合わせ職員番号" VARCHAR(20),
     "問い合わせ当時の所属" VARCHAR(30) NOT NULL,
     "受付経路" VARCHAR(20) NOT NULL,
     "問い合わせ分類" VARCHAR(30) NOT NULL,
@@ -49,16 +49,25 @@ CREATE TABLE "問い合わせ" (
     "受付時の処理" INTEGER NOT NULL
         CHECK ("受付時の処理" IN (1, 2, 3)),
     "問い合わせ詳細" VARCHAR(1000),
-    "受付担当者" VARCHAR(30) NOT NULL,
-    "対応担当者" VARCHAR(30),
+    "受付担当者" VARCHAR(20),
+    "対応担当者" VARCHAR(20),
     "受信日時" TIMESTAMP NOT NULL,
     "登録日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "引き受け日時" TIMESTAMP,
     "対応完了日時" TIMESTAMP,
 
-    CONSTRAINT "fk_問い合わせ_職員"
+    CONSTRAINT "fk_問い合わせ_問い合わせ職員"
         FOREIGN KEY ("問い合わせ職員番号")
         REFERENCES "職員" ("職員番号")
+        ON DELETE SET NULL,
+    CONSTRAINT "fk_問い合わせ_受付担当者"
+        FOREIGN KEY ("受付担当者")
+        REFERENCES "職員" ("職員番号")
+        ON DELETE SET NULL,
+    CONSTRAINT "fk_問い合わせ_対応担当者"
+        FOREIGN KEY ("対応担当者")
+        REFERENCES "職員" ("職員番号")
+        ON DELETE SET NULL
 );
 
 
@@ -141,7 +150,7 @@ CREATE TABLE "対応担当者変更履歴" (
 
 
 -- =========================================================
--- テスト用職員マスタ
+-- テスト用職員データ
 -- =========================================================
 
 INSERT INTO "職員" (
@@ -149,8 +158,19 @@ INSERT INTO "職員" (
     "氏名",
     "所属"
 )
-VALUES (
-    'T0001',
-    '山田太郎',
-    '総務課'
-);
+VALUES
+    (
+        'T0001',
+        '山田太郎',
+        '総務課'
+    ),
+    (
+        'J0001',
+        '情シス太郎',
+        '情報システム課'
+    ),
+    (
+        'J0002',
+        '情シス次郎',
+        '情報システム課'
+    );

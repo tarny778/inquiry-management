@@ -15,14 +15,13 @@ def test_create_inquiry_invalid_urgency():
         "/api/inquiries",
         json={
             "問い合わせ職員番号": "T0001",
-            "受付担当者": "情シス太郎",
+            "受付担当者": "J0001",
             "受付経路": "電話",
-            "問い合わせ分類": "PC",
+            "問い合わせ分類": "分類A",
             "件名": "緊急度の異常系テスト",
             "緊急度": 4,
             "受付時の処理": 2,
             "問い合わせ詳細": "自動テストです",
-            "対応担当者": None,
             "受信日時": None,
         },
     )
@@ -37,14 +36,13 @@ def test_create_inquiry_unknown_staff():
         "/api/inquiries",
         json={
             "問い合わせ職員番号": "T9999",
-            "受付担当者": "情シス太郎",
+            "受付担当者": "J0001",
             "受付経路": "電話",
-            "問い合わせ分類": "PC",
+            "問い合わせ分類": "分類A",
             "件名": "存在しない職員のテスト",
             "緊急度": 2,
             "受付時の処理": 2,
             "問い合わせ詳細": "自動テストです",
-            "対応担当者": None,
             "受信日時": None,
         },
     )
@@ -60,14 +58,13 @@ def test_create_inquiry_invalid_receptionist():
         "/api/inquiries",
         json={
             "問い合わせ職員番号": "T0001",
-            "受付担当者": "一般職員太郎",
+            "受付担当者": "T0001",
             "受付経路": "電話",
-            "問い合わせ分類": "PC",
+            "問い合わせ分類": "分類A",
             "件名": "受付担当者の異常系テスト",
             "緊急度": 2,
             "受付時の処理": 2,
             "問い合わせ詳細": "自動テストです",
-            "対応担当者": None,
             "受信日時": None,
         },
     )
@@ -86,18 +83,17 @@ def test_create_inquiry_success():
             "/api/inquiries",
             json={
                 "問い合わせ職員番号": "T0001",
-                "受付担当者": "情シス太郎",
+                "受付担当者": "J0001",
                 "受付経路": "電話",
-                "問い合わせ分類": "PC",
+                "問い合わせ分類": "分類A",
                 "件名": "正常系テスト用問い合わせ",
                 "緊急度": 2,
                 "受付時の処理": 2,
                 "問い合わせ詳細": "自動テストで登録したデータです",
-                "対応担当者": None,
                 "受信日時": None,
             },
         )
-
+        
         assert response.status_code == 200
 
         result = response.json()
@@ -129,7 +125,7 @@ def test_create_inquiry_success():
         assert inquiry is not None
         assert inquiry[0] == "T0001"
         assert inquiry[1] == "正常系テスト用問い合わせ"
-        assert inquiry[2] == "情シス太郎"
+        assert inquiry[2] == "J0001"
         assert inquiry[3] is None
         assert inquiry[4] is None
 
