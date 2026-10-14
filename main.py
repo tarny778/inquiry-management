@@ -17,6 +17,25 @@ from pydantic import (
     model_validator,
 )
 
+from dataclasses import dataclass
+
+
+@dataclass
+class CurrentUser:
+    職員番号: str
+    氏名: str
+    所属: str
+
+
+def get_current_user() -> CurrentUser:
+    """認証導入前の仮実装。開発用の操作者を返す。"""
+    return CurrentUser(
+        職員番号="J0001",
+        氏名="情シス太郎",
+        所属="情報システム課",
+    )
+
+
 # このポートフォリオで使用する問い合わせ分類
 ALLOWED_INQUIRY_CATEGORIES = {
     # 要件定義で決めた分類名を追加する
@@ -26,6 +45,7 @@ ALLOWED_INQUIRY_CATEGORIES = {
 }
 
 app = FastAPI()
+
 
 
 class InquiryCreate(BaseModel):
@@ -498,6 +518,98 @@ def accept_inquiries_bulk_api(request: InquiryBulkAccept):
         "対応担当者": request.対応担当者,
         "問い合わせ番号一覧": updated_numbers,
         "引き受け日時": accepted_at,
+    }
+
+
+@app.post("/api/inquiries/{inquiry_number}/complete")
+def complete_inquiry_api(
+    inquiry_number: int = Path(ge=1),
+):
+    # 1. 操作者を取得（認証導入前の仮実装）
+    current_user = get_current_user()
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 2. 問い合わせを取得し、同時更新を防ぐ
+            cur.execute(
+                """
+                SELECT
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                FOR UPDATE
+                """,
+                (inquiry_number,),
+            )
+            row = cur.fetchone()
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせが存在しません。",
+                )
+
+            handler, accepted_at, completed_at = row
+
+            # 3. 対応中の問い合わせか確認
+            if accepted_at is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="未引き受けの問い合わせは対応完了できません。",
+                )
+
+            if completed_at is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="すでに対応完了した問い合わせです。",
+                )
+
+            # 4. 対応担当者本人か確認
+            if current_user.職員番号 != handler:
+                raise HTTPException(
+                    status_code=403,
+                    detail="対応担当者本人だけが対応完了できます。",
+                )
+
+            # 5. 未完了の調査が残っていないか確認
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ番号" = %s
+                      AND "問い合わせ問題調査状態" IN (1, 3)
+                )
+                """,
+                (inquiry_number,),
+            )
+            has_unfinished_problem = cur.fetchone()[0]
+
+            if has_unfinished_problem:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "調査中またはリアクション待ちの"
+                        "問い合わせ問題が残っているため、"
+                        "対応完了できません。"
+                    ),
+                )
+
+            # 6. 対応完了日時を記録
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応完了日時" = NOW()
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+
+    return {
+        "message": "問い合わせを対応完了しました。",
+        "問い合わせ番号": inquiry_number,
     }
 
 
