@@ -129,6 +129,84 @@ class InquiryBulkComplete(BaseModel):
     問い合わせ番号一覧: list[int] = Field(min_length=1)
 
 
+class InvestigationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    問題調査の名称や仮説: str = Field(
+        min_length=1,
+        max_length=30,
+    )
+
+    @field_validator("問題調査の名称や仮説")
+    @classmethod
+    def validate_問題調査の名称や仮説(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError(
+                "問題調査の名称や仮説は空白だけでは登録できません"
+            )
+
+        return value
+
+class BulkInvestigationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    問い合わせ番号一覧: list[int] = Field(min_length=1)
+
+    問題調査の名称や仮説: str = Field(
+        min_length=1,
+        max_length=30,
+    )
+
+    @field_validator("問い合わせ番号一覧")
+    @classmethod
+    def validate_問い合わせ番号一覧(cls, value):
+        if any(number < 1 for number in value):
+            raise ValueError(
+                "問い合わせ番号は1以上で指定してください"
+            )
+
+        if len(value) != len(set(value)):
+            raise ValueError(
+                "問い合わせ番号を重複して指定できません"
+            )
+
+        return value
+
+    @field_validator("問題調査の名称や仮説")
+    @classmethod
+    def validate_問題調査の名称や仮説(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError(
+                "問題調査の名称や仮説は空白だけでは登録できません"
+            )
+
+        return value
+
+class BulkLinkInvestigation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    問い合わせ番号一覧: list[int] = Field(min_length=1)
+    問題調査番号: int = Field(ge=1)
+
+    @field_validator("問い合わせ番号一覧")
+    @classmethod
+    def validate_問い合わせ番号一覧(cls, value):
+        if any(number < 1 for number in value):
+            raise ValueError(
+                "問い合わせ番号は1以上で指定してください"
+            )
+
+        if len(value) != len(set(value)):
+            raise ValueError(
+                "問い合わせ番号を重複して指定できません"
+            )
+
+        return value
+
 class InquiryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -833,6 +911,457 @@ def reopen_inquiry_api(
     }
 
 
+@app.post("/api/inquiries/{inquiry_number}/investigations")
+def create_investigation_api(
+    request: InvestigationCreate,
+    inquiry_number: int = Path(ge=1),
+):
+    # 1. 操作者を取得
+    current_user = get_current_user()
+
+    # 2. 問い合わせの状態と対応担当者を確認
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                FOR UPDATE
+                """,
+                (inquiry_number,),
+            )
+
+            inquiry = cur.fetchone()
+
+            # 3. 問い合わせの存在確認
+            if inquiry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせが存在しません。",
+                )
+
+            handler, accepted_at, completed_at = inquiry
+
+            # 4. 対応中であることを確認
+            if accepted_at is None or completed_at is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="対応中の問い合わせだけ問題調査を作成できます。",
+                )
+
+            # 5. 対応担当者本人であることを確認
+            if handler != current_user.職員番号:
+                raise HTTPException(
+                    status_code=403,
+                    detail="対応担当者本人だけが問題調査を作成できます。",
+                )
+
+            # 6. 問題調査を新規作成
+            cur.execute(
+                """
+                INSERT INTO "問題調査" (
+                    "問題調査の名称や仮説"
+                )
+                VALUES (%s)
+                RETURNING "問題調査番号"
+                """,
+                (request.問題調査の名称や仮説,),
+            )
+
+            investigation_number = cur.fetchone()[0]
+
+            # 7. 問い合わせと問題調査を関連付ける
+            cur.execute(
+                """
+                INSERT INTO "問い合わせ問題調査" (
+                    "問題調査番号",
+                    "問い合わせ番号"
+                )
+                VALUES (%s, %s)
+                RETURNING "問い合わせ問題調査番号"
+                """,
+                (
+                    investigation_number,
+                    inquiry_number,
+                ),
+            )
+
+            inquiry_investigation_number = cur.fetchone()[0]
+
+    # 8. 作成結果を返す
+    return {
+        "message": "問題調査を作成し、問い合わせに関連付けました。",
+        "問い合わせ番号": inquiry_number,
+        "問題調査番号": investigation_number,
+        "問い合わせ問題調査番号": inquiry_investigation_number,
+        "問題調査の名称や仮説": request.問題調査の名称や仮説,
+    }
+
+@app.post(
+    "/api/inquiries/{inquiry_number}/investigations/{investigation_number}"
+)
+def link_existing_investigation_api(
+    inquiry_number: int = Path(ge=1),
+    investigation_number: int = Path(ge=1),
+):
+    current_user = get_current_user()
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 1. 問い合わせを取得し、更新競合を防ぐためロックする
+            cur.execute(
+                """
+                SELECT
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                FOR UPDATE
+                """,
+                (inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+            if inquiry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせが存在しません。",
+                )
+
+            handler, accepted_at, completed_at = inquiry
+
+            if accepted_at is None or completed_at is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="対応中の問い合わせだけ関連付けできます。",
+                )
+
+            if handler != current_user.職員番号:
+                raise HTTPException(
+                    status_code=403,
+                    detail="対応担当者本人だけが関連付けできます。",
+                )
+
+            # 2. 既存の問題調査を取得し、状態を確認する
+            cur.execute(
+                """
+                SELECT "問題調査状態"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (investigation_number,),
+            )
+            investigation = cur.fetchone()
+
+            if investigation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問題調査が存在しません。",
+                )
+
+            investigation_state = investigation[0]
+
+            if investigation_state != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="調査中の問題調査だけ関連付けできます。",
+                )
+
+            # 3. 同じ組み合わせの二重登録を防ぐ
+            cur.execute(
+                """
+                SELECT 1
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ番号" = %s
+                  AND "問題調査番号" = %s
+                """,
+                (inquiry_number, investigation_number),
+            )
+
+            if cur.fetchone() is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="この問い合わせには、すでに関連付けられています。",
+                )
+
+            # 4. 関連レコードだけを追加する
+            cur.execute(
+                """
+                INSERT INTO "問い合わせ問題調査" (
+                    "問題調査番号",
+                    "問い合わせ番号"
+                )
+                VALUES (%s, %s)
+                RETURNING "問い合わせ問題調査番号"
+                """,
+                (investigation_number, inquiry_number),
+            )
+
+            relation_number = cur.fetchone()[0]
+
+    return {
+        "message": "既存の問題調査を問い合わせに関連付けました。",
+        "問い合わせ番号": inquiry_number,
+        "問題調査番号": investigation_number,
+        "問い合わせ問題調査番号": relation_number,
+    }
+
+@app.post("/api/inquiries/bulk-investigations")
+def bulk_create_investigation_api(
+    request: BulkInvestigationCreate,
+):
+    current_user = get_current_user()
+    inquiry_numbers = request.問い合わせ番号一覧
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 1. 対象の問い合わせを取得してロックする
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                ORDER BY "問い合わせ番号"
+                FOR UPDATE
+                """,
+                (inquiry_numbers,),
+            )
+
+            inquiries = cur.fetchall()
+
+            # 2. 指定された問い合わせがすべて存在するか確認
+            if len(inquiries) != len(inquiry_numbers):
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせの中に存在しないものがあります。",
+                )
+
+            # 3. すべての問い合わせの状態を確認
+            for (
+                inquiry_number,
+                handler,
+                accepted_at,
+                completed_at,
+            ) in inquiries:
+                if accepted_at is None or completed_at is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"問い合わせ番号 {inquiry_number} は"
+                            "対応中ではありません。"
+                        ),
+                    )
+
+            # 4. すべての問い合わせの対応担当者を確認
+            for inquiry_number, handler, _, _ in inquiries:
+                if handler != current_user.職員番号:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            f"問い合わせ番号 {inquiry_number} は"
+                            "対応担当者本人ではありません。"
+                        ),
+                    )
+
+            # 5. 新しい問題調査を1件作成
+            cur.execute(
+                """
+                INSERT INTO "問題調査" (
+                    "問題調査の名称や仮説"
+                )
+                VALUES (%s)
+                RETURNING "問題調査番号"
+                """,
+                (request.問題調査の名称や仮説,),
+            )
+
+            investigation_number = cur.fetchone()[0]
+
+            # 6. すべての問い合わせに関連レコードを作成
+            relations = []
+
+            for inquiry_number in inquiry_numbers:
+                cur.execute(
+                    """
+                    INSERT INTO "問い合わせ問題調査" (
+                        "問題調査番号",
+                        "問い合わせ番号"
+                    )
+                    VALUES (%s, %s)
+                    RETURNING "問い合わせ問題調査番号"
+                    """,
+                    (investigation_number, inquiry_number),
+                )
+
+                relation_number = cur.fetchone()[0]
+
+                relations.append(
+                    {
+                        "問い合わせ番号": inquiry_number,
+                        "問い合わせ問題調査番号": relation_number,
+                    }
+                )
+
+    return {
+        "message": (
+            "問題調査を作成し、複数の問い合わせに関連付けました。"
+        ),
+        "問題調査番号": investigation_number,
+        "問題調査の名称や仮説": request.問題調査の名称や仮説,
+        "関連付け件数": len(relations),
+        "関連付け一覧": relations,
+    }
+
+@app.post("/api/inquiries/bulk-link-investigation")
+def bulk_link_existing_investigation_api(
+    request: BulkLinkInvestigation,
+):
+    current_user = get_current_user()
+    inquiry_numbers = request.問い合わせ番号一覧
+    investigation_number = request.問題調査番号
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 1. 既存の問題調査をロックして状態を確認
+            cur.execute(
+                """
+                SELECT "問題調査状態"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (investigation_number,),
+            )
+            investigation = cur.fetchone()
+
+            if investigation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問題調査が存在しません。",
+                )
+
+            if investigation[0] != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="調査中の問題調査だけ関連付けできます。",
+                )
+
+            # 2. 対象の問い合わせを番号順にロック
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                ORDER BY "問い合わせ番号"
+                FOR UPDATE
+                """,
+                (inquiry_numbers,),
+            )
+            inquiries = cur.fetchall()
+
+            # 3. すべての問い合わせが存在するか確認
+            if len(inquiries) != len(inquiry_numbers):
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせの中に存在しないものがあります。",
+                )
+
+            # 4. すべて対応中か確認
+            for (
+                inquiry_number,
+                handler,
+                accepted_at,
+                completed_at,
+            ) in inquiries:
+                if accepted_at is None or completed_at is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"問い合わせ番号 {inquiry_number} は"
+                            "対応中ではありません。"
+                        ),
+                    )
+
+            # 5. すべて自分が対応担当者か確認
+            for inquiry_number, handler, _, _ in inquiries:
+                if handler != current_user.職員番号:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            f"問い合わせ番号 {inquiry_number} は"
+                            "対応担当者本人ではありません。"
+                        ),
+                    )
+
+            # 6. すでに関連付けられている問い合わせがないか確認
+            cur.execute(
+                """
+                SELECT "問い合わせ番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ番号" = ANY(%s)
+                """,
+                (investigation_number, inquiry_numbers),
+            )
+            existing_numbers = {
+                row[0] for row in cur.fetchall()
+            }
+
+            if existing_numbers:
+                duplicated_number = min(existing_numbers)
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"問い合わせ番号 {duplicated_number} は"
+                        "すでにこの問題調査に関連付けられています。"
+                    ),
+                )
+
+            # 7. 全件の確認が済んでから関連レコードを追加
+            relations = []
+
+            for inquiry_number in inquiry_numbers:
+                cur.execute(
+                    """
+                    INSERT INTO "問い合わせ問題調査" (
+                        "問題調査番号",
+                        "問い合わせ番号"
+                    )
+                    VALUES (%s, %s)
+                    RETURNING "問い合わせ問題調査番号"
+                    """,
+                    (investigation_number, inquiry_number),
+                )
+
+                relation_number = cur.fetchone()[0]
+
+                relations.append(
+                    {
+                        "問い合わせ番号": inquiry_number,
+                        "問い合わせ問題調査番号": relation_number,
+                    }
+                )
+
+    return {
+        "message": "既存の問題調査を複数の問い合わせに関連付けました。",
+        "問題調査番号": investigation_number,
+        "関連付け件数": len(relations),
+        "関連付け一覧": relations,
+    }
 
 @app.put("/api/inquiries/{inquiry_number}")
 def update_inquiry_api(
