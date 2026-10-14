@@ -1996,3 +1996,267 @@ def test_bulk_complete_bad_request_when_number_list_is_empty(
 
     assert response.status_code == 422
 
+
+# =========================================================
+# 個別再開APIのテスト
+# =========================================================
+
+
+def test_reopen_inquiry_success(
+    completion_test_inquiries,
+    monkeypatch,
+):
+    """対応担当者本人が期限内に問い合わせを再開できる。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = completion_test_inquiries["completed"]
+
+    # 再開前の対応担当者・引き受け日時を取得
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            before = cur.fetchone()
+
+    assert before is not None
+    assert before[0] == "J0001"
+    assert before[1] is not None
+    assert before[2] is not None
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/reopen"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["問い合わせ番号"] == inquiry_number
+
+    # 再開後の状態を確認
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            after = cur.fetchone()
+
+    assert after is not None
+    assert after[0] == before[0]
+    assert after[1] == before[1]
+    assert after[2] is None
+
+
+def test_reopen_inquiry_forbidden_for_other_handler(
+    completion_test_inquiries,
+    monkeypatch,
+):
+    """別の対応担当者は問い合わせを再開できない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0002",
+            氏名="情シス次郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = completion_test_inquiries["completed"]
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/reopen"
+    )
+
+    assert response.status_code == 403
+
+    # 対応完了状態が維持されていること
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            row = cur.fetchone()
+
+    assert row is not None
+    assert row[0] is not None
+
+
+def test_reopen_inquiry_conflict_when_not_completed(
+    completion_test_inquiries,
+    monkeypatch,
+):
+    """対応完了していない問い合わせは再開できない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = completion_test_inquiries["in_progress"]
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/reopen"
+    )
+
+    assert response.status_code == 409
+
+    # 対応中の状態が維持されていること
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            row = cur.fetchone()
+
+    assert row is not None
+    assert row[0] is None
+
+
+def test_reopen_inquiry_conflict_when_pending(
+    completion_test_inquiries,
+    monkeypatch,
+):
+    """引き受け待ちの問い合わせは再開できない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = completion_test_inquiries["pending"]
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/reopen"
+    )
+
+    assert response.status_code == 409
+
+
+def test_reopen_inquiry_not_found(monkeypatch):
+    """存在しない問い合わせ番号の場合、404を返す。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    response = client.post(
+        "/api/inquiries/999999999/reopen"
+    )
+
+    assert response.status_code == 404
+
+
+def test_reopen_inquiry_conflict_when_expired(
+    completion_test_inquiries,
+    monkeypatch,
+):
+    """対応完了から7日以上経過した問い合わせは再開できない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = completion_test_inquiries["completed"]
+
+    # 対応完了日時を8日前に設定
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応完了日時" = NOW() - INTERVAL '8 days'
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/reopen"
+    )
+
+    assert response.status_code == 409
+
+    # 対応完了状態が維持されていること
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            row = cur.fetchone()
+
+    assert row is not None
+    assert row[0] is not None

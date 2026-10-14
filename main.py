@@ -752,6 +752,87 @@ def complete_inquiries_bulk_api(
     }
 
 
+@app.post("/api/inquiries/{inquiry_number}/reopen")
+def reopen_inquiry_api(
+    inquiry_number: int = Path(ge=1),
+):
+    # 1. 操作者を取得
+    current_user = get_current_user()
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 2. 問い合わせをロックして現在の状態を取得
+            cur.execute(
+                """
+                SELECT
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                FOR UPDATE
+                """,
+                (inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+            # 3. 問い合わせの存在確認
+            if inquiry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問い合わせが存在しません。",
+                )
+
+            handler, accepted_at, completed_at = inquiry
+
+            # 4. 対応完了済みか確認
+            if completed_at is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="対応完了していない問い合わせは再開できません。",
+                )
+
+            # 5. 対応担当者本人か確認
+            if handler != current_user.職員番号:
+                raise HTTPException(
+                    status_code=403,
+                    detail="対応担当者本人だけが問い合わせを再開できます。",
+                )
+
+            # 6. 再開可能期間を確認
+            # 対応完了日時から7日後ちょうども期限切れとする
+            cur.execute(
+                """
+                SELECT
+                    clock_timestamp()
+                    >= %s + INTERVAL '7 days'
+                """,
+                (completed_at,),
+            )
+            reopen_expired = cur.fetchone()[0]
+
+            if reopen_expired:
+                raise HTTPException(
+                    status_code=409,
+                    detail="再開可能期間（対応完了から7日以内）を過ぎています。",
+                )
+
+            # 7. 対応完了日時だけをNULLに戻す
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応完了日時" = NULL
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+
+    return {
+        "message": "問い合わせを再開しました。",
+        "問い合わせ番号": inquiry_number,
+    }
+
+
 
 @app.put("/api/inquiries/{inquiry_number}")
 def update_inquiry_api(
