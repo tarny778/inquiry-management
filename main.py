@@ -122,6 +122,13 @@ class InquiryBulkAccept(BaseModel):
     対応担当者: str = Field(min_length=1, max_length=20)
     問い合わせ番号一覧: list[int] = Field(min_length=1)
 
+
+class InquiryBulkComplete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    問い合わせ番号一覧: list[int] = Field(min_length=1)
+
+
 class InquiryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -610,6 +617,138 @@ def complete_inquiry_api(
     return {
         "message": "問い合わせを対応完了しました。",
         "問い合わせ番号": inquiry_number,
+    }
+
+
+@app.post("/api/inquiries/bulk-complete")
+def complete_inquiries_bulk_api(
+    request: InquiryBulkComplete,
+):
+    # 1. 操作者を取得
+    current_user = get_current_user()
+
+    inquiry_numbers = request.問い合わせ番号一覧
+
+    # 2. 問い合わせ番号の重複を確認
+    if len(inquiry_numbers) != len(set(inquiry_numbers)):
+        raise HTTPException(
+            status_code=400,
+            detail="問い合わせ番号が重複しています。",
+        )
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 3. 全件をロックして状態を確認
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "対応担当者",
+                    "引き受け日時",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                ORDER BY "問い合わせ番号"
+                FOR UPDATE
+                """,
+                (inquiry_numbers,),
+            )
+            inquiries = cur.fetchall()
+
+            # 4. 指定された番号がすべて存在するか確認
+            found_numbers = {row[0] for row in inquiries}
+            missing_numbers = [
+                number
+                for number in inquiry_numbers
+                if number not in found_numbers
+            ]
+
+            if missing_numbers:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "message": "指定された問い合わせが存在しません。",
+                        "問い合わせ番号一覧": missing_numbers,
+                    },
+                )
+
+            # 5. 全件が対応中か確認
+            invalid_state_numbers = [
+                row[0]
+                for row in inquiries
+                if row[2] is None or row[3] is not None
+            ]
+
+            if invalid_state_numbers:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "対応中ではない問い合わせが含まれています。",
+                        "問い合わせ番号一覧": invalid_state_numbers,
+                    },
+                )
+
+            # 6. 全件の対応担当者が操作者本人か確認
+            unauthorized_numbers = [
+                row[0]
+                for row in inquiries
+                if row[1] != current_user.職員番号
+            ]
+
+            if unauthorized_numbers:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "message": "対応担当者本人ではない問い合わせが含まれています。",
+                        "問い合わせ番号一覧": unauthorized_numbers,
+                    },
+                )
+
+            # 7. 未完了の調査が残っていないか全件確認
+            cur.execute(
+                """
+                SELECT DISTINCT "問い合わせ番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ番号" = ANY(%s)
+                  AND "問い合わせ問題調査状態" IN (1, 3)
+                ORDER BY "問い合わせ番号"
+                """,
+                (inquiry_numbers,),
+            )
+            unfinished_numbers = [
+                row[0] for row in cur.fetchall()
+            ]
+
+            if unfinished_numbers:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": (
+                            "調査中またはリアクション待ちの"
+                            "問い合わせ問題が残っています。"
+                        ),
+                        "問い合わせ番号一覧": unfinished_numbers,
+                    },
+                )
+
+            # 8. 全件の検証に成功した場合のみ更新
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応完了日時" = NOW()
+                WHERE "問い合わせ番号" = ANY(%s)
+                RETURNING "問い合わせ番号"
+                """,
+                (inquiry_numbers,),
+            )
+
+            updated_numbers = sorted(
+                row[0] for row in cur.fetchall()
+            )
+
+    return {
+        "message": "問い合わせを一括で対応完了しました。",
+        "問い合わせ番号一覧": updated_numbers,
     }
 
 

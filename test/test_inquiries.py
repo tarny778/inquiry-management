@@ -1497,3 +1497,502 @@ def test_complete_inquiry_rejected_when_any_investigation_is_unfinished(
     )
 
     assert response.status_code == 409
+
+
+@pytest.fixture
+def bulk_completion_test_inquiries():
+    """一括対応完了APIのテスト用問い合わせを用意する。"""
+    inquiry_numbers = []
+
+    # 問い合わせを4件登録
+    for _ in range(4):
+        response = client.post(
+            "/api/inquiries",
+            json={
+                "問い合わせ職員番号": "T0001",
+                "受付担当者": "J0001",
+                "受付経路": "電話",
+                "問い合わせ分類": "分類A",
+                "件名": "一括対応完了テスト",
+                "緊急度": 2,
+                "受付時の処理": 2,
+                "受信日時": None,
+            },
+        )
+        assert response.status_code == 200
+        inquiry_numbers.append(
+            response.json()["問い合わせ番号"]
+        )
+
+    pending_number = inquiry_numbers[0]
+    in_progress_numbers = inquiry_numbers[1:3]
+    completed_number = inquiry_numbers[3]
+
+    # 2件を対応中、1件を対応完了にする
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = NOW(),
+                    "対応完了日時" = NULL
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                ("J0001", in_progress_numbers),
+            )
+
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = NOW(),
+                    "対応完了日時" = NOW()
+                WHERE "問い合わせ番号" = %s
+                """,
+                ("J0001", completed_number),
+            )
+
+    yield {
+        "pending": pending_number,
+        "in_progress": in_progress_numbers,
+        "completed": completed_number,
+    }
+
+    # テストデータを削除
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            for inquiry_number in inquiry_numbers:
+                cur.execute(
+                    """
+                    DELETE FROM "問い合わせ"
+                    WHERE "問い合わせ番号" = %s
+                    """,
+                    (inquiry_number,),
+                )
+
+
+def test_bulk_complete_inquiries_success(
+    bulk_completion_test_inquiries,
+    monkeypatch,
+):
+    """対応中の問い合わせ2件を一括で対応完了できる。"""
+
+    # 操作者をJ0001に設定
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_numbers = (
+        bulk_completion_test_inquiries["in_progress"]
+    )
+
+    # 一括対応完了APIを呼び出す
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={
+            "問い合わせ番号一覧": inquiry_numbers,
+        },
+    )
+
+    # HTTPステータスとレスポンスを確認
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["問い合わせ番号一覧"] == sorted(
+        inquiry_numbers
+    )
+
+    # DB上でも2件とも対応完了になったことを確認
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                (inquiry_numbers,),
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    assert all(
+        completed_at is not None
+        for _, completed_at in rows
+    )
+
+# =========================================================
+# 一括対応完了APIの異常系テスト
+# =========================================================
+
+
+def test_bulk_complete_forbidden_for_other_handler(
+    bulk_completion_test_inquiries,
+    monkeypatch,
+):
+    """別の対応担当者の問い合わせが含まれる場合、全件更新しない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_numbers = (
+        bulk_completion_test_inquiries["in_progress"]
+    )
+    unauthorized_number = inquiry_numbers[1]
+
+    # 2件目だけ別の職員を対応担当者にする
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応担当者" = %s
+                WHERE "問い合わせ番号" = %s
+                """,
+                ("J0002", unauthorized_number),
+            )
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={"問い合わせ番号一覧": inquiry_numbers},
+    )
+
+    assert response.status_code == 403
+    assert unauthorized_number in response.json()["detail"][
+        "問い合わせ番号一覧"
+    ]
+
+    # 正常な問い合わせも含め、全件が未完了のままであること
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                (inquiry_numbers,),
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    assert all(row[0] is None for row in rows)
+
+
+def test_bulk_complete_conflict_when_already_completed(
+    bulk_completion_test_inquiries,
+    monkeypatch,
+):
+    """対応完了済みの問い合わせが混ざる場合、全件更新しない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_numbers = (
+        bulk_completion_test_inquiries["in_progress"]
+    )
+    completed_number = (
+        bulk_completion_test_inquiries["completed"]
+    )
+    requested_numbers = inquiry_numbers + [completed_number]
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={"問い合わせ番号一覧": requested_numbers},
+    )
+
+    assert response.status_code == 409
+    assert completed_number in response.json()["detail"][
+        "問い合わせ番号一覧"
+    ]
+
+    # 対応中だった2件が更新されていないこと
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                (inquiry_numbers,),
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    assert all(row[0] is None for row in rows)
+
+
+def test_bulk_complete_conflict_when_not_accepted(
+    bulk_completion_test_inquiries,
+    monkeypatch,
+):
+    """引き受け待ちの問い合わせが混ざる場合、全件更新しない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_numbers = (
+        bulk_completion_test_inquiries["in_progress"]
+    )
+    pending_number = bulk_completion_test_inquiries["pending"]
+    requested_numbers = inquiry_numbers + [pending_number]
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={"問い合わせ番号一覧": requested_numbers},
+    )
+
+    assert response.status_code == 409
+    assert pending_number in response.json()["detail"][
+        "問い合わせ番号一覧"
+    ]
+
+    # 対応中だった2件が更新されていないこと
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                (inquiry_numbers,),
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    assert all(row[0] is None for row in rows)
+
+
+@pytest.mark.parametrize(
+    "investigation_state",
+    [1, 3],
+)
+def test_bulk_complete_conflict_when_unfinished_investigation_exists(
+    bulk_completion_test_inquiries,
+    inquiry_problem_investigation_factory,
+    monkeypatch,
+    investigation_state,
+):
+    """調査中またはリアクション待ちの調査がある場合、全件更新しない。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_numbers = (
+        bulk_completion_test_inquiries["in_progress"]
+    )
+
+    # 2件目に未完了の調査を関連付ける
+    inquiry_problem_investigation_factory(
+        inquiry_numbers[1],
+        investigation_state,
+    )
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={"問い合わせ番号一覧": inquiry_numbers},
+    )
+
+    assert response.status_code == 409
+    assert inquiry_numbers[1] in response.json()["detail"][
+        "問い合わせ番号一覧"
+    ]
+
+    # 1件目も含め、両方とも未完了のままであること
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                (inquiry_numbers,),
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    assert all(row[0] is None for row in rows)
+
+
+def test_bulk_complete_bad_request_when_duplicate_numbers(
+    bulk_completion_test_inquiries,
+    monkeypatch,
+):
+    """問い合わせ番号が重複している場合、400を返す。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = (
+        bulk_completion_test_inquiries["in_progress"][0]
+    )
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={
+            "問い合わせ番号一覧": [
+                inquiry_number,
+                inquiry_number,
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+
+    # 対象が更新されていないこと
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            row = cur.fetchone()
+
+    assert row is not None
+    assert row[0] is None
+
+
+def test_bulk_complete_not_found_when_number_does_not_exist(
+    bulk_completion_test_inquiries,
+    monkeypatch,
+):
+    """存在しない問い合わせ番号が含まれる場合、404を返す。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_numbers = (
+        bulk_completion_test_inquiries["in_progress"]
+    )
+    nonexistent_number = 999999999
+    requested_numbers = inquiry_numbers + [nonexistent_number]
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={"問い合わせ番号一覧": requested_numbers},
+    )
+
+    assert response.status_code == 404
+    assert nonexistent_number in response.json()["detail"][
+        "問い合わせ番号一覧"
+    ]
+
+    # 存在する2件が更新されていないこと
+    with psycopg.connect(
+        dbname="inquiry_management_test"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "対応完了日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = ANY(%s)
+                """,
+                (inquiry_numbers,),
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    assert all(row[0] is None for row in rows)
+
+
+def test_bulk_complete_bad_request_when_number_list_is_empty(
+    monkeypatch,
+):
+    """問い合わせ番号一覧が空の場合、422を返す。"""
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    response = client.post(
+        "/api/inquiries/bulk-complete",
+        json={"問い合わせ番号一覧": []},
+    )
+
+    assert response.status_code == 422
+
