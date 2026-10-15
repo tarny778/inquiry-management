@@ -47,12 +47,11 @@ ALLOWED_INQUIRY_CATEGORIES = {
 app = FastAPI()
 
 
-
+#型チェッククラス
 class InquiryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     問い合わせ職員番号: str = Field(min_length=1, max_length=20)
-    受付担当者: str = Field(min_length=1, max_length=20)
 
     受付経路: str
     問い合わせ分類: str = Field(min_length=1, max_length=30)
@@ -111,15 +110,8 @@ class InquiryCreate(BaseModel):
         return self
 
 
-class InquiryAccept(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    対応担当者: str = Field(min_length=1, max_length=20)
-
 class InquiryBulkAccept(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    対応担当者: str = Field(min_length=1, max_length=20)
     問い合わせ番号一覧: list[int] = Field(min_length=1)
 
 
@@ -210,8 +202,6 @@ class BulkLinkInvestigation(BaseModel):
 class InquiryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    編集者職員番号: str = Field(min_length=1, max_length=20)
-
     問い合わせ当時の所属: str = Field(min_length=1, max_length=30)
     受付経路: str
     問い合わせ分類: str = Field(min_length=1, max_length=30)
@@ -256,6 +246,7 @@ class InquiryUpdate(BaseModel):
 
         return self
 
+#新規作成api
 @app.post("/api/inquiries")
 def create_inquiry_api(request: InquiryCreate):
 
@@ -292,8 +283,9 @@ def create_inquiry_api(request: InquiryCreate):
         )
 
     # 3. 受付担当者の取得
-    # 開発中はPOSTリクエストから取得する
-    受付担当者職員番号 = request.受付担当者
+    # ログイン中の職員を受付担当者とする
+    current_user = get_current_user()
+    受付担当者職員番号 = current_user.職員番号
 
     
     # 4. 受付担当者の存在確認と所属確認
@@ -397,13 +389,15 @@ def create_inquiry_api(request: InquiryCreate):
         "問い合わせ番号": inquiry_number
     }
 
-
+#個別引き受け
 @app.post("/api/inquiries/{inquiry_number}/accept")
 def accept_inquiry_api(
-    request: InquiryAccept,
     inquiry_number: int = Path(ge=1),
 ):
-    # 1. 対応担当者の存在確認と所属確認
+    # ログイン中の職員を受付担当者とする
+    current_user = get_current_user()
+    操作者職員番号 = current_user.職員番号
+    # 1. 操作者の存在確認と所属確認
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -412,20 +406,20 @@ def accept_inquiry_api(
                 FROM "職員"
                 WHERE "職員番号" = %s
                 ''',
-                (request.対応担当者,),
+                (操作者職員番号,),
             )
             staff = cur.fetchone()
 
     if staff is None:
         raise HTTPException(
             status_code=400,
-            detail="指定された対応担当者は登録されていません",
+            detail="指定された操作者は登録されていません",
         )
 
     if staff[1] != "情報システム課":
         raise HTTPException(
             status_code=400,
-            detail="対応担当者が情シス職員として登録されていません",
+            detail="操作者が情シス職員として登録されていません",
         )
 
     # 2. 引き受け日時を決定
@@ -447,7 +441,7 @@ def accept_inquiry_api(
                 RETURNING "問い合わせ番号", "引き受け日時"
                 ''',
                 (
-                    request.対応担当者,
+                    操作者職員番号,
                     accepted_at,
                     inquiry_number,
                 ),
@@ -480,14 +474,18 @@ def accept_inquiry_api(
     return {
         "message": "問い合わせを引き受けました",
         "問い合わせ番号": inquiry[0],
-        "対応担当者": request.対応担当者,
+        "対応担当者": 操作者職員番号,
         "引き受け日時": inquiry[1],
     }
 
-
+#一括引き受け
 @app.post("/api/inquiries/bulk-accept")
 def accept_inquiries_bulk_api(request: InquiryBulkAccept):
-    # 1. 対応担当者の存在確認と所属確認
+    # ログイン中の職員を対応担当者とする
+    current_user = get_current_user()
+    操作者職員番号 = current_user.職員番号
+
+    # 1. 操作者の存在確認と所属確認
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -496,20 +494,20 @@ def accept_inquiries_bulk_api(request: InquiryBulkAccept):
                 FROM "職員"
                 WHERE "職員番号" = %s
                 ''',
-                (request.対応担当者,),
+                (操作者職員番号,),
             )
             staff = cur.fetchone()
 
             if staff is None:
                 raise HTTPException(
                     status_code=400,
-                    detail="指定された対応担当者は登録されていません",
+                    detail="指定された操作者は登録されていません",
                 )
 
             if staff[1] != "情報システム課":
                 raise HTTPException(
                     status_code=400,
-                    detail="対応担当者が情シス職員として登録されていません",
+                    detail="操作者が情シス職員として登録されていません",
                 )
 
             # 2. 問い合わせ番号の重複を確認
@@ -588,7 +586,7 @@ def accept_inquiries_bulk_api(request: InquiryBulkAccept):
                 RETURNING "問い合わせ番号"
                 ''',
                 (
-                    request.対応担当者,
+                    操作者職員番号,
                     accepted_at,
                     inquiry_numbers,
                 ),
@@ -600,12 +598,12 @@ def accept_inquiries_bulk_api(request: InquiryBulkAccept):
 
     return {
         "message": "問い合わせを一括で引き受けました",
-        "対応担当者": request.対応担当者,
+        "対応担当者": 操作者職員番号,
         "問い合わせ番号一覧": updated_numbers,
         "引き受け日時": accepted_at,
     }
 
-
+#個別完了
 @app.post("/api/inquiries/{inquiry_number}/complete")
 def complete_inquiry_api(
     inquiry_number: int = Path(ge=1),
@@ -697,7 +695,7 @@ def complete_inquiry_api(
         "問い合わせ番号": inquiry_number,
     }
 
-
+#一括完了
 @app.post("/api/inquiries/bulk-complete")
 def complete_inquiries_bulk_api(
     request: InquiryBulkComplete,
@@ -829,7 +827,7 @@ def complete_inquiries_bulk_api(
         "問い合わせ番号一覧": updated_numbers,
     }
 
-
+#個別再開
 @app.post("/api/inquiries/{inquiry_number}/reopen")
 def reopen_inquiry_api(
     inquiry_number: int = Path(ge=1),
@@ -910,7 +908,7 @@ def reopen_inquiry_api(
         "問い合わせ番号": inquiry_number,
     }
 
-
+#新規調査へ個別関連付け
 @app.post("/api/inquiries/{inquiry_number}/investigations")
 def create_investigation_api(
     request: InvestigationCreate,
@@ -1001,6 +999,7 @@ def create_investigation_api(
         "問題調査の名称や仮説": request.問題調査の名称や仮説,
     }
 
+#既存調査へ個別関連付け
 @app.post(
     "/api/inquiries/{inquiry_number}/investigations/{investigation_number}"
 )
@@ -1112,6 +1111,7 @@ def link_existing_investigation_api(
         "問い合わせ問題調査番号": relation_number,
     }
 
+#新規調査へ一括関連付け
 @app.post("/api/inquiries/bulk-investigations")
 def bulk_create_investigation_api(
     request: BulkInvestigationCreate,
@@ -1222,6 +1222,7 @@ def bulk_create_investigation_api(
         "関連付け一覧": relations,
     }
 
+#既存調査へ一括関連付け
 @app.post("/api/inquiries/bulk-link-investigation")
 def bulk_link_existing_investigation_api(
     request: BulkLinkInvestigation,
@@ -1363,11 +1364,13 @@ def bulk_link_existing_investigation_api(
         "関連付け一覧": relations,
     }
 
+#上書き保存
 @app.put("/api/inquiries/{inquiry_number}")
 def update_inquiry_api(
     request: InquiryUpdate,
     inquiry_number: int = Path(ge=1),
 ):
+    current_user = get_current_user()
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
             # 1. 現在の問い合わせ状態を取得し、更新中の競合を防ぐ
@@ -1411,7 +1414,7 @@ def update_inquiry_api(
 
             if accepted_at is None:
                 # 未引き受け：受付担当者本人だけ編集可能
-                if request.編集者職員番号 != receptionist:
+                if current_user.職員番号 != receptionist:
                     raise HTTPException(
                         status_code=403,
                         detail="未引き受けの問い合わせは受付担当者本人だけが編集できます。",
@@ -1432,7 +1435,7 @@ def update_inquiry_api(
 
             else:
                 # 対応中：現在の対応担当者本人だけ編集可能
-                if request.編集者職員番号 != handler:
+                if current_user.職員番号 != handler:
                     raise HTTPException(
                         status_code=403,
                         detail="対応中の問い合わせは対応担当者本人だけが編集できます。",
@@ -1485,7 +1488,7 @@ def update_inquiry_api(
 
 
 
-
+#検索により一覧取得
 @app.get("/api/inquiries")
 def search_inquiries_api(
     問い合わせ番号: int | None = Query(default=None, ge=1),
@@ -1619,7 +1622,7 @@ def search_inquiries_api(
         "total": total,
     }
 
-
+#個別の詳細取得
 @app.get("/api/inquiries/{inquiry_number}")
 def get_inquiry_api(
     inquiry_number: int = Path(ge=1),
