@@ -1,23 +1,10 @@
+
 import os
-
-DATABASE_NAME = os.getenv(
-    "DATABASE_NAME",
-    "inquiry_management",
-)
-
+from dataclasses import dataclass
 from datetime import datetime
 
 import psycopg
 from fastapi import FastAPI, HTTPException, Path, Query
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    field_validator,
-    model_validator,
-)
-
-from dataclasses import dataclass
 
 from schemas.inquiries import (
     ALLOWED_INQUIRY_CATEGORIES,
@@ -29,6 +16,12 @@ from schemas.inquiries import (
     BulkLinkInvestigation,
     InquiryUpdate,
 )
+
+DATABASE_NAME = os.getenv(
+    "DATABASE_NAME",
+    "inquiry_management",
+)
+
 
 @dataclass
 class CurrentUser:
