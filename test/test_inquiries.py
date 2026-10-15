@@ -317,18 +317,18 @@ def inquiry_problem_investigation_factory():
 
     yield create
 
-    # 外部キー制約があるため、関連レコードから先に削除
+        # 外部キー制約があるため、関連レコードから先に削除
     with psycopg.connect(
         dbname="inquiry_management_test"
     ) as conn:
         with conn.cursor() as cur:
-            for relation_id in created_relation_ids:
+            for investigation_id in created_investigation_ids:
                 cur.execute(
                     """
                     DELETE FROM "問い合わせ問題調査"
-                    WHERE "問い合わせ問題調査番号" = %s
+                    WHERE "問題調査番号" = %s
                     """,
-                    (relation_id,),
+                    (investigation_id,),
                 )
 
             for investigation_id in created_investigation_ids:
@@ -476,7 +476,6 @@ def _set_test_user(monkeypatch, staff_number="J0001"):
         ),
     )
 
-# ???
 def _make_second_in_progress_inquiry(completion_test_inquiries):
     """引き受け待ちのテスト問い合わせを、対応中に変更する。"""
     inquiry_number = completion_test_inquiries["pending"]
@@ -2113,7 +2112,8 @@ def test_create_investigation_invalid_name(
 #既存調査へ個別関連付け
 def test_link_existing_investigation_success(
     completion_test_inquiries,
-    unlinked_investigation_factory,
+    pending_inquiry_number,
+    inquiry_problem_investigation_factory,
     monkeypatch,
 ):
     """対応中の問い合わせに調査中の問題調査を関連付けられる。"""
@@ -2127,8 +2127,45 @@ def test_link_existing_investigation_success(
         ),
     )
 
-    inquiry_number = completion_test_inquiries["in_progress"]
-    investigation_number = unlinked_investigation_factory(state=1)
+    # 既存の関連付けを持つ問い合わせ
+    existing_inquiry_number = completion_test_inquiries["in_progress"]
+
+    # 追加対象の問い合わせ
+    inquiry_number = pending_inquiry_number
+
+    # 追加対象の問い合わせをJ0001の対応中にする
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = NOW(),
+                    "対応完了日時" = NULL
+                WHERE "問い合わせ番号" = %s
+                """,
+                ("J0001", inquiry_number),
+            )
+
+    # 問題調査と最初の関連付けを作成
+    relation_id = inquiry_problem_investigation_factory(
+        existing_inquiry_number,
+        state=1,
+    )
+
+    # 関連レコード番号から問題調査番号を取得
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            investigation_number = cur.fetchone()[0]
 
     response = client.post(
         f"/api/inquiries/{inquiry_number}/investigations/"
@@ -2318,10 +2355,9 @@ def test_link_investigation_non_active_state_returns_409(
 
     assert response.status_code == 409
 
-
 def test_link_investigation_duplicate_returns_409(
     completion_test_inquiries,
-    unlinked_investigation_factory,
+    inquiry_problem_investigation_factory,
     monkeypatch,
 ):
     """同じ問い合わせと問題調査の組み合わせを二重登録できない。"""
@@ -2336,18 +2372,34 @@ def test_link_investigation_duplicate_returns_409(
     )
 
     inquiry_number = completion_test_inquiries["in_progress"]
-    investigation_number = unlinked_investigation_factory(state=1)
+
+    # 問題調査と最初の関連付けを作成
+    relation_id = inquiry_problem_investigation_factory(
+        inquiry_number,
+        state=1,
+    )
+
+    # 関連レコード番号から問題調査番号を取得
+    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            investigation_number = cur.fetchone()[0]
 
     url = (
         f"/api/inquiries/{inquiry_number}/investigations/"
         f"{investigation_number}"
     )
 
-    first_response = client.post(url)
-    assert first_response.status_code == 200
-
-    second_response = client.post(url)
-    assert second_response.status_code == 409
+    # すでに関連付け済みなので、重複登録は拒否される
+    response = client.post(url)
+    assert response.status_code == 409
 
     with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
         with conn.cursor() as cur:
@@ -2364,6 +2416,108 @@ def test_link_investigation_duplicate_returns_409(
 
     assert count == 1
 
+def test_link_investigation_existing_inquiry_other_handler_returns_403(
+    completion_test_inquiries,
+    pending_inquiry_number,
+    inquiry_problem_investigation_factory,
+    monkeypatch,
+):
+    """既存の関連付け先の対応担当者が異なる場合は追加できない。"""
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    # 既存の関連付け先はJ0002の対応中にする
+    existing_inquiry_number = completion_test_inquiries["in_progress"]
+
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応担当者" = %s
+                WHERE "問い合わせ番号" = %s
+                """,
+                ("J0002", existing_inquiry_number),
+            )
+
+    # 既存の関連付けを持つ問題調査を作成
+    relation_id = inquiry_problem_investigation_factory(
+        existing_inquiry_number,
+        state=1,
+    )
+
+    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            investigation_number = cur.fetchone()[0]
+
+    # 追加対象はJ0001の対応中にする
+    inquiry_number = pending_inquiry_number
+
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET
+                    "対応担当者" = %s,
+                    "引き受け日時" = NOW(),
+                    "対応完了日時" = NULL
+                WHERE "問い合わせ番号" = %s
+                """,
+                ("J0001", inquiry_number),
+            )
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/investigations/"
+        f"{investigation_number}"
+    )
+
+    assert response.status_code == 403
+
+def test_link_investigation_without_existing_relation_returns_409(
+    completion_test_inquiries,
+    unlinked_investigation_factory,
+    monkeypatch,
+):
+    """既存の関連付けがない問題調査には追加できない。"""
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号="J0001",
+            氏名="情シス太郎",
+            所属="情報システム課",
+        ),
+    )
+
+    inquiry_number = completion_test_inquiries["in_progress"]
+
+    # 問題調査は作成するが、関連付けは作成しない
+    investigation_number = unlinked_investigation_factory(state=1)
+
+    response = client.post(
+        f"/api/inquiries/{inquiry_number}/investigations/"
+        f"{investigation_number}"
+    )
+
+    assert response.status_code == 409
+
+#新規調査へ一括関連付け
 def test_bulk_create_investigation_success(
     completion_test_inquiries,
     bulk_created_investigation_cleanup,
@@ -2426,7 +2580,6 @@ def test_bulk_create_investigation_success(
     assert investigation == ("一括登録の正常系テスト", 1)
     assert relation_count == 2
 
-#新規調査へ一括関連付け
 def test_bulk_create_investigation_single_inquiry_success(
     completion_test_inquiries,
     bulk_created_investigation_cleanup,
@@ -2649,64 +2802,179 @@ def _get_bulk_link_relation_count(
 def test_bulk_link_existing_investigation_success(
     monkeypatch,
     completion_test_inquiries,
-    unlinked_investigation_factory,
+    inquiry_problem_investigation_factory,
 ):
     """複数の対応中問い合わせに既存の問題調査を関連付けできる。"""
     _set_test_user(monkeypatch, "J0001")
 
-    first_number = completion_test_inquiries["in_progress"]
-    second_number = _make_second_in_progress_inquiry(
-        completion_test_inquiries
-    )
-    investigation_number = unlinked_investigation_factory()
+    existing_number = completion_test_inquiries["in_progress"]
 
-    response = client.post(
-        "/api/inquiries/bulk-link-investigation",
-        json={
-            "問い合わせ番号一覧": [first_number, second_number],
-            "問題調査番号": investigation_number,
-        },
-    )
+    # 一括APIの対象となる問い合わせを2件作成
+    first_number = create_pending_inquiry_for_bulk_test()
+    second_number = create_pending_inquiry_for_bulk_test()
+    inquiry_numbers = [first_number, second_number]
 
-    assert response.status_code == 200
-    assert response.json()["問題調査番号"] == investigation_number
-    assert response.json()["関連付け件数"] == 2
-    assert {
-        item["問い合わせ番号"]
-        for item in response.json()["関連付け一覧"]
-    } == {first_number, second_number}
+    try:
+        # 既存の関連付け先となる問題調査を作成
+        relation_id = inquiry_problem_investigation_factory(
+            existing_number,
+            state=1,
+        )
 
-    assert _get_bulk_link_relation_count(
-        investigation_number,
-        [first_number, second_number],
-    ) == 2
+        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT "問題調査番号"
+                    FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ問題調査番号" = %s
+                    """,
+                    (relation_id,),
+                )
+                investigation_number = cur.fetchone()[0]
 
+        # 追加対象をJ0001の対応中に変更
+        with psycopg.connect(
+            dbname="inquiry_management_test"
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE "問い合わせ"
+                    SET
+                        "対応担当者" = %s,
+                        "引き受け日時" = NOW(),
+                        "対応完了日時" = NULL
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    """,
+                    ("J0001", inquiry_numbers),
+                )
+
+        response = client.post(
+            "/api/inquiries/bulk-link-investigation",
+            json={
+                "問い合わせ番号一覧": inquiry_numbers,
+                "問題調査番号": investigation_number,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["問題調査番号"] == investigation_number
+        assert response.json()["関連付け件数"] == 2
+        assert {
+            item["問い合わせ番号"]
+            for item in response.json()["関連付け一覧"]
+        } == set(inquiry_numbers)
+
+        assert _get_bulk_link_relation_count(
+            investigation_number,
+            inquiry_numbers,
+        ) == 2
+
+    finally:
+        # 問い合わせ問題調査の関連レコードを先に削除
+        with psycopg.connect(
+            dbname="inquiry_management_test"
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    """,
+                    (inquiry_numbers,),
+                )
+
+        # その後、問い合わせ本体を削除
+        delete_inquiries_for_bulk_test(inquiry_numbers)
 
 def test_bulk_link_existing_investigation_single_inquiry_success(
     monkeypatch,
     completion_test_inquiries,
-    unlinked_investigation_factory,
+    inquiry_problem_investigation_factory,
 ):
     """問い合わせが1件だけでも関連付けできる。"""
     _set_test_user(monkeypatch, "J0001")
 
-    inquiry_number = completion_test_inquiries["in_progress"]
-    investigation_number = unlinked_investigation_factory()
+    existing_number = completion_test_inquiries["in_progress"]
 
-    response = client.post(
-        "/api/inquiries/bulk-link-investigation",
-        json={
-            "問い合わせ番号一覧": [inquiry_number],
-            "問題調査番号": investigation_number,
-        },
-    )
+    # 一括APIの対象となる問い合わせを作成
+    inquiry_number = create_pending_inquiry_for_bulk_test()
+    inquiry_numbers = [inquiry_number]
 
-    assert response.status_code == 200
-    assert response.json()["関連付け件数"] == 1
-    assert _get_bulk_link_relation_count(
-        investigation_number,
-        [inquiry_number],
-    ) == 1
+    try:
+        # 既存の関連付け先となる問題調査を作成
+        relation_id = inquiry_problem_investigation_factory(
+            existing_number,
+            state=1,
+        )
+
+        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT "問題調査番号"
+                    FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ問題調査番号" = %s
+                    """,
+                    (relation_id,),
+                )
+                investigation_number = cur.fetchone()[0]
+
+        # 追加対象をJ0001の対応中に変更
+        with psycopg.connect(
+            dbname="inquiry_management_test"
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE "問い合わせ"
+                    SET
+                        "対応担当者" = %s,
+                        "引き受け日時" = NOW(),
+                        "対応完了日時" = NULL
+                    WHERE "問い合わせ番号" = %s
+                    """,
+                    ("J0001", inquiry_number),
+                )
+
+        response = client.post(
+            "/api/inquiries/bulk-link-investigation",
+            json={
+                "問い合わせ番号一覧": inquiry_numbers,
+                "問題調査番号": investigation_number,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["問題調査番号"] == investigation_number
+        assert response.json()["関連付け件数"] == 1
+        assert {
+            item["問い合わせ番号"]
+            for item in response.json()["関連付け一覧"]
+        } == set(inquiry_numbers)
+
+        assert _get_bulk_link_relation_count(
+            investigation_number,
+            inquiry_numbers,
+        ) == 1
+
+    finally:
+        # 関連レコードを先に削除
+        with psycopg.connect(
+            dbname="inquiry_management_test"
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    """,
+                    (inquiry_numbers,),
+                )
+
+        # その後、問い合わせ本体を削除
+        delete_inquiries_for_bulk_test(inquiry_numbers)
 
 
 def test_bulk_link_existing_investigation_not_found(
@@ -2831,24 +3099,123 @@ def test_bulk_link_existing_investigation_wrong_handler(
         [inquiry_number],
     ) == 0
 
+def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns_403(
+    monkeypatch,
+    completion_test_inquiries,
+    inquiry_problem_investigation_factory,
+):
+    """既存調査の関連付け済み問い合わせが別担当者なら追加できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    existing_number = completion_test_inquiries["in_progress"]
+    inquiry_number = create_pending_inquiry_for_bulk_test()
+    inquiry_numbers = [inquiry_number]
+
+    try:
+        # 既存調査と、最初の関連付けを作成する
+        relation_id = inquiry_problem_investigation_factory(
+            existing_number,
+            state=1,
+        )
+
+        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT "問題調査番号"
+                    FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ問題調査番号" = %s
+                    """,
+                    (relation_id,),
+                )
+                investigation_number = cur.fetchone()[0]
+
+        # 既存の関連付け済み問い合わせを別担当者J0002に変更
+        with psycopg.connect(
+            dbname="inquiry_management_test"
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE "問い合わせ"
+                    SET "対応担当者" = %s
+                    WHERE "問い合わせ番号" = %s
+                    """,
+                    ("J0002", existing_number),
+                )
+
+                # 追加対象は実行ユーザーJ0001の対応中にする
+                cur.execute(
+                    """
+                    UPDATE "問い合わせ"
+                    SET
+                        "対応担当者" = %s,
+                        "引き受け日時" = NOW(),
+                        "対応完了日時" = NULL
+                    WHERE "問い合わせ番号" = %s
+                    """,
+                    ("J0001", inquiry_number),
+                )
+
+        response = client.post(
+            "/api/inquiries/bulk-link-investigation",
+            json={
+                "問い合わせ番号一覧": inquiry_numbers,
+                "問題調査番号": investigation_number,
+            },
+        )
+
+        assert response.status_code == 403
+
+        # 追加対象の関連付けが作成されていないことを確認
+        assert _get_bulk_link_relation_count(
+            investigation_number,
+            inquiry_numbers,
+        ) == 0
+
+    finally:
+        # 関連レコードを先に削除してから問い合わせを削除する
+        with psycopg.connect(
+            dbname="inquiry_management_test"
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ番号" = ANY(%s)
+                    """,
+                    (inquiry_numbers,),
+                )
+
+        delete_inquiries_for_bulk_test(inquiry_numbers)
 
 def test_bulk_link_existing_investigation_already_linked(
     monkeypatch,
     completion_test_inquiries,
-    unlinked_investigation_factory,
+    inquiry_problem_investigation_factory,
 ):
     """既に関連付けられている問い合わせを再度関連付けできない。"""
     _set_test_user(monkeypatch, "J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
-    investigation_number = unlinked_investigation_factory()
 
-    # 先に単件APIで関連付ける
-    first_response = client.post(
-        f"/api/inquiries/{inquiry_number}/investigations/"
-        f"{investigation_number}"
+    # テスト用ファクトリで、最初の関連付けを作成する
+    relation_id = inquiry_problem_investigation_factory(
+        inquiry_number,
+        state=1,
     )
-    assert first_response.status_code == 200
+
+    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            investigation_number = cur.fetchone()[0]
 
     # 同じ組み合わせを一括APIで再度指定する
     response = client.post(

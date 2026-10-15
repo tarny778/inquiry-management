@@ -773,7 +773,7 @@ def create_investigation_api(
         "問題調査の名称や仮説": request.問題調査の名称や仮説,
     }
 
-#既存調査へ個別関連付け
+# 既存調査へ個別関連付け
 @router.post(
     "/api/inquiries/{inquiry_number}/investigations/{investigation_number}"
 )
@@ -785,7 +785,31 @@ def link_existing_investigation_api(
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
-            # 1. 問い合わせを取得し、更新競合を防ぐためロックする
+            # 1. 問題調査を先にロックし、状態を確認する
+            cur.execute(
+                """
+                SELECT "問題調査状態"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (investigation_number,),
+            )
+            investigation = cur.fetchone()
+
+            if investigation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問題調査が存在しません。",
+                )
+
+            if investigation[0] != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="調査中の問題調査だけ関連付けできます。",
+                )
+
+            # 2. 対象の問い合わせを取得し、ロックする
             cur.execute(
                 """
                 SELECT
@@ -820,33 +844,40 @@ def link_existing_investigation_api(
                     detail="対応担当者本人だけが関連付けできます。",
                 )
 
-            # 2. 既存の問題調査を取得し、状態を確認する
+            # 3. 既存の関連問い合わせを取得する
             cur.execute(
                 """
-                SELECT "問題調査状態"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
-                FOR UPDATE
+                SELECT i."問い合わせ番号", i."対応担当者"
+                FROM "問い合わせ問題調査" AS r
+                JOIN "問い合わせ" AS i
+                  ON i."問い合わせ番号" = r."問い合わせ番号"
+                WHERE r."問題調査番号" = %s
+                ORDER BY i."問い合わせ番号"
+                FOR UPDATE OF i
                 """,
                 (investigation_number,),
             )
-            investigation = cur.fetchone()
+            related_inquiries = cur.fetchall()
 
-            if investigation is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail="指定された問題調査が存在しません。",
-                )
-
-            investigation_state = investigation[0]
-
-            if investigation_state != 1:
+            if not related_inquiries:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけ関連付けできます。",
+                    detail="既存の関連付けがない問題調査には追加できません。",
                 )
 
-            # 3. 同じ組み合わせの二重登録を防ぐ
+            # 4. 既存の関連問い合わせの対応担当者が
+            #    全員、操作者と一致することを確認する
+            for related_number, related_handler in related_inquiries:
+                if related_handler != current_user.職員番号:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            "既存の関連問い合わせの対応担当者と"
+                            "一致しないため、関連付けできません。"
+                        ),
+                    )
+
+            # 5. 同じ組み合わせの二重登録を防ぐ
             cur.execute(
                 """
                 SELECT 1
@@ -863,7 +894,7 @@ def link_existing_investigation_api(
                     detail="この問い合わせには、すでに関連付けられています。",
                 )
 
-            # 4. 関連レコードだけを追加する
+            # 6. 関連レコードだけを追加する
             cur.execute(
                 """
                 INSERT INTO "問い合わせ問題調査" (
@@ -884,6 +915,7 @@ def link_existing_investigation_api(
         "問題調査番号": investigation_number,
         "問い合わせ問題調査番号": relation_number,
     }
+
 
 #新規調査へ一括関連付け
 @router.post("/api/inquiries/bulk-investigations")
@@ -1081,8 +1113,42 @@ def bulk_link_existing_investigation_api(
                             "対応担当者本人ではありません。"
                         ),
                     )
+            # 6. 既存の関連付けがあるか確認し、
+            #    既存の問い合わせも自分が担当しているか確認
+            cur.execute(
+                """
+                SELECT
+                    i."問い合わせ番号",
+                    i."対応担当者"
+                FROM "問い合わせ問題調査" AS r
+                JOIN "問い合わせ" AS i
+                  ON i."問い合わせ番号" = r."問い合わせ番号"
+                WHERE r."問題調査番号" = %s
+                ORDER BY i."問い合わせ番号"
+                FOR UPDATE OF i
+                """,
+                (investigation_number,),
+            )
+            existing_inquiries = cur.fetchall()
 
-            # 6. すでに関連付けられている問い合わせがないか確認
+            if not existing_inquiries:
+                raise HTTPException(
+                    status_code=409,
+                    detail="既存の関連付けがない問題調査には追加できません。",
+                )
+
+            for existing_number, existing_handler in existing_inquiries:
+                if existing_handler != current_user.職員番号:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            f"既存の問い合わせ番号 {existing_number} は"
+                            "別の対応担当者が担当しているため、"
+                            "関連付けできません。"
+                        ),
+                    )
+
+            # 7. すでに関連付けられている問い合わせがないか確認
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
@@ -1106,7 +1172,7 @@ def bulk_link_existing_investigation_api(
                     ),
                 )
 
-            # 7. 全件の確認が済んでから関連レコードを追加
+            # 8. 全件の確認が済んでから関連レコードを追加
             relations = []
 
             for inquiry_number in inquiry_numbers:
