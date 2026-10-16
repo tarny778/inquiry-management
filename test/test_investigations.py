@@ -1663,3 +1663,94 @@ def test_abandon_inquiry_problem_investigation_not_found_returns_404(
 
     assert response.status_code == 404
 
+# 問い合わせ問題調査のOK回答APIテスト
+
+def test_ok_investigation_relation_success(
+    monkeypatch,
+    completion_test_inquiries,
+    inquiry_problem_investigation_factory,
+):
+    """問い合わせ者本人がリアクション待ちの調査にOKと回答できる。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    inquiry_number = completion_test_inquiries["in_progress"]
+    relation_id = inquiry_problem_investigation_factory(
+        inquiry_number,
+        state=3,
+    )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/ok"
+    )
+
+    assert response.status_code == 200, response.text
+
+    result = response.json()
+    assert result["問い合わせ問題調査番号"] == relation_id
+    assert result["問い合わせ番号"] == inquiry_number
+    assert result["問い合わせ問題調査状態"] == 4
+
+    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            assert cur.fetchone()[0] == 4
+
+
+def test_ok_investigation_relation_forbidden(
+    monkeypatch,
+    completion_test_inquiries,
+    inquiry_problem_investigation_factory,
+):
+    """問い合わせ者本人以外はOKと回答できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    inquiry_number = completion_test_inquiries["in_progress"]
+    relation_id = inquiry_problem_investigation_factory(
+        inquiry_number,
+        state=3,
+    )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/ok"
+    )
+
+    assert response.status_code == 403
+
+
+def test_ok_investigation_relation_invalid_state(
+    monkeypatch,
+    completion_test_inquiries,
+    inquiry_problem_investigation_factory,
+):
+    """リアクション待ち以外の関連レコードはOKにできない。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    inquiry_number = completion_test_inquiries["in_progress"]
+    relation_id = inquiry_problem_investigation_factory(
+        inquiry_number,
+        state=1,
+    )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/ok"
+    )
+
+    assert response.status_code == 409
+
+
+def test_ok_investigation_relation_not_found(monkeypatch):
+    """存在しない関連レコードは404になる。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    response = client.post(
+        "/api/investigations/relations/999999999/ok"
+    )
+
+    assert response.status_code == 404

@@ -875,3 +875,96 @@ def abandon_inquiry_problem_investigation_api(
             }
 
     return result
+
+# 問い合わせ問題調査のOK回答
+@router.post(
+    "/api/investigations/relations/{relation_id}/ok"
+)
+def ok_inquiry_problem_investigation_api(
+    relation_id: int = Path(ge=1),
+):
+    """問い合わせ問題調査にOKと回答する。"""
+    current_user = main.get_current_user()
+
+    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+        with conn.cursor() as cur:
+            # 1. 対象の子レコードをロックして取得する
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (relation_id,),
+            )
+            relation = cur.fetchone()
+
+            if relation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問い合わせ問題調査が見つかりません。",
+                )
+
+            inquiry_number, relation_state = relation
+
+            # 2. 問い合わせ者本人であることを確認する
+            cur.execute(
+                """
+                SELECT "問い合わせ者"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+            if inquiry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="関連する問い合わせが見つかりません。",
+                )
+
+            if inquiry[0] != current_user.職員番号:
+                raise HTTPException(
+                    status_code=403,
+                    detail="問い合わせ者本人のみOKと回答できます。",
+                )
+
+            # 3. リアクション待ちであることを確認する
+            if relation_state != 3:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "リアクション待ちの問い合わせ問題調査のみ"
+                        "OKと回答できます。"
+                    ),
+                )
+
+            # 4. 対象の子レコードをOKに更新する
+            cur.execute(
+                """
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 4
+                WHERE "問い合わせ問題調査番号" = %s
+                RETURNING
+                    "問い合わせ問題調査番号",
+                    "問い合わせ番号",
+                    "問題調査番号",
+                    "問い合わせ問題調査状態"
+                """,
+                (relation_id,),
+            )
+            updated = cur.fetchone()
+
+            result = {
+                "問い合わせ問題調査番号": updated[0],
+                "問い合わせ番号": updated[1],
+                "問題調査番号": updated[2],
+                "問い合わせ問題調査状態": updated[3],
+                "message": "問い合わせ問題調査にOKと回答しました。",
+            }
+
+    return result
