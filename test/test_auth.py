@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from main import app
 
 
-client = TestClient(app)
+client = TestClient(app, base_url="https://testserver")
 password_hasher = argon2.PasswordHasher()
 
 TEST_STAFF_NUMBER = "J0001"
@@ -69,6 +69,56 @@ def auth_account():
                     ''',
                     (TEST_STAFF_NUMBER,),
                 )
+
+@pytest.fixture
+def auth_test_inquiry(auth_account):
+    """詳細APIの認証テスト用問い合わせを作成し、終了後に削除する。"""
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                INSERT INTO "問い合わせ" (
+                    "問い合わせ職員番号",
+                    "問い合わせ当時の所属",
+                    "受付経路",
+                    "問い合わせ分類",
+                    "件名",
+                    "緊急度",
+                    "受付時の処理",
+                    "問い合わせ詳細",
+                    "受付担当者",
+                    "受信日時"
+                )
+                VALUES (
+                    'T0001',
+                    '総務課',
+                    '電話',
+                    '分類A',
+                    '認証テスト用問い合わせ',
+                    2,
+                    2,
+                    '詳細APIの認証テスト',
+                    %s,
+                    CURRENT_TIMESTAMP
+                )
+                RETURNING "問い合わせ番号"
+                ''',
+                (TEST_STAFF_NUMBER,),
+            )
+            inquiry_number = cur.fetchone()[0]
+
+    yield inquiry_number
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                DELETE FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (inquiry_number,),
+            )
 
 #ログインのテスト
 def test_login_success(auth_account):
@@ -252,3 +302,61 @@ def test_logout_without_cookie_succeeds():
     assert response.status_code == 200
     assert response.json()["message"] == "ログアウトしました。"
 
+#ログイン状態、セッション有無によるテスト
+def test_inquiry_list_requires_authentication():
+    """未ログインでは問い合わせ一覧APIを利用できない。"""
+
+    response = client.get("/api/inquiries")
+
+    assert response.status_code == 401
+
+
+def test_inquiry_list_with_authenticated_session(auth_account):
+    """ログイン済みなら問い合わせ一覧APIを利用できる。"""
+
+    login_response = client.post(
+        "/api/auth/login",
+        json={
+            "職員番号": TEST_STAFF_NUMBER,
+            "パスワード": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    response = client.get("/api/inquiries")
+
+    assert response.status_code == 200
+
+
+def test_inquiry_detail_requires_authentication(auth_test_inquiry):
+    """未ログインでは問い合わせ詳細APIを利用できない。"""
+
+    response = client.get(
+        f"/api/inquiries/{auth_test_inquiry}"
+    )
+
+    assert response.status_code == 401
+
+
+def test_inquiry_detail_with_authenticated_session(
+    auth_test_inquiry,
+    auth_account,
+):
+    """ログイン済みなら問い合わせ詳細APIを利用できる。"""
+
+    login_response = client.post(
+        "/api/auth/login",
+        json={
+            "職員番号": TEST_STAFF_NUMBER,
+            "パスワード": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    response = client.get(
+        f"/api/inquiries/{auth_test_inquiry}"
+    )
+
+    assert response.status_code == 200

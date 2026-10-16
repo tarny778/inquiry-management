@@ -1341,6 +1341,7 @@ def search_inquiries_api(
     状態: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # 1. 状態の指定値を確認
     allowed_statuses = {
@@ -1470,6 +1471,7 @@ def search_inquiries_api(
 @router.get("/api/inquiries/{inquiry_number}")
 def get_inquiry_api(
     inquiry_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     print(f"詳細取得APIのDB: {DATABASE_NAME}")
 
