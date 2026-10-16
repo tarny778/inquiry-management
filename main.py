@@ -22,12 +22,14 @@ def get_current_user() -> CurrentUser:
         所属="情報システム課",
     )
 
+
 app = FastAPI()
 
 from routers.inquiries import router as inquiries_router
+from routers.investigations import router as investigations_router
 
 app.include_router(inquiries_router)
-
+app.include_router(investigations_router)
 
 
 

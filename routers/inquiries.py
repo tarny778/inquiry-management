@@ -4,7 +4,7 @@ import main
 import psycopg
 from fastapi import APIRouter, HTTPException, Path, Query
 
-from schemas.inquiries import (
+from schemas.schemas_inquiries import (
     ALLOWED_INQUIRY_CATEGORIES,
     InquiryCreate,
     InquiryBulkAccept,
