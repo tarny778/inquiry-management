@@ -8,26 +8,44 @@ from main import app
 
 client = TestClient(app)
 
-
+import pytest
 import main
+
+
+ORIGINAL_GET_CURRENT_USER = main.get_current_user
+
+
+@pytest.fixture(autouse=True)
+def _default_test_user(monkeypatch):
+    """各テストの初期操作者を設定する。"""
+    user = main.CurrentUser(
+        職員番号="J0001",
+        氏名="テスト職員",
+        所属="情報システム課",
+    )
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        ORIGINAL_GET_CURRENT_USER,
+        lambda: user,
+    )
 
 
 def _set_test_user(monkeypatch, staff_number="J0001"):
     """テストで操作者を切り替える。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号=staff_number,
-            氏名="テスト職員",
-            所属="情報システム課",
-        ),
+    user = main.CurrentUser(
+        職員番号=staff_number,
+        氏名="テスト職員",
+        所属="情報システム課",
+    )
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        ORIGINAL_GET_CURRENT_USER,
+        lambda: user,
     )
 
 
-
 # テスト用データを作成
-import pytest
+
 
 
 @pytest.fixture

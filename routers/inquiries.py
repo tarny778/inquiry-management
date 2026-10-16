@@ -2,7 +2,7 @@ from datetime import datetime
 
 import main
 import psycopg
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import Depends, APIRouter, HTTPException, Path, Query
 
 from schemas.schemas_inquiries import (
     ALLOWED_INQUIRY_CATEGORIES,
@@ -22,7 +22,10 @@ router = APIRouter()
 
 #新規作成api
 @router.post("/api/inquiries")
-def create_inquiry_api(request: InquiryCreate):
+def create_inquiry_api(
+    request: InquiryCreate,
+    current_user: main.CurrentUser = Depends(main.get_current_user),
+):
 
     # 1. 問い合わせ職員の存在確認と所属の取得
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -58,7 +61,6 @@ def create_inquiry_api(request: InquiryCreate):
 
     # 3. 受付担当者の取得
     # ログイン中の職員を受付担当者とする
-    current_user = main.get_current_user()
     受付担当者職員番号 = current_user.職員番号
 
     
@@ -167,9 +169,9 @@ def create_inquiry_api(request: InquiryCreate):
 @router.post("/api/inquiries/{inquiry_number}/accept")
 def accept_inquiry_api(
     inquiry_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # ログイン中の職員を受付担当者とする
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
     # 1. 操作者の存在確認と所属確認
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -254,9 +256,11 @@ def accept_inquiry_api(
 
 #一括引き受け
 @router.post("/api/inquiries/bulk-accept")
-def accept_inquiries_bulk_api(request: InquiryBulkAccept):
+def accept_inquiries_bulk_api(
+    request: InquiryBulkAccept,
+    current_user: main.CurrentUser = Depends(main.get_current_user),
+):
     # ログイン中の職員を対応担当者とする
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
 
     # 1. 操作者の存在確認と所属確認
@@ -381,9 +385,9 @@ def accept_inquiries_bulk_api(request: InquiryBulkAccept):
 @router.post("/api/inquiries/{inquiry_number}/complete")
 def complete_inquiry_api(
     inquiry_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # 1. 操作者を取得（認証導入前の仮実装）
-    current_user = main.get_current_user()
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
@@ -473,9 +477,9 @@ def complete_inquiry_api(
 @router.post("/api/inquiries/bulk-complete")
 def complete_inquiries_bulk_api(
     request: InquiryBulkComplete,
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    # 1. 操作者を取得
-    current_user = main.get_current_user()
+    # 1. 操作者をログイン情報から取得
 
     inquiry_numbers = request.問い合わせ番号一覧
 
@@ -605,9 +609,9 @@ def complete_inquiries_bulk_api(
 @router.post("/api/inquiries/{inquiry_number}/reopen")
 def reopen_inquiry_api(
     inquiry_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    # 1. 操作者を取得
-    current_user = main.get_current_user()
+    # 1. 操作者をログイン情報から取得
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
@@ -687,9 +691,9 @@ def reopen_inquiry_api(
 def create_investigation_api(
     request: InvestigationCreate,
     inquiry_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    # 1. 操作者を取得
-    current_user = main.get_current_user()
+    # 1. 操作者をログイン情報から取得
 
     # 2. 問い合わせの状態と対応担当者を確認
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
@@ -780,8 +784,8 @@ def create_investigation_api(
 def link_existing_investigation_api(
     inquiry_number: int = Path(ge=1),
     investigation_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    current_user = main.get_current_user()
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
@@ -921,8 +925,8 @@ def link_existing_investigation_api(
 @router.post("/api/inquiries/bulk-investigations")
 def bulk_create_investigation_api(
     request: BulkInvestigationCreate,
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    current_user = main.get_current_user()
     inquiry_numbers = request.問い合わせ番号一覧
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
@@ -1032,8 +1036,8 @@ def bulk_create_investigation_api(
 @router.post("/api/inquiries/bulk-link-investigation")
 def bulk_link_existing_investigation_api(
     request: BulkLinkInvestigation,
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    current_user = main.get_current_user()
     inquiry_numbers = request.問い合わせ番号一覧
     investigation_number = request.問題調査番号
 
@@ -1209,8 +1213,8 @@ def bulk_link_existing_investigation_api(
 def update_inquiry_api(
     request: InquiryUpdate,
     inquiry_number: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    current_user = main.get_current_user()
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
             # 1. 現在の問い合わせ状態を取得し、更新中の競合を防ぐ

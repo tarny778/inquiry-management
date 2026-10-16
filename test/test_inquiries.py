@@ -464,16 +464,35 @@ def unlinked_investigation_factory():
                     (investigation_number,),
                 )
 
+ORIGINAL_GET_CURRENT_USER = main.get_current_user
+
+
+@pytest.fixture(autouse=True)
+def _default_test_user(monkeypatch):
+    """各テストの初期操作者を設定する。"""
+    user = main.CurrentUser(
+        職員番号="J0001",
+        氏名="テスト職員",
+        所属="情報システム課",
+    )
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        ORIGINAL_GET_CURRENT_USER,
+        lambda: user,
+    )
+
+
 def _set_test_user(monkeypatch, staff_number="J0001"):
     """テストで操作者を切り替える。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号=staff_number,
-            氏名="テスト職員",
-            所属="情報システム課",
-        ),
+    user = main.CurrentUser(
+        職員番号=staff_number,
+        氏名="テスト職員",
+        所属="情報システム課",
+    )
+    monkeypatch.setitem(
+        app.dependency_overrides,
+        ORIGINAL_GET_CURRENT_USER,
+        lambda: user,
     )
 
 def _make_second_in_progress_inquiry(completion_test_inquiries):
@@ -994,15 +1013,7 @@ def test_complete_inquiry_success(
     monkeypatch,
 ):
     """対応担当者本人は対応完了できる。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -1036,15 +1047,7 @@ def test_complete_inquiry_forbidden_for_other_user(
     monkeypatch,
 ):
     """対応担当者以外は対応完了できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0002",
-            氏名="情シス次郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0002")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -1122,15 +1125,7 @@ def test_complete_inquiry_by_inquiry_problem_investigation_state(
     inquiry_number = completion_test_inquiries["in_progress"]
 
     # 対応担当者を J0001 に設定
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: type(
-            "TestUser",
-            (),
-            {"職員番号": "J0001"},
-        )(),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     # 対象の問い合わせに指定状態の調査を紐づける
     inquiry_problem_investigation_factory(
@@ -1157,15 +1152,7 @@ def test_complete_inquiry_rejected_when_any_investigation_is_unfinished(
     """完了可能な調査と未完了の調査が混在しても、完了を拒否する。"""
     inquiry_number = completion_test_inquiries["in_progress"]
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: type(
-            "TestUser",
-            (),
-            {"職員番号": "J0001"},
-        )(),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     # OKになった調査
     inquiry_problem_investigation_factory(
@@ -1193,15 +1180,7 @@ def test_bulk_complete_inquiries_success(
     """対応中の問い合わせ2件を一括で対応完了できる。"""
 
     # 操作者をJ0001に設定
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_numbers = (
         bulk_completion_test_inquiries["in_progress"]
@@ -1257,15 +1236,7 @@ def test_bulk_complete_forbidden_for_other_handler(
 ):
     """別の対応担当者の問い合わせが含まれる場合、全件更新しない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_numbers = (
         bulk_completion_test_inquiries["in_progress"]
@@ -1321,15 +1292,7 @@ def test_bulk_complete_conflict_when_already_completed(
 ):
     """対応完了済みの問い合わせが混ざる場合、全件更新しない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_numbers = (
         bulk_completion_test_inquiries["in_progress"]
@@ -1374,15 +1337,7 @@ def test_bulk_complete_conflict_when_not_accepted(
 ):
     """引き受け待ちの問い合わせが混ざる場合、全件更新しない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_numbers = (
         bulk_completion_test_inquiries["in_progress"]
@@ -1431,15 +1386,7 @@ def test_bulk_complete_conflict_when_unfinished_investigation_exists(
 ):
     """調査中またはリアクション待ちの調査がある場合、全件更新しない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_numbers = (
         bulk_completion_test_inquiries["in_progress"]
@@ -1486,15 +1433,7 @@ def test_bulk_complete_bad_request_when_duplicate_numbers(
 ):
     """問い合わせ番号が重複している場合、400を返す。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = (
         bulk_completion_test_inquiries["in_progress"][0]
@@ -1537,15 +1476,7 @@ def test_bulk_complete_not_found_when_number_does_not_exist(
 ):
     """存在しない問い合わせ番号が含まれる場合、404を返す。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_numbers = (
         bulk_completion_test_inquiries["in_progress"]
@@ -1587,15 +1518,7 @@ def test_bulk_complete_bad_request_when_number_list_is_empty(
 ):
     """問い合わせ番号一覧が空の場合、422を返す。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     response = client.post(
         "/api/inquiries/bulk-complete",
@@ -1616,15 +1539,7 @@ def test_reopen_inquiry_success(
 ):
     """対応担当者本人が期限内に問い合わせを再開できる。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["completed"]
 
@@ -1688,15 +1603,7 @@ def test_reopen_inquiry_forbidden_for_other_handler(
 ):
     """別の対応担当者は問い合わせを再開できない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0002",
-            氏名="情シス次郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0002")
 
     inquiry_number = completion_test_inquiries["completed"]
 
@@ -1731,15 +1638,7 @@ def test_reopen_inquiry_conflict_when_not_completed(
 ):
     """対応完了していない問い合わせは再開できない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -1774,15 +1673,7 @@ def test_reopen_inquiry_conflict_when_pending(
 ):
     """引き受け待ちの問い合わせは再開できない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["pending"]
 
@@ -1796,15 +1687,7 @@ def test_reopen_inquiry_conflict_when_pending(
 def test_reopen_inquiry_not_found(monkeypatch):
     """存在しない問い合わせ番号の場合、404を返す。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     response = client.post(
         "/api/inquiries/999999999/reopen"
@@ -1819,15 +1702,7 @@ def test_reopen_inquiry_conflict_when_expired(
 ):
     """対応完了から7日以上経過した問い合わせは再開できない。"""
 
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["completed"]
 
@@ -1875,15 +1750,7 @@ def test_create_investigation_success(
     monkeypatch,
 ):
     """対応中の問い合わせに問題調査を作成し、関連付ける。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
     investigation_number = None
@@ -1976,15 +1843,7 @@ def test_create_investigation_pending_inquiry_conflict(
     monkeypatch,
 ):
     """引き受け待ちの問い合わせには作成できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["pending"]
 
@@ -2003,15 +1862,7 @@ def test_create_investigation_completed_inquiry_conflict(
     monkeypatch,
 ):
     """対応完了の問い合わせには作成できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["completed"]
 
@@ -2027,15 +1878,7 @@ def test_create_investigation_completed_inquiry_conflict(
 
 def test_create_investigation_inquiry_not_found(monkeypatch):
     """存在しない問い合わせ番号は404になる。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     response = client.post(
         "/api/inquiries/999999999/investigations",
@@ -2052,15 +1895,7 @@ def test_create_investigation_forbidden_for_other_handler(
     monkeypatch,
 ):
     """別の職員は対応担当者の問い合わせに問題調査を作成できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0002",
-            氏名="情シス次郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0002")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -2088,15 +1923,7 @@ def test_create_investigation_invalid_name(
     name,
 ):
     """名称や仮説が空、空白だけ、31文字以上の場合は422になる。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -2117,15 +1944,7 @@ def test_link_existing_investigation_success(
     monkeypatch,
 ):
     """対応中の問い合わせに調査中の問題調査を関連付けられる。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     # 既存の関連付けを持つ問い合わせ
     existing_inquiry_number = completion_test_inquiries["in_progress"]
@@ -2203,15 +2022,7 @@ def test_link_investigation_pending_inquiry_returns_409(
     monkeypatch,
 ):
     """引き受け待ちの問い合わせには関連付けできない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["pending"]
     investigation_number = unlinked_investigation_factory(state=1)
@@ -2230,15 +2041,7 @@ def test_link_investigation_completed_inquiry_returns_409(
     monkeypatch,
 ):
     """対応完了の問い合わせには関連付けできない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["completed"]
     investigation_number = unlinked_investigation_factory(state=1)
@@ -2256,15 +2059,7 @@ def test_link_investigation_nonexistent_inquiry_returns_404(
     monkeypatch,
 ):
     """存在しない問い合わせには関連付けできない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     investigation_number = unlinked_investigation_factory(state=1)
 
@@ -2281,15 +2076,7 @@ def test_link_investigation_nonexistent_investigation_returns_404(
     monkeypatch,
 ):
     """存在しない問題調査は関連付けできない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -2306,15 +2093,7 @@ def test_link_investigation_other_handler_returns_403(
     monkeypatch,
 ):
     """対応担当者本人以外は関連付けできない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0002",
-            氏名="情シス次郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0002")
 
     inquiry_number = completion_test_inquiries["in_progress"]
     investigation_number = unlinked_investigation_factory(state=1)
@@ -2335,15 +2114,7 @@ def test_link_investigation_non_active_state_returns_409(
     state,
 ):
     """調査中以外の問題調査は関連付けできない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
     investigation_number = unlinked_investigation_factory(state=state)
@@ -2361,15 +2132,7 @@ def test_link_investigation_duplicate_returns_409(
     monkeypatch,
 ):
     """同じ問い合わせと問題調査の組み合わせを二重登録できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
@@ -2423,15 +2186,7 @@ def test_link_investigation_existing_inquiry_other_handler_returns_403(
     monkeypatch,
 ):
     """既存の関連付け先の対応担当者が異なる場合は追加できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     # 既存の関連付け先はJ0002の対応中にする
     existing_inquiry_number = completion_test_inquiries["in_progress"]
@@ -2495,15 +2250,7 @@ def test_link_investigation_without_existing_relation_returns_409(
     monkeypatch,
 ):
     """既存の関連付けがない問題調査には追加できない。"""
-    monkeypatch.setattr(
-        main,
-        "get_current_user",
-        lambda: main.CurrentUser(
-            職員番号="J0001",
-            氏名="情シス太郎",
-            所属="情報システム課",
-        ),
-    )
+    _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 

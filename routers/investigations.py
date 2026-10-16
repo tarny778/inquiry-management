@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Path, HTTPException
+from fastapi import Depends,APIRouter, Query, Path, HTTPException
 import psycopg
 from psycopg import sql
 from schemas.schemas_investigations import InvestigationUpdate
@@ -20,9 +20,9 @@ def search_investigations_api(
     対応担当者職員番号: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # ログイン中の職員を取得
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
 
     # 検索条件を組み立てる
@@ -193,9 +193,9 @@ def search_investigations_api(
 @router.get("/api/investigations/{investigation_id}")
 def get_investigation_api(
     investigation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # ログイン中の職員を取得
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -319,9 +319,9 @@ def get_investigation_api(
 def update_investigation_api(
     body: InvestigationUpdate,
     investigation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # ログイン中の職員を取得
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
 
     # スキーマで許可された、実際に送信された項目だけを取得
@@ -452,9 +452,9 @@ def update_investigation_api(
 @router.post("/api/investigations/{investigation_id}/abandon")
 def abandon_investigation_api(
     investigation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # ログイン中の職員を取得
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -582,9 +582,9 @@ def abandon_investigation_api(
 )
 def request_reaction_investigation_api(
     investigation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     # ログイン中の職員を取得
-    current_user = main.get_current_user()
     操作者職員番号 = current_user.職員番号
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -742,9 +742,9 @@ def request_reaction_investigation_api(
 )
 def abandon_inquiry_problem_investigation_api(
     relation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     """問い合わせ問題調査を個別断念にする。"""
-    current_user = main.get_current_user()
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
@@ -882,9 +882,9 @@ def abandon_inquiry_problem_investigation_api(
 )
 def ok_inquiry_problem_investigation_api(
     relation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     """問い合わせ問題調査にOKと回答する。"""
-    current_user = main.get_current_user()
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
@@ -975,9 +975,9 @@ def ok_inquiry_problem_investigation_api(
 )
 def ng_inquiry_problem_investigation_api(
     relation_id: int = Path(ge=1),
+    current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     """問い合わせ問題調査にNGと回答し、次の調査先へ移行する。"""
-    current_user = main.get_current_user()
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
