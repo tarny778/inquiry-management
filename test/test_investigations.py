@@ -188,6 +188,139 @@ def investigation_search_test_data():
                         (inquiry_numbers,),
                     )
 
+@pytest.fixture
+def ok_ng_test_data():
+    """OK・NG回答APIのテストデータを作成し、終了後に削除する。"""
+
+    inquiry_number = None
+    investigation_number = None
+    relation_id = None
+    extra_investigation_numbers = []
+
+    try:
+        # 1. 問い合わせを登録
+        response = client.post(
+            "/api/inquiries",
+            json={
+                "問い合わせ職員番号": "T0001",
+                "受付経路": "電話",
+                "問い合わせ分類": "分類A",
+                "件名": "OK・NG回答APIテスト",
+                "緊急度": 2,
+                "受付時の処理": 2,
+                "問い合わせ詳細": "OK・NG回答APIのテスト用",
+                "受信日時": None,
+            },
+        )
+        assert response.status_code == 200, response.text
+        inquiry_number = response.json()["問い合わせ番号"]
+
+        # 2. リアクション要求済みの問題調査を登録
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO "問題調査" (
+                        "問題調査の名称や仮説",
+                        "問題調査状態"
+                    )
+                    VALUES (%s, 2)
+                    RETURNING "問題調査番号"
+                    """,
+                    ("OK・NG回答APIテスト用の問題調査",),
+                )
+                investigation_number = cur.fetchone()[0]
+
+                # 3. リアクション待ちの関連レコードを登録
+                cur.execute(
+                    """
+                    INSERT INTO "問い合わせ問題調査" (
+                        "問題調査番号",
+                        "問い合わせ番号",
+                        "問い合わせ問題調査状態"
+                    )
+                    VALUES (%s, %s, 3)
+                    RETURNING "問い合わせ問題調査番号"
+                    """,
+                    (investigation_number, inquiry_number),
+                )
+                relation_id = cur.fetchone()[0]
+
+        yield {
+            "inquiry_number": inquiry_number,
+            "investigation_number": investigation_number,
+            "relation_id": relation_id,
+            "extra_investigation_numbers": extra_investigation_numbers,
+        }
+
+    finally:
+        # 4. テストで作成された問題調査番号を収集して削除
+        if inquiry_number is not None:
+            with psycopg.connect(
+                "dbname=inquiry_management_test"
+            ) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT "問題調査番号"
+                        FROM "問い合わせ問題調査"
+                        WHERE "問い合わせ番号" = %s
+                        """,
+                        (inquiry_number,),
+                    )
+                    linked_numbers = [
+                        row[0] for row in cur.fetchall()
+                    ]
+
+                    investigation_numbers = list(
+                        dict.fromkeys(
+                            linked_numbers
+                            + extra_investigation_numbers
+                            + (
+                                [investigation_number]
+                                if investigation_number is not None
+                                else []
+                            )
+                        )
+                    )
+
+                    # 自己参照の移行先を解除
+                    if investigation_numbers:
+                        cur.execute(
+                            """
+                            UPDATE "問題調査"
+                            SET "最新移行先の問題調査番号" = NULL
+                            WHERE "問題調査番号" = ANY(%s)
+                            """,
+                            (investigation_numbers,),
+                        )
+
+                    # 問い合わせに紐づく関連レコードをすべて削除
+                    cur.execute(
+                        """
+                        DELETE FROM "問い合わせ問題調査"
+                        WHERE "問い合わせ番号" = %s
+                        """,
+                        (inquiry_number,),
+                    )
+
+                    # NGで作成された移行先を含めて削除
+                    if investigation_numbers:
+                        cur.execute(
+                            """
+                            DELETE FROM "問題調査"
+                            WHERE "問題調査番号" = ANY(%s)
+                            """,
+                            (investigation_numbers,),
+                        )
+
+                    cur.execute(
+                        """
+                        DELETE FROM "問い合わせ"
+                        WHERE "問い合わせ番号" = %s
+                        """,
+                        (inquiry_number,),
+                    )
 
 #問題調査の検索一覧取得のテスト
 def test_search_investigations_response(
@@ -1664,20 +1797,15 @@ def test_abandon_inquiry_problem_investigation_not_found_returns_404(
     assert response.status_code == 404
 
 # 問い合わせ問題調査のOK回答APIテスト
-
 def test_ok_investigation_relation_success(
     monkeypatch,
-    completion_test_inquiries,
-    inquiry_problem_investigation_factory,
+    ok_ng_test_data,
 ):
     """問い合わせ者本人がリアクション待ちの調査にOKと回答できる。"""
     _set_test_user(monkeypatch, "T0001")
 
-    inquiry_number = completion_test_inquiries["in_progress"]
-    relation_id = inquiry_problem_investigation_factory(
-        inquiry_number,
-        state=3,
-    )
+    inquiry_number = ok_ng_test_data["inquiry_number"]
+    relation_id = ok_ng_test_data["relation_id"]
 
     response = client.post(
         f"/api/investigations/relations/{relation_id}/ok"
@@ -1690,7 +1818,7 @@ def test_ok_investigation_relation_success(
     assert result["問い合わせ番号"] == inquiry_number
     assert result["問い合わせ問題調査状態"] == 4
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1703,19 +1831,16 @@ def test_ok_investigation_relation_success(
             assert cur.fetchone()[0] == 4
 
 
+
 def test_ok_investigation_relation_forbidden(
     monkeypatch,
-    completion_test_inquiries,
-    inquiry_problem_investigation_factory,
+    ok_ng_test_data,
 ):
-    """問い合わせ者本人以外はOKと回答できない。"""
+    """問い合わせ者本人以外はリアクション待ちの調査にOKと回答不可。"""
     _set_test_user(monkeypatch, "J0001")
 
-    inquiry_number = completion_test_inquiries["in_progress"]
-    relation_id = inquiry_problem_investigation_factory(
-        inquiry_number,
-        state=3,
-    )
+    inquiry_number = ok_ng_test_data["inquiry_number"]
+    relation_id = ok_ng_test_data["relation_id"]
 
     response = client.post(
         f"/api/investigations/relations/{relation_id}/ok"
@@ -1726,17 +1851,25 @@ def test_ok_investigation_relation_forbidden(
 
 def test_ok_investigation_relation_invalid_state(
     monkeypatch,
-    completion_test_inquiries,
-    inquiry_problem_investigation_factory,
+    ok_ng_test_data,
 ):
-    """リアクション待ち以外の関連レコードはOKにできない。"""
+    """relationの状態が3以外の場合は、回答不可。"""
     _set_test_user(monkeypatch, "T0001")
 
-    inquiry_number = completion_test_inquiries["in_progress"]
-    relation_id = inquiry_problem_investigation_factory(
-        inquiry_number,
-        state=1,
-    )
+    relation_id = ok_ng_test_data["relation_id"]
+
+    # リアクション待ち以外の状態に変更する
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 1
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+
 
     response = client.post(
         f"/api/investigations/relations/{relation_id}/ok"
@@ -1754,3 +1887,187 @@ def test_ok_investigation_relation_not_found(monkeypatch):
     )
 
     assert response.status_code == 404
+
+# =========================================================
+# 問い合わせ問題調査のNG回答APIテスト
+# =========================================================
+
+def test_ng_investigation_relation_reuses_latest_destination(
+    monkeypatch,
+    ok_ng_test_data,
+):
+    """最新移行先が調査中なら、その問題調査を再利用する。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    inquiry_number = ok_ng_test_data["inquiry_number"]
+    old_relation_id = ok_ng_test_data["relation_id"]
+
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (old_relation_id,),
+            )
+            old_investigation_id = cur.fetchone()[0]
+
+            cur.execute(
+                """
+                INSERT INTO "問題調査" (
+                    "問題調査の名称や仮説",
+                    "問題調査状態",
+                    "調査開始日時"
+                )
+                VALUES (%s, 1, CURRENT_TIMESTAMP)
+                RETURNING "問題調査番号"
+                """,
+                ("再利用先テスト",),
+            )
+            destination_id = cur.fetchone()[0]
+            ok_ng_test_data["extra_investigation_numbers"].append(
+                destination_id
+            )
+
+            cur.execute(
+                """
+                UPDATE "問題調査"
+                SET "最新移行先の問題調査番号" = %s
+                WHERE "問題調査番号" = %s
+                """,
+                (destination_id, old_investigation_id),
+            )
+
+    response = client.post(
+        f"/api/investigations/relations/{old_relation_id}/ng"
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+
+    assert result["問い合わせ問題調査状態"] == 5
+    assert result["リアクション内容"] == 2
+    assert result["NGでの移行先問題調査番号"] == destination_id
+    assert result["新しい問題調査番号"] == destination_id
+    assert result["新しい問い合わせ問題調査状態"] == 1
+
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ番号" = %s
+                  AND "問題調査番号" = %s
+                """,
+                (inquiry_number, destination_id),
+            )
+            assert cur.fetchone()[0] >= 1
+
+
+def test_ng_investigation_relation_creates_new_destination(
+    monkeypatch,
+    ok_ng_test_data,
+):
+    """最新移行先がなければ、新しい問題調査を作成する。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    inquiry_number = ok_ng_test_data["inquiry_number"]
+    old_relation_id = ok_ng_test_data["relation_id"]
+
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (old_relation_id,),
+            )
+            old_investigation_id = cur.fetchone()[0]
+
+    response = client.post(
+        f"/api/investigations/relations/{old_relation_id}/ng"
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+
+    new_investigation_id = result["新しい問題調査番号"]
+    ok_ng_test_data["extra_investigation_numbers"].append(
+        new_investigation_id
+    )
+
+    assert new_investigation_id != old_investigation_id
+    assert result["問い合わせ問題調査状態"] == 5
+    assert result["リアクション内容"] == 2
+    assert result["NGでの移行先問題調査番号"] == new_investigation_id
+    assert result["新しい問い合わせ問題調査状態"] == 1
+
+    with psycopg.connect(dbname="inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "最新移行先の問題調査番号"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                """,
+                (old_investigation_id,),
+            )
+            assert cur.fetchone()[0] == new_investigation_id
+
+            cur.execute(
+                """
+                SELECT "問い合わせ番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (result["新しい問い合わせ問題調査番号"],),
+            )
+            assert cur.fetchone()[0] == inquiry_number
+
+
+def test_ng_investigation_relation_forbidden(
+    monkeypatch,
+    ok_ng_test_data,
+):
+    """問い合わせ者本人以外はNGと回答できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    relation_id = ok_ng_test_data["relation_id"]
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/ng"
+    )
+
+    assert response.status_code == 403
+
+
+def test_ng_investigation_relation_invalid_state(
+    monkeypatch,
+    ok_ng_test_data,
+):
+    """relationの状態が3以外ならば、回答不可"""
+    _set_test_user(monkeypatch, "T0001")
+
+    relation_id = ok_ng_test_data["relation_id"]
+    # リアクション待ち以外の状態に変更する
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 1
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/ng"
+    )
+
+    assert response.status_code == 409

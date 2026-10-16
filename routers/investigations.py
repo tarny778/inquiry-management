@@ -913,7 +913,7 @@ def ok_inquiry_problem_investigation_api(
             # 2. 問い合わせ者本人であることを確認する
             cur.execute(
                 """
-                SELECT "問い合わせ者"
+                SELECT "問い合わせ職員番号"
                 FROM "問い合わせ"
                 WHERE "問い合わせ番号" = %s
                 """,
@@ -965,6 +965,275 @@ def ok_inquiry_problem_investigation_api(
                 "問題調査番号": updated[2],
                 "問い合わせ問題調査状態": updated[3],
                 "message": "問い合わせ問題調査にOKと回答しました。",
+            }
+
+    return result
+
+# 問い合わせ問題調査のNG回答
+@router.post(
+    "/api/investigations/relations/{relation_id}/ng"
+)
+def ng_inquiry_problem_investigation_api(
+    relation_id: int = Path(ge=1),
+):
+    """問い合わせ問題調査にNGと回答し、次の調査先へ移行する。"""
+    current_user = main.get_current_user()
+
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            # 1. 対象の関連レコードから旧問題調査番号を取得する
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            relation_ref = cur.fetchone()
+
+            if relation_ref is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問い合わせ問題調査が見つかりません。",
+                )
+
+            old_investigation_id = relation_ref[0]
+
+            # 2. 旧問題調査をロックする
+            # 最新移行先の判定・更新を直列化する
+            cur.execute(
+                """
+                SELECT
+                    "問題調査状態",
+                    "問題調査の名称や仮説",
+                    "問題の原因",
+                    "情シス側での対応",
+                    "問い合わせ者側で必要な対応",
+                    "対応案策定予定日時",
+                    "進捗更新の次回更新予定日時",
+                    "最新移行先の問題調査番号"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (old_investigation_id,),
+            )
+            old_investigation = cur.fetchone()
+
+            if old_investigation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問題調査が見つかりません。",
+                )
+
+            (
+                old_investigation_state,
+                old_name,
+                old_cause,
+                old_it_response,
+                old_requester_response,
+                old_plan_due_at,
+                old_next_update_at,
+                latest_destination_id,
+            ) = old_investigation
+
+            # 3. 対象の関連レコードをロックし、状態を確認する
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "問題調査番号",
+                    "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (relation_id,),
+            )
+            relation = cur.fetchone()
+
+            if relation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問い合わせ問題調査が見つかりません。",
+                )
+
+            inquiry_number, relation_investigation_id, relation_state = (
+                relation
+            )
+
+            if relation_investigation_id != old_investigation_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="問題調査との関連が変更されています。",
+                )
+
+            if relation_state != 3:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "リアクション待ちの問い合わせ問題調査のみ"
+                        "NGと回答できます。"
+                    ),
+                )
+
+            # 4. 問い合わせ者本人であることを確認する
+            cur.execute(
+                """
+                SELECT "問い合わせ職員番号"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+            if inquiry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="関連する問い合わせが見つかりません。",
+                )
+
+            if inquiry[0] != current_user.職員番号:
+                raise HTTPException(
+                    status_code=403,
+                    detail="問い合わせ者本人のみNGと回答できます。",
+                )
+
+            # 5. 最新移行先が調査中かどうかを判定する
+            destination_id = None
+
+            if latest_destination_id is not None:
+                # 移行先の状態遷移とも競合しないようロックする
+                cur.execute(
+                    """
+                    SELECT "問題調査状態"
+                    FROM "問題調査"
+                    WHERE "問題調査番号" = %s
+                    FOR UPDATE
+                    """,
+                    (latest_destination_id,),
+                )
+                latest_destination = cur.fetchone()
+
+                if (
+                    latest_destination is not None
+                    and latest_destination[0] == 1
+                ):
+                    # パターンA：調査中の最新移行先を再利用する
+                    destination_id = latest_destination_id
+
+            # 6. 再利用できる移行先がなければ新規作成する
+            if destination_id is None:
+                cur.execute(
+                    """
+                    INSERT INTO "問題調査" (
+                        "問題調査の名称や仮説",
+                        "問題の原因",
+                        "情シス側での対応",
+                        "問い合わせ者側で必要な対応",
+                        "問題調査状態",
+                        "調査開始日時",
+                        "対応案策定予定日時",
+                        "進捗更新の次回更新予定日時"
+                    )
+                    VALUES (
+                        COALESCE(%s, '名称未設定') || 'から複写',
+                        %s,
+                        %s,
+                        %s,
+                        1,
+                        CURRENT_TIMESTAMP,
+                        %s,
+                        %s
+                    )
+                    RETURNING "問題調査番号"
+                    """,
+                    (
+                        old_name,
+                        old_cause,
+                        old_it_response,
+                        old_requester_response,
+                        old_plan_due_at,
+                        old_next_update_at,
+                    ),
+                )
+                destination_id = cur.fetchone()[0]
+
+                # パターンB：旧問題調査の最新移行先を更新する
+                cur.execute(
+                    """
+                    UPDATE "問題調査"
+                    SET "最新移行先の問題調査番号" = %s
+                    WHERE "問題調査番号" = %s
+                    """,
+                    (
+                        destination_id,
+                        old_investigation_id,
+                    ),
+                )
+
+            # 7. 旧関連レコードにNG回答と移行先を記録する
+            cur.execute(
+                """
+                UPDATE "問い合わせ問題調査"
+                SET
+                    "問い合わせ問題調査状態" = 5,
+                    "リアクション内容" = 2,
+                    "リアクション日時" = CURRENT_TIMESTAMP,
+                    "NGでの移行先問題調査番号" = %s
+                WHERE "問い合わせ問題調査番号" = %s
+                RETURNING
+                    "問い合わせ問題調査番号",
+                    "問い合わせ番号",
+                    "問題調査番号",
+                    "問い合わせ問題調査状態",
+                    "リアクション内容",
+                    "リアクション日時",
+                    "NGでの移行先問題調査番号"
+                """,
+                (
+                    destination_id,
+                    relation_id,
+                ),
+            )
+            updated_relation = cur.fetchone()
+
+            # 8. 問い合わせと移行先問題調査を新たに関連づける
+            # 関連レコードの状態はDBの初期値1を使用する
+            cur.execute(
+                """
+                INSERT INTO "問い合わせ問題調査" (
+                    "問い合わせ番号",
+                    "問題調査番号"
+                )
+                VALUES (%s, %s)
+                RETURNING
+                    "問い合わせ問題調査番号",
+                    "問い合わせ番号",
+                    "問題調査番号",
+                    "問い合わせ問題調査状態"
+                """,
+                (
+                    inquiry_number,
+                    destination_id,
+                ),
+            )
+            new_relation = cur.fetchone()
+
+            result = {
+                "問い合わせ問題調査番号": updated_relation[0],
+                "問い合わせ番号": updated_relation[1],
+                "問題調査番号": updated_relation[2],
+                "問い合わせ問題調査状態": updated_relation[3],
+                "リアクション内容": updated_relation[4],
+                "リアクション日時": updated_relation[5],
+                "NGでの移行先問題調査番号": updated_relation[6],
+                "新しい問題調査番号": destination_id,
+                "新しい問い合わせ問題調査番号": new_relation[0],
+                "新しい問い合わせ問題調査状態": new_relation[3],
+                "message": "NGと回答し、追加調査先へ移行しました。",
             }
 
     return result
