@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Query, Path, HTTPException
 import psycopg
+from psycopg import sql
+from schemas.schemas_investigations import InvestigationUpdate
 import main
 
 DATABASE_NAME = main.DATABASE_NAME
@@ -310,3 +312,136 @@ def get_investigation_api(
         **investigation,
         "関連する問い合わせ問題調査": related_inquiries,
     }
+
+
+# 問題調査の編集
+@router.patch("/api/investigations/{investigation_id}")
+def update_investigation_api(
+    body: InvestigationUpdate,
+    investigation_id: int = Path(ge=1),
+):
+    # ログイン中の職員を取得
+    current_user = main.get_current_user()
+    操作者職員番号 = current_user.職員番号
+
+    # スキーマで許可された、実際に送信された項目だけを取得
+    update_data = body.model_dump(exclude_unset=True)
+
+    # 空のPATCHリクエストは拒否
+    if not update_data:
+        raise HTTPException(
+            status_code=422,
+            detail="更新する項目を1つ以上指定してください。",
+        )
+
+    # 更新可能なDBカラムを限定する
+    column_mapping = {
+        "問題調査の名称や仮説": "問題調査の名称や仮説",
+        "問題の原因": "問題の原因",
+        "情シス側での対応": "情シス側での対応",
+        "問い合わせ者側で必要な対応": "問い合わせ者側で必要な対応",
+        "対応案策定予定日時": "対応案策定予定日時",
+        "進捗更新の次回更新予定日時": "進捗更新の次回更新予定日時",
+    }
+
+    # 更新対象カラムと値を組み立てる
+    set_clause = sql.SQL(", ").join(
+        sql.SQL("{} = %s").format(sql.Identifier(column_mapping[field]))
+        for field in update_data
+    )
+    values = list(update_data.values())
+
+    # 管理項目を含む、更新後の問題調査を返す
+    returning_columns = [
+        "問題調査番号",
+        "問題調査の名称や仮説",
+        "問題の原因",
+        "情シス側での対応",
+        "問い合わせ者側で必要な対応",
+        "問題調査状態",
+        "調査開始日時",
+        "対応案策定予定日時",
+        "進捗更新の次回更新予定日時",
+        "リアクション要求日時",
+        "問題調査断念日時",
+        "最新移行先の問題調査番号",
+    ]
+
+    returning_clause = sql.SQL(", ").join(
+        sql.Identifier(column) for column in returning_columns
+    )
+
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            # 対象行をロックし、存在・権限・状態を確認
+            cur.execute(
+                '''
+                SELECT
+                    q."問題調査状態",
+                    EXISTS (
+                        SELECT 1
+                        FROM "問い合わせ問題調査" ik
+                        WHERE ik."問題調査番号" = q."問題調査番号"
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM "問い合わせ問題調査" ik
+                        JOIN "問い合わせ" i
+                            ON i."問い合わせ番号" = ik."問い合わせ番号"
+                        WHERE ik."問題調査番号" = q."問題調査番号"
+                          AND i."対応担当者" IS DISTINCT FROM %s
+                    ) AS 編集権限あり
+                FROM "問題調査" q
+                WHERE q."問題調査番号" = %s
+                FOR UPDATE OF q
+                ''',
+                (操作者職員番号, investigation_id),
+            )
+
+            row = cur.fetchone()
+
+            # 問題調査が存在しない場合
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問題調査が見つかりません。",
+                )
+
+            問題調査状態 = row[0]
+            編集権限あり = row[1]
+
+            # 関連する問い合わせの対応担当者でなければ拒否
+            if not 編集権限あり:
+                raise HTTPException(
+                    status_code=403,
+                    detail="関連する問い合わせの対応担当者だけが編集できます。",
+                )
+
+            # 調査中の問題調査だけ編集可能
+            if 問題調査状態 != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="調査中の問題調査だけ編集できます。",
+                )
+
+
+            # 更新を実行
+            cur.execute(
+                sql.SQL(
+                    '''
+                    UPDATE "問題調査"
+                    SET {}
+                    WHERE "問題調査番号" = %s
+                    RETURNING {}
+                    '''
+                ).format(set_clause, returning_clause),
+                values + [investigation_id],
+            )
+
+            updated_row = cur.fetchone()
+
+            updated_investigation = dict(
+                zip(returning_columns, updated_row)
+            )
+
+    return updated_investigation

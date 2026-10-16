@@ -9,6 +9,23 @@ from main import app
 client = TestClient(app)
 
 
+import main
+
+
+def _set_test_user(monkeypatch, staff_number="J0001"):
+    """テストで操作者を切り替える。"""
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: main.CurrentUser(
+            職員番号=staff_number,
+            氏名="テスト職員",
+            所属="情報システム課",
+        ),
+    )
+
+
+
 # テスト用データを作成
 import pytest
 
@@ -586,3 +603,327 @@ def test_get_investigation_without_related_inquiries():
                     ''',
                     (investigation_number,),
                 )
+
+
+# 問題調査の編集テスト
+def test_update_investigation_success(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """関連問い合わせの対応担当者は問題調査を編集できる。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={
+            "問題調査の名称や仮説": "編集後の問題調査名",
+            "問題の原因": "編集後の原因",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+
+    result = response.json()
+    assert result["問題調査番号"] == investigation_number
+    assert result["問題調査の名称や仮説"] == "編集後の問題調査名"
+    assert result["問題の原因"] == "編集後の原因"
+
+
+def test_update_investigation_forbidden_for_other_handler(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """関連問い合わせの対応担当者でない職員は編集できない。"""
+    _set_test_user(monkeypatch, "J0002")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={
+            "問題調査の名称や仮説": "変更してはいけない名称",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+# 関連する問い合わせがない問題調査は編集できない
+def test_update_investigation_without_related_inquiries(
+    monkeypatch,
+):
+    """関連する問い合わせがない問題調査は編集できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    # 関連レコードを持たない問題調査を作成
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                INSERT INTO "問題調査" (
+                    "問題調査の名称や仮説"
+                )
+                VALUES (%s)
+                RETURNING "問題調査番号"
+                ''',
+                ("編集権限テスト-関連なし",),
+            )
+            investigation_number = cur.fetchone()[0]
+
+    try:
+        response = client.patch(
+            f"/api/investigations/{investigation_number}",
+            json={
+                "問題調査の名称や仮説": "変更してはいけない名称",
+            },
+        )
+
+        assert response.status_code == 403
+
+    finally:
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    DELETE FROM "問題調査"
+                    WHERE "問題調査番号" = %s
+                    ''',
+                    (investigation_number,),
+                )
+
+
+# 存在しない問題調査番号の編集は404を返す
+def test_update_investigation_not_found(monkeypatch):
+    """存在しない問題調査は編集できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    response = client.patch(
+        "/api/investigations/999999999",
+        json={
+            "問題調査の名称や仮説": "存在しない問題調査",
+        },
+    )
+
+    assert response.status_code == 404
+
+
+# 調査中ではない問題調査は編集できない
+@pytest.mark.parametrize("state", [2, 3])
+def test_update_investigation_not_editable_state(
+    investigation_search_test_data,
+    monkeypatch,
+    state,
+):
+    """状態が2または3の問題調査は編集できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    # テスト対象の問題調査を指定した状態に変更
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問題調査"
+                SET "問題調査状態" = %s
+                WHERE "問題調査番号" = %s
+                ''',
+                (state, investigation_number),
+            )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={
+            "問題調査の名称や仮説": "変更してはいけない名称",
+        },
+    )
+
+    assert response.status_code == 409
+
+
+# 問題調査編集APIの入力値検証テスト
+
+def test_update_investigation_empty_body_returns_422(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """変更項目がないリクエストは拒否する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_investigation_null_name_returns_422(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """名称にnullを指定したリクエストは拒否する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={"問題調査の名称や仮説": None},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_investigation_extra_field_returns_422(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """編集対象外の項目を指定したリクエストは拒否する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={
+            "問題調査の名称や仮説": "入力検証テスト",
+            "問題調査状態": 3,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_investigation_name_over_max_length_returns_422(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """名称が最大文字数を超えた場合は拒否する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={"問題調査の名称や仮説": "あ" * 31},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_investigation_invalid_datetime_returns_422(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """不正な日時形式は拒否する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={"対応案策定予定日時": "これは日時ではありません"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_investigation_preserves_omitted_fields(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """指定していない項目は更新前の値を維持する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    # 更新前の値を設定
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問題調査"
+                SET
+                    "問題調査の名称や仮説" = %s,
+                    "問題の原因" = %s,
+                    "情シス側での対応" = %s
+                WHERE "問題調査番号" = %s
+                ''',
+                (
+                    "更新前の名称",
+                    "更新前の原因",
+                    "更新前の対応",
+                    investigation_number,
+                ),
+            )
+
+    # 原因だけを更新
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={"問題の原因": "更新後の原因"},
+    )
+
+    assert response.status_code == 200, response.text
+
+    result = response.json()
+
+    assert result["問題調査の名称や仮説"] == "更新前の名称"
+    assert result["問題の原因"] == "更新後の原因"
+    assert result["情シス側での対応"] == "更新前の対応"
+
+
+def test_update_investigation_forbidden_when_handlers_differ(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """関連問い合わせの対応担当者が一致しない場合は編集できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+    inquiry_numbers = (
+        investigation_search_test_data["inquiry_numbers"]
+    )
+
+    # 関連する問い合わせのうち1件を別の担当者に変更
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問い合わせ"
+                SET "対応担当者" = %s
+                WHERE "問い合わせ番号" = %s
+                ''',
+                ("J0002", inquiry_numbers[1]),
+            )
+
+    response = client.patch(
+        f"/api/investigations/{investigation_number}",
+        json={"問題調査の名称や仮説": "変更してはいけない名称"},
+    )
+
+    assert response.status_code == 403
