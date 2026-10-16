@@ -734,3 +734,144 @@ def request_reaction_investigation_api(
     # すべて成功した場合にのみトランザクションが確定する
     return result
 
+
+
+# 問い合わせ問題調査の個別断念
+@router.post(
+    "/api/investigations/relations/{relation_id}/abandon"
+)
+def abandon_inquiry_problem_investigation_api(
+    relation_id: int = Path(ge=1),
+):
+    """問い合わせ問題調査を個別断念にする。"""
+    current_user = main.get_current_user()
+
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            # 1. 親の問題調査番号を取得する
+            # この段階ではロックせず、親を特定するために使う
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            row = cur.fetchone()
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問い合わせ問題調査が見つかりません。",
+                )
+
+            investigation_id = row[0]
+
+            # 2. 親を先にロックする
+            cur.execute(
+                """
+                SELECT "問題調査状態"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (investigation_id,),
+            )
+            parent = cur.fetchone()
+
+            if parent is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="親となる問題調査が見つかりません。",
+                )
+
+            if parent[0] != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "調査中の問題調査に関連する"
+                        "問い合わせ問題調査のみ個別断念できます。"
+                    ),
+                )
+
+            # 3. 親のロックを保持したまま対象の関連レコードをロック
+            cur.execute(
+                """
+                SELECT
+                    "問い合わせ番号",
+                    "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                  AND "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (relation_id, investigation_id),
+            )
+            relation = cur.fetchone()
+
+            if relation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="問い合わせ問題調査が見つかりません。",
+                )
+
+            inquiry_number, relation_state = relation
+
+            # 4. 問い合わせの対応担当者を確認
+            cur.execute(
+                """
+                SELECT "対応担当者"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                """,
+                (inquiry_number,),
+            )
+            inquiry = cur.fetchone()
+
+            if inquiry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="関連する問い合わせが見つかりません。",
+                )
+
+            if inquiry[0] != current_user.職員番号:
+                raise HTTPException(
+                    status_code=403,
+                    detail="対応担当者のみ操作できます。",
+                )
+
+            if relation_state != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "調査中の問い合わせ問題調査のみ"
+                        "個別断念できます。"
+                    ),
+                )
+
+            # 5. 対象の関連レコードだけを個別断念にする
+            cur.execute(
+                """
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 2
+                WHERE "問い合わせ問題調査番号" = %s
+                RETURNING
+                    "問い合わせ問題調査番号",
+                    "問い合わせ番号",
+                    "問題調査番号",
+                    "問い合わせ問題調査状態"
+                """,
+                (relation_id,),
+            )
+            updated = cur.fetchone()
+
+            result = {
+                "問い合わせ問題調査番号": updated[0],
+                "問い合わせ番号": updated[1],
+                "問題調査番号": updated[2],
+                "問い合わせ問題調査状態": updated[3],
+                "message": "問い合わせ問題調査を個別断念にしました。",
+            }
+
+    return result

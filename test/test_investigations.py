@@ -1430,3 +1430,236 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
             assert states_by_inquiry[other_inquiry_number] == 1
 
 
+# 問い合わせ問題調査の個別断念APIのテスト
+
+def _get_relation_id(investigation_number, inquiry_number):
+    """問題調査番号と問い合わせ番号から関連レコード番号を取得する。"""
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ番号" = %s
+                """,
+                (investigation_number, inquiry_number),
+            )
+            row = cur.fetchone()
+
+    assert row is not None
+    return row[0]
+
+
+def test_abandon_inquiry_problem_investigation_success(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """対応担当者が調査中の関連レコードを個別断念できる。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    data = investigation_search_test_data
+    investigation_number = data["investigation_numbers"][0]
+    inquiry_number = data["inquiry_numbers"][0]
+    other_inquiry_number = data["inquiry_numbers"][1]
+
+    relation_id = _get_relation_id(
+        investigation_number, inquiry_number
+    )
+    other_relation_id = _get_relation_id(
+        investigation_number, other_inquiry_number
+    )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/abandon"
+    )
+
+    assert response.status_code == 200, response.text
+
+    result = response.json()
+    assert result["問い合わせ問題調査番号"] == relation_id
+    assert result["問い合わせ番号"] == inquiry_number
+    assert result["問題調査番号"] == investigation_number
+    assert result["問い合わせ問題調査状態"] == 2
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            target_state = cur.fetchone()[0]
+
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (other_relation_id,),
+            )
+            other_state = cur.fetchone()[0]
+
+            cur.execute(
+                """
+                SELECT "問題調査状態"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                """,
+                (investigation_number,),
+            )
+            parent_state = cur.fetchone()[0]
+
+    assert target_state == 2
+    assert other_state == 1
+    assert parent_state == 1
+
+
+def test_abandon_inquiry_problem_investigation_other_handler_returns_403(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """別の職員は個別断念できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    data = investigation_search_test_data
+    investigation_number = data["investigation_numbers"][0]
+    inquiry_number = data["inquiry_numbers"][0]
+    relation_id = _get_relation_id(
+        investigation_number, inquiry_number
+    )
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ"
+                SET "対応担当者" = %s
+                WHERE "問い合わせ番号" = %s
+                """,
+                ("J0002", inquiry_number),
+            )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/abandon"
+    )
+
+    assert response.status_code == 403
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            assert cur.fetchone()[0] == 1
+
+
+def test_abandon_inquiry_problem_investigation_parent_not_in_progress_returns_409(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """親の問題調査が調査中でなければ個別断念できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    data = investigation_search_test_data
+    investigation_number = data["investigation_numbers"][0]
+    inquiry_number = data["inquiry_numbers"][0]
+    relation_id = _get_relation_id(
+        investigation_number, inquiry_number
+    )
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問題調査"
+                SET "問題調査状態" = 2
+                WHERE "問題調査番号" = %s
+                """,
+                (investigation_number,),
+            )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/abandon"
+    )
+
+    assert response.status_code == 409
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            assert cur.fetchone()[0] == 1
+
+
+def test_abandon_inquiry_problem_investigation_relation_not_in_progress_returns_409(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """関連レコードが調査中でなければ個別断念できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    data = investigation_search_test_data
+    investigation_number = data["investigation_numbers"][0]
+    inquiry_number = data["inquiry_numbers"][0]
+    relation_id = _get_relation_id(
+        investigation_number, inquiry_number
+    )
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 3
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+
+    response = client.post(
+        f"/api/investigations/relations/{relation_id}/abandon"
+    )
+
+    assert response.status_code == 409
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+            assert cur.fetchone()[0] == 3
+
+
+def test_abandon_inquiry_problem_investigation_not_found_returns_404(
+    monkeypatch,
+):
+    """存在しない関連レコード番号は404になる。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    response = client.post(
+        "/api/investigations/relations/999999999/abandon"
+    )
+
+    assert response.status_code == 404
+
