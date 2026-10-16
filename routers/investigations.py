@@ -575,3 +575,162 @@ def abandon_investigation_api(
     # ここまで正常に到達した場合だけ、トランザクションが確定する
     return result
 
+
+# 問題調査のリクエスト要求
+@router.post(
+    "/api/investigations/{investigation_id}/request-reaction"
+)
+def request_reaction_investigation_api(
+    investigation_id: int = Path(ge=1),
+):
+    # ログイン中の職員を取得
+    current_user = main.get_current_user()
+    操作者職員番号 = current_user.職員番号
+
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            # 対象の問題調査をロックし、存在・権限・状態を確認
+            cur.execute(
+                '''
+                SELECT
+                    q."問題調査状態",
+                    EXISTS (
+                        SELECT 1
+                        FROM "問い合わせ問題調査" ik
+                        WHERE ik."問題調査番号" = q."問題調査番号"
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM "問い合わせ問題調査" ik
+                        JOIN "問い合わせ" i
+                            ON i."問い合わせ番号" = ik."問い合わせ番号"
+                        WHERE ik."問題調査番号" = q."問題調査番号"
+                          AND i."対応担当者" IS DISTINCT FROM %s
+                    ) AS 編集権限あり
+                FROM "問題調査" q
+                WHERE q."問題調査番号" = %s
+                FOR UPDATE OF q
+                ''',
+                (操作者職員番号, investigation_id),
+            )
+
+            row = cur.fetchone()
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問題調査が見つかりません。",
+                )
+
+            問題調査状態 = row[0]
+            編集権限あり = row[1]
+
+            if not 編集権限あり:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "関連する問い合わせの対応担当者だけが"
+                        "リクエスト要求できます。"
+                    ),
+                )
+
+            if 問題調査状態 != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="調査中の問題調査だけリクエスト要求できます。",
+                )
+
+            # 要求前の整合性チェック：
+            # 関連レコードは状態1（調査中）または
+            # 状態2（個別断念）でなければならない
+            cur.execute(
+                '''
+                SELECT NOT EXISTS (
+                    SELECT 1
+                    FROM "問い合わせ問題調査"
+                    WHERE "問題調査番号" = %s
+                      AND "問い合わせ問題調査状態" NOT IN (1, 2)
+                )
+                ''',
+                (investigation_id,),
+            )
+
+            要求前の整合性あり = cur.fetchone()[0]
+
+            if not 要求前の整合性あり:
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "データ整合性エラー：調査中の問題調査に、"
+                        "関連する問い合わせ問題調査の状態1・2以外の"
+                        "レコードが存在します。"
+                    ),
+                )
+
+            # 関連レコードの状態1を状態3（リアクション待ち）に変更
+            # 状態2（個別断念）はそのまま維持する
+            cur.execute(
+                '''
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 3
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ問題調査状態" = 1
+                ''',
+                (investigation_id,),
+            )
+
+            # 問題調査本体を状態2にし、リクエスト要求日時を記録
+            cur.execute(
+                '''
+                UPDATE "問題調査"
+                SET
+                    "問題調査状態" = 2,
+                    "リアクション要求日時" = CURRENT_TIMESTAMP
+                WHERE "問題調査番号" = %s
+                RETURNING
+                    "問題調査番号",
+                    "問題調査の名称や仮説",
+                    "問題調査状態",
+                    "リアクション要求日時"
+                ''',
+                (investigation_id,),
+            )
+
+            updated_row = cur.fetchone()
+
+            # 更新後の整合性チェック：
+            # 関連レコードは状態2（個別断念）または
+            # 状態3（リアクション待ち）でなければならない
+            cur.execute(
+                '''
+                SELECT NOT EXISTS (
+                    SELECT 1
+                    FROM "問い合わせ問題調査"
+                    WHERE "問題調査番号" = %s
+                      AND "問い合わせ問題調査状態" NOT IN (2, 3)
+                )
+                ''',
+                (investigation_id,),
+            )
+
+            更新後の整合性あり = cur.fetchone()[0]
+
+            if not 更新後の整合性あり:
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "データ整合性エラー：リクエスト要求後の"
+                        "問い合わせ問題調査の状態が不正です。"
+                    ),
+                )
+
+            result = {
+                "問題調査番号": updated_row[0],
+                "問題調査の名称や仮説": updated_row[1],
+                "問題調査状態": updated_row[2],
+                "リアクション要求日時": updated_row[3],
+            }
+
+    # すべて成功した場合にのみトランザクションが確定する
+    return result
+
