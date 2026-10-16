@@ -927,3 +927,240 @@ def test_update_investigation_forbidden_when_handlers_differ(
     )
 
     assert response.status_code == 403
+
+
+# 問題調査の断念APIテスト
+
+def test_abandon_investigation_success(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """関連レコードをすべて状態2にして、問題調査を断念できる。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.post(
+        f"/api/investigations/{investigation_number}/abandon"
+    )
+
+    assert response.status_code == 200, response.text
+
+    result = response.json()
+    assert result["問題調査番号"] == investigation_number
+    assert result["問題調査状態"] == 3
+    assert result["問題調査断念日時"] is not None
+
+    # 問題調査本体の状態を確認
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "問題調査状態", "問題調査断念日時"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                ''',
+                (investigation_number,),
+            )
+            investigation_row = cur.fetchone()
+
+            assert investigation_row[0] == 3
+            assert investigation_row[1] is not None
+
+            # 関連する問い合わせ問題調査がすべて状態2であることを確認
+            cur.execute(
+                '''
+                SELECT COUNT(*)
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ問題調査状態" <> 2
+                ''',
+                (investigation_number,),
+            )
+            not_state_2_count = cur.fetchone()[0]
+
+            assert not_state_2_count == 0
+
+
+def test_abandon_investigation_forbidden_for_other_handler(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """対応担当者でない職員は断念できない。"""
+    _set_test_user(monkeypatch, "J0002")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    response = client.post(
+        f"/api/investigations/{investigation_number}/abandon"
+    )
+
+    assert response.status_code == 403
+
+
+def test_abandon_investigation_without_related_inquiries(
+    monkeypatch,
+):
+    """関連する問い合わせがない問題調査は断念できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                INSERT INTO "問題調査" (
+                    "問題調査の名称や仮説"
+                )
+                VALUES (%s)
+                RETURNING "問題調査番号"
+                ''',
+                ("断念APIテスト-関連なし",),
+            )
+            investigation_number = cur.fetchone()[0]
+
+    try:
+        response = client.post(
+            f"/api/investigations/{investigation_number}/abandon"
+        )
+
+        assert response.status_code == 403
+
+    finally:
+        with psycopg.connect("dbname=inquiry_management_test") as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    '''
+                    DELETE FROM "問題調査"
+                    WHERE "問題調査番号" = %s
+                    ''',
+                    (investigation_number,),
+                )
+
+
+def test_abandon_investigation_not_found(monkeypatch):
+    """存在しない問題調査は断念できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    response = client.post(
+        "/api/investigations/999999999/abandon"
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("state", [2, 3])
+def test_abandon_investigation_invalid_state(
+    investigation_search_test_data,
+    monkeypatch,
+    state,
+):
+    """問題調査の状態が2または3なら断念できない。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問題調査"
+                SET "問題調査状態" = %s
+                WHERE "問題調査番号" = %s
+                ''',
+                (state, investigation_number),
+            )
+
+    response = client.post(
+        f"/api/investigations/{investigation_number}/abandon"
+    )
+
+    assert response.status_code == 409
+
+
+def test_abandon_investigation_detects_inconsistent_related_state(
+    investigation_search_test_data,
+    monkeypatch,
+):
+    """
+    関連レコードに状態3があれば整合性エラーを返し、
+    問題調査本体と関連レコードの更新をロールバックする。
+    """
+    _set_test_user(monkeypatch, "J0001")
+
+    investigation_number = (
+        investigation_search_test_data["investigation_numbers"][0]
+    )
+    inquiry_number = (
+        investigation_search_test_data["inquiry_numbers"][0]
+    )
+
+    # 本来は状態1または2のはずの関連レコードに、
+    # 設計上想定しない状態3を意図的に設定する
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 3
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ番号" = %s
+                ''',
+                (investigation_number, inquiry_number),
+            )
+            assert cur.rowcount == 1
+
+    response = client.post(
+        f"/api/investigations/{investigation_number}/abandon"
+    )
+
+    assert response.status_code == 500
+    assert "データ整合性エラー" in response.json()["detail"]
+
+    # 問題調査本体が状態1のまま、断念日時も未設定であることを確認
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "問題調査状態", "問題調査断念日時"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                ''',
+                (investigation_number,),
+            )
+            investigation_row = cur.fetchone()
+
+            assert investigation_row[0] == 1
+            assert investigation_row[1] is None
+
+            # 関連レコードも、API実行前の状態に戻っていることを確認
+            cur.execute(
+                '''
+                SELECT "問い合わせ番号", "問い合わせ問題調査状態"
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
+                ORDER BY "問い合わせ番号"
+                ''',
+                (investigation_number,),
+            )
+            related_rows = cur.fetchall()
+
+            states_by_inquiry = {
+                row[0]: row[1] for row in related_rows
+            }
+
+            assert states_by_inquiry[inquiry_number] == 3
+
+            # もう一方の関連レコードも、状態1のまま戻っている
+            other_inquiry_number = next(
+                number
+                for number in investigation_search_test_data["inquiry_numbers"]
+                if number != inquiry_number
+            )
+            assert states_by_inquiry[other_inquiry_number] == 1
+

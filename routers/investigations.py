@@ -445,3 +445,133 @@ def update_investigation_api(
             )
 
     return updated_investigation
+
+
+
+# 問題調査の断念
+@router.post("/api/investigations/{investigation_id}/abandon")
+def abandon_investigation_api(
+    investigation_id: int = Path(ge=1),
+):
+    # ログイン中の職員を取得
+    current_user = main.get_current_user()
+    操作者職員番号 = current_user.職員番号
+
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            # 対象の問題調査をロックし、存在・権限・状態を確認
+            cur.execute(
+                '''
+                SELECT
+                    q."問題調査状態",
+                    EXISTS (
+                        SELECT 1
+                        FROM "問い合わせ問題調査" ik
+                        WHERE ik."問題調査番号" = q."問題調査番号"
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM "問い合わせ問題調査" ik
+                        JOIN "問い合わせ" i
+                            ON i."問い合わせ番号" = ik."問い合わせ番号"
+                        WHERE ik."問題調査番号" = q."問題調査番号"
+                          AND i."対応担当者" IS DISTINCT FROM %s
+                    ) AS 編集権限あり
+                FROM "問題調査" q
+                WHERE q."問題調査番号" = %s
+                FOR UPDATE OF q
+                ''',
+                (操作者職員番号, investigation_id),
+            )
+
+            row = cur.fetchone()
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問題調査が見つかりません。",
+                )
+
+            問題調査状態 = row[0]
+            編集権限あり = row[1]
+
+            if not 編集権限あり:
+                raise HTTPException(
+                    status_code=403,
+                    detail="関連する問い合わせの対応担当者だけが断念できます。",
+                )
+
+            if 問題調査状態 != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="調査中の問題調査だけ断念できます。",
+                )
+
+            # 関連する問い合わせ問題調査のうち、
+            # 状態1（調査中）のレコードをすべて状態2（個別断念）にする
+            cur.execute(
+                '''
+                UPDATE "問い合わせ問題調査"
+                SET "問い合わせ問題調査状態" = 2
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ問題調査状態" = 1
+                ''',
+                (investigation_id,),
+            )
+
+            # 問題調査本体を状態3（問題調査断念）にし、断念日時を記録
+            cur.execute(
+                '''
+                UPDATE "問題調査"
+                SET
+                    "問題調査状態" = 3,
+                    "問題調査断念日時" = CURRENT_TIMESTAMP
+                WHERE "問題調査番号" = %s
+                RETURNING
+                    "問題調査番号",
+                    "問題調査の名称や仮説",
+                    "問題調査状態",
+                    "問題調査断念日時"
+                ''',
+                (investigation_id,),
+            )
+
+            updated_row = cur.fetchone()
+
+            # 関連する問い合わせ問題調査がすべて状態2になったか検証
+            cur.execute(
+                '''
+                SELECT NOT EXISTS (
+                    SELECT 1
+                    FROM "問い合わせ問題調査"
+                    WHERE "問題調査番号" = %s
+                      AND "問い合わせ問題調査状態" <> 2
+                )
+                ''',
+                (investigation_id,),
+            )
+
+            全件状態2 = cur.fetchone()[0]
+
+            if not 全件状態2:
+                # HTTPExceptionによってトランザクションをロールバックする。
+                # 問題調査本体・関連レコードの更新はすべて取り消される。
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "データ整合性エラー：問題調査が調査中なのに、"
+                        "関連する問い合わせ問題調査に状態2以外の"
+                        "レコードが存在します。"
+                    ),
+                )
+
+            result = {
+                "問題調査番号": updated_row[0],
+                "問題調査の名称や仮説": updated_row[1],
+                "問題調査状態": updated_row[2],
+                "問題調査断念日時": updated_row[3],
+            }
+
+    # ここまで正常に到達した場合だけ、トランザクションが確定する
+    return result
+
