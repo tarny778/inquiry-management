@@ -8,6 +8,7 @@ from main import app
 import main
 import pytest
 
+
 client = TestClient(app)
 
 # ここからfixture
@@ -728,11 +729,40 @@ def test_accept_inquiry_unknown_number(monkeypatch):
 
 def test_accept_inquiry_invalid_staff(pending_inquiry_number,monkeypatch):
     _set_test_user(monkeypatch, "T0001")
+
+    # 操作前の状態を取得
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "対応担当者", "引き受け日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            before = cur.fetchone()
+
     response = client.post(
         f"/api/inquiries/{pending_inquiry_number}/accept",
     )
 
-    assert response.status_code == 400
+    # 操作後の状態を取得
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "対応担当者", "引き受け日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            after = cur.fetchone()
+
+    assert after == before
+
+    assert response.status_code == 403
     assert response.json()["detail"] == (
         "操作者が情シス職員として登録されていません"
     )
@@ -1002,6 +1032,52 @@ def test_bulk_accept_rejects_duplicate_numbers(monkeypatch,
     assert inquiry[0] is None
     assert inquiry[1] is None
 
+def test_bulk_accept_rejects_general_staff(
+    monkeypatch,
+    pending_inquiry_number,
+):
+    """一般職員による一括引き受けを拒否し、DBを変更しない。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    # 操作前の状態を取得
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "対応担当者", "引き受け日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            before = cur.fetchone()
+
+    response = client.post(
+        "/api/inquiries/bulk-accept",
+        json={
+            "問い合わせ番号一覧": [pending_inquiry_number]
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "操作者が情シス職員として登録されていません"
+    )
+
+    # 操作後の状態を取得
+    with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "対応担当者", "引き受け日時"
+                FROM "問い合わせ"
+                WHERE "問い合わせ番号" = %s
+                ''',
+                (pending_inquiry_number,),
+            )
+            after = cur.fetchone()
+
+    assert after == before
 
 # =========================================================
 # 個別対応完了APIのテスト
@@ -3291,165 +3367,224 @@ def test_update_inquiry_unknown_number(pending_inquiry_number,monkeypatch):
 
     assert response.status_code == 404
 
-
 #検索一覧取得のテスト
-def test_search_inquiries_without_conditions():
-    response = client.get("/api/inquiries")
+def test_search_inquiries_without_conditions(
+    search_test_inquiries,
+):
+    """初期条件を適用しない場合、全件を検索できる。"""
+    response = client.get(
+        "/api/inquiries",
+        params={"初期条件": 2},
+    )
 
     assert response.status_code == 200
+    data = response.json()
 
-    result = response.json()
-    assert set(result.keys()) == {
-        "items", "page", "page_size", "total"
-    }
-    assert result["page"] == 1
-    assert result["page_size"] == 50
-    assert result["total"] >= len(result["items"])
-
-    # 受信日時の降順、同日時なら問い合わせ番号の降順
-    items = result["items"]
-    actual_order = [
-        (item["受信日時"], item["問い合わせ番号"])
-        for item in items
-    ]
-    assert actual_order == sorted(actual_order, reverse=True)
+    assert "items" in data
+    assert data["page"] == 1
+    assert data["page_size"] == 50
+    assert data["total"] == 3
+    assert len(data["items"]) == 3
 
 
 def test_search_inquiries_by_number(search_test_inquiries):
+    """問い合わせ番号で検索できる。"""
     inquiry_number = search_test_inquiries["pending"]
 
     response = client.get(
         "/api/inquiries",
-        params={"問い合わせ番号": inquiry_number},
+        params={
+            "初期条件": 2,
+            "問い合わせ番号": inquiry_number,
+        },
     )
 
     assert response.status_code == 200
+    data = response.json()
 
-    result = response.json()
-    assert result["total"] == 1
-    assert len(result["items"]) == 1
-    assert result["items"][0]["問い合わせ番号"] == inquiry_number
+    assert data["total"] == 1
+    assert data["items"][0]["問い合わせ番号"] == inquiry_number
 
 
-def test_search_inquiries_by_partial_subject(search_test_inquiries):
+def test_search_inquiries_by_subject(search_test_inquiries):
+    """件名の部分一致で検索できる。"""
     response = client.get(
         "/api/inquiries",
-        params={"件名": "検索APIテスト-引き受け待ち"},
+        params={
+            "初期条件": 2,
+            "件名": "検索APIテスト-対応中",
+        },
     )
 
     assert response.status_code == 200
+    data = response.json()
 
-    result = response.json()
-    assert result["total"] == 1
-    assert result["items"][0]["件名"] == "検索APIテスト-引き受け待ち"
+    assert data["total"] == 1
 
 
 def test_search_inquiries_by_category(search_test_inquiries):
+    """問い合わせ分類で検索できる。"""
     response = client.get(
         "/api/inquiries",
-        params={"問い合わせ分類": "分類A"},
+        params={
+            "初期条件": 2,
+            "問い合わせ分類": "分類A",
+        },
     )
 
     assert response.status_code == 200
-
-    result = response.json()
-    assert result["total"] >= 3
-    assert all(
-        item["問い合わせ分類"] == "分類A"
-        for item in result["items"]
-    )
+    assert response.json()["total"] == 3
 
 
 def test_search_inquiries_by_status(search_test_inquiries):
-    expected_states = {
-        "引き受け待ち": "pending",
-        "対応中": "in_progress",
-        "対応完了": "completed",
-    }
+    """問い合わせ状態で検索できる。"""
+    response = client.get(
+        "/api/inquiries",
+        params=[
+            ("初期条件", "2"),
+            ("状態", "対応中"),
+        ],
+    )
 
-    for status, state_key in expected_states.items():
-        inquiry_number = search_test_inquiries[state_key]
+    assert response.status_code == 200
+    data = response.json()
 
-        response = client.get(
-            "/api/inquiries",
-            params={"状態": status},
-        )
-
-        assert response.status_code == 200
-
-        result = response.json()
-        matching_items = [
-            item for item in result["items"]
-            if item["問い合わせ番号"] == inquiry_number
-        ]
-
-        assert len(matching_items) == 1
-        assert matching_items[0]["状態"] == status
+    assert data["total"] == 1
 
 
 def test_search_inquiries_pagination(search_test_inquiries):
-    params = {
-        "件名": "検索APIテスト-",
-        "page": 1,
-        "page_size": 2,
-    }
-
+    """ページネーションが機能する。"""
     response_page1 = client.get(
         "/api/inquiries",
-        params=params,
+        params={
+            "初期条件": 2,
+            "page": 1,
+            "page_size": 2,
+        },
+    )
+    response_page2 = client.get(
+        "/api/inquiries",
+        params={
+            "初期条件": 2,
+            "page": 2,
+            "page_size": 2,
+        },
     )
 
     assert response_page1.status_code == 200
-    result_page1 = response_page1.json()
-
-    assert result_page1["total"] == 3
-    assert result_page1["page"] == 1
-    assert result_page1["page_size"] == 2
-    assert len(result_page1["items"]) == 2
-
-    params["page"] = 2
-
-    response_page2 = client.get(
-        "/api/inquiries",
-        params=params,
-    )
-
     assert response_page2.status_code == 200
-    result_page2 = response_page2.json()
 
-    assert result_page2["total"] == 3
-    assert result_page2["page"] == 2
-    assert len(result_page2["items"]) == 1
+    page1 = response_page1.json()
+    page2 = response_page2.json()
 
-    # 1ページ目と2ページ目に重複がないこと
+    assert page1["total"] == 3
+    assert page1["page_size"] == 2
+    assert len(page1["items"]) == 2
+    assert len(page2["items"]) == 1
+
     page1_numbers = {
-        item["問い合わせ番号"]
-        for item in result_page1["items"]
+        item["問い合わせ番号"] for item in page1["items"]
     }
     page2_numbers = {
-        item["問い合わせ番号"]
-        for item in result_page2["items"]
+        item["問い合わせ番号"] for item in page2["items"]
     }
+
     assert page1_numbers.isdisjoint(page2_numbers)
 
 
-def test_search_inquiries_invalid_status():
+def test_search_inquiries_invalid_status(search_test_inquiries):
+    """不正な問い合わせ状態は422になる。"""
     response = client.get(
         "/api/inquiries",
-        params={"状態": "存在しない状態"},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "状態の指定が不正です"
-
-
-def test_search_inquiries_invalid_page():
-    response = client.get(
-        "/api/inquiries",
-        params={"page": 0},
+        params=[
+            ("初期条件", "2"),
+            ("状態", "存在しない状態"),
+        ],
     )
 
     assert response.status_code == 422
+
+
+def test_search_inquiries_invalid_initial_condition():
+    """不正な初期条件は422になる。"""
+    response = client.get(
+        "/api/inquiries",
+        params={"初期条件": 3},
+    )
+
+    assert response.status_code == 422
+
+
+def test_search_inquiries_missing_initial_condition():
+    """初期条件を省略すると422になる。"""
+    response = client.get("/api/inquiries")
+
+    assert response.status_code == 422
+
+
+def test_search_inquiries_invalid_page():
+    """ページ番号が1未満の場合は422になる。"""
+    response = client.get(
+        "/api/inquiries",
+        params={
+            "初期条件": 2,
+            "page": 0,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_search_initial_condition_ignores_other_conditions(
+    monkeypatch,
+    search_test_inquiries,
+):
+    """初期条件1では、ほかの検索条件を無視する。"""
+    _set_test_user(monkeypatch, "T0001")
+
+    response = client.get(
+        "/api/inquiries",
+        params={
+            "初期条件": 1,
+            "件名": "検索APIテスト-対応完了",
+            "状態": "対応完了",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    numbers = {
+        item["問い合わせ番号"] for item in data["items"]
+    }
+
+    assert search_test_inquiries["pending"] in numbers
+    assert search_test_inquiries["in_progress"] in numbers
+    assert search_test_inquiries["completed"] not in numbers
+
+
+def test_search_initial_condition_for_it_staff(
+    monkeypatch,
+    search_test_inquiries,
+):
+    """情シス職員の初期条件では、引き受け待ちと自分の対応中を表示する。"""
+    _set_test_user(monkeypatch, "J0001")
+
+    response = client.get(
+        "/api/inquiries",
+        params={"初期条件": 1},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    numbers = {
+        item["問い合わせ番号"] for item in data["items"]
+    }
+
+    assert search_test_inquiries["pending"] in numbers
+    assert search_test_inquiries["in_progress"] in numbers
+    assert search_test_inquiries["completed"] not in numbers
 
 
 

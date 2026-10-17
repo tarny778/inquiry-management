@@ -324,7 +324,10 @@ def test_inquiry_list_with_authenticated_session(auth_account):
 
     assert login_response.status_code == 200
 
-    response = client.get("/api/inquiries")
+    response = client.get(
+        "/api/inquiries",
+        params={"初期条件": 1},
+    )
 
     assert response.status_code == 200
 

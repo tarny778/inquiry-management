@@ -19,6 +19,8 @@ DROP TABLE IF EXISTS "問い合わせ問題調査";
 DROP TABLE IF EXISTS "対応担当者変更履歴";
 DROP TABLE IF EXISTS "問題調査";
 DROP TABLE IF EXISTS "問い合わせ";
+DROP TABLE IF EXISTS "ログインセッション";
+DROP TABLE IF EXISTS "職員認証情報";
 DROP TABLE IF EXISTS "職員";
 
 
@@ -32,9 +34,55 @@ CREATE TABLE "職員" (
     "所属" VARCHAR(30) NOT NULL
 );
 
+-- =========================================================
+-- 2. 職員認証情報
+-- パスワードハッシュとログイン可否を管理する。
+-- =========================================================
+
+CREATE TABLE "職員認証情報" (
+    "職員番号" VARCHAR(20) PRIMARY KEY,
+    "パスワードハッシュ" TEXT NOT NULL,
+    "ログイン可否" BOOLEAN NOT NULL DEFAULT TRUE,
+    "作成日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "更新日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "パスワード更新日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "fk_職員認証情報_職員"
+        FOREIGN KEY ("職員番号")
+        REFERENCES "職員" ("職員番号")
+        ON DELETE CASCADE
+);
+
 
 -- =========================================================
--- 2. 問い合わせ
+-- 3. ログインセッション
+-- ログイン状態とセッションの有効期限を管理する。
+-- =========================================================
+
+CREATE TABLE "ログインセッション" (
+    "セッションIDハッシュ" VARCHAR(64) PRIMARY KEY,
+    "職員番号" VARCHAR(20) NOT NULL,
+    "作成日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "無操作期限" TIMESTAMPTZ NOT NULL,
+    "絶対有効期限" TIMESTAMPTZ NOT NULL,
+    "最終利用日時" TIMESTAMPTZ,
+    "失効日時" TIMESTAMPTZ,
+
+    CONSTRAINT "ck_ログインセッション_期限"
+        CHECK ("無操作期限" <= "絶対有効期限"),
+
+    CONSTRAINT "fk_ログインセッション_職員認証情報"
+        FOREIGN KEY ("職員番号")
+        REFERENCES "職員認証情報" ("職員番号")
+        ON DELETE CASCADE
+);
+
+CREATE INDEX "idx_ログインセッション_職員番号"
+    ON "ログインセッション" ("職員番号");
+
+
+-- =========================================================
+-- 4. 問い合わせ
 -- =========================================================
 
 CREATE TABLE "問い合わせ" (
@@ -72,7 +120,7 @@ CREATE TABLE "問い合わせ" (
 
 
 -- =========================================================
--- 3. 問題調査
+-- 5. 問題調査
 -- 問題調査そのものと、共通の原因・対応・進捗を管理する。
 -- =========================================================
 
@@ -98,7 +146,7 @@ CREATE TABLE "問題調査" (
 
 
 -- =========================================================
--- 4. 問い合わせ問題調査
+-- 6. 問い合わせ問題調査
 -- 問い合わせと問題調査の関係、およびその関係の状態・履歴を管理する。
 -- =========================================================
 
@@ -131,7 +179,7 @@ CREATE TABLE "問い合わせ問題調査" (
 
 
 -- =========================================================
--- 5. 対応担当者変更履歴
+-- 7. 対応担当者変更履歴
 -- =========================================================
 
 CREATE TABLE "対応担当者変更履歴" (

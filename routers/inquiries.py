@@ -13,7 +13,9 @@ from schemas.schemas_inquiries import (
     BulkInvestigationCreate,
     BulkLinkInvestigation,
     InquiryUpdate,
+    InquirySearch,
 )
+from typing import Annotated
 
 DATABASE_NAME = main.DATABASE_NAME
 
@@ -171,7 +173,7 @@ def accept_inquiry_api(
     inquiry_number: int = Path(ge=1),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    # ログイン中の職員を受付担当者とする
+    # ログイン中の職員を対応担当者とする
     操作者職員番号 = current_user.職員番号
     # 1. 操作者の存在確認と所属確認
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
@@ -194,7 +196,7 @@ def accept_inquiry_api(
 
     if staff[1] != "情報システム課":
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="操作者が情シス職員として登録されていません",
         )
 
@@ -284,7 +286,7 @@ def accept_inquiries_bulk_api(
 
             if staff[1] != "情報システム課":
                 raise HTTPException(
-                    status_code=400,
+                    status_code=403,
                     detail="操作者が情シス職員として登録されていません",
                 )
 
@@ -1329,104 +1331,186 @@ def update_inquiry_api(
         "問い合わせ番号": inquiry_number,
     }
 
-
-
-
-#検索により一覧取得
+# 検索により一覧取得
 @router.get("/api/inquiries")
 def search_inquiries_api(
-    問い合わせ番号: int | None = Query(default=None, ge=1),
-    件名: str | None = Query(default=None, min_length=1, max_length=100),
-    問い合わせ分類: str | None = Query(default=None,  min_length=1, max_length=30),
-    状態: str | None = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=100),
+    search: Annotated[InquirySearch, Query()],
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    # 1. 状態の指定値を確認
-    allowed_statuses = {
-        "引き受け待ち",
-        "対応中",
-        "対応完了",
-    }
-
-    if 状態 is not None and 状態 not in allowed_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail="状態の指定が不正です",
-        )
-    if 問い合わせ分類 is not None:
-        if 問い合わせ分類 not in ALLOWED_INQUIRY_CATEGORIES:
-            raise HTTPException(
-                status_code=400,
-                detail="問い合わせ分類が不正です",
-            )
-
-    # 2. 検索条件を組み立てる
     conditions = []
     params = []
 
-    if 問い合わせ番号 is not None:
-        conditions.append(
-            '"問い合わせ番号" = %s'
-        )
-        params.append(問い合わせ番号)
+    # ログイン中の職員番号
+    操作者職員番号 = current_user.職員番号
 
-    if 件名 is not None:
-        conditions.append(
-            '"件名" ILIKE %s'
-        )
-        params.append(f"%{件名}%")
+    # 1. 操作者の存在確認と所属取得
+    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                SELECT "職員番号", "所属"
+                FROM "職員"
+                WHERE "職員番号" = %s
+                ''',
+                (操作者職員番号,),
+            )
+            staff = cur.fetchone()
 
-    if 問い合わせ分類 is not None:
-        conditions.append(
-            '"問い合わせ分類" = %s'
-        )
-        params.append(問い合わせ分類)
-
-    # 状態は日時カラムから判定する
-    if 状態 == "引き受け待ち":
-        conditions.append(
-            '"引き受け日時" IS NULL '
-            'AND "対応完了日時" IS NULL'
-        )
-    elif 状態 == "対応中":
-        conditions.append(
-            '"引き受け日時" IS NOT NULL '
-            'AND "対応完了日時" IS NULL'
-        )
-    elif 状態 == "対応完了":
-        conditions.append(
-            '"対応完了日時" IS NOT NULL'
+    if staff is None:
+        raise HTTPException(
+            status_code=400,
+            detail="指定された操作者は登録されていません",
         )
 
+    操作者所属 = staff[1]
+
+    # 1. 初期条件か、通常検索かを判定する
+    if search.初期条件 == 1:
+        if 操作者所属 == "情報システム課":
+            # 情シス職員：
+            # すべての引き受け待ち OR 自分が担当する対応中
+            conditions.append(
+                """
+                (
+                    (
+                        "引き受け日時" IS NULL
+                        AND "対応完了日時" IS NULL
+                    )
+                    OR
+                    (
+                        "対応担当者" = %s
+                        AND "引き受け日時" IS NOT NULL
+                        AND "対応完了日時" IS NULL
+                    )
+                )
+                """
+            )
+            params.append(current_user.職員番号)
+        else:
+            # 一般職員：
+            # 自分の問い合わせのうち、引き受け待ち・対応中
+            conditions.append(
+                """
+                (
+                    "問い合わせ職員番号" = %s
+                    AND "対応完了日時" IS NULL
+                )
+                """
+            )
+            params.append(current_user.職員番号)
+
+    else:
+        # 2. 通常検索：指定された条件だけを適用する
+
+        if search.問い合わせ番号 is not None:
+            conditions.append('"問い合わせ番号" = %s')
+            params.append(search.問い合わせ番号)
+
+        if search.問い合わせ職員番号 is not None:
+            conditions.append('"問い合わせ職員番号" = %s')
+            params.append(search.問い合わせ職員番号)
+
+        if search.問い合わせ当時の所属 is not None:
+            conditions.append('"問い合わせ当時の所属" ILIKE %s')
+            params.append(f"%{search.問い合わせ当時の所属}%")
+
+        if search.受付経路:
+            conditions.append('"受付経路" = ANY(%s)')
+            params.append(search.受付経路)
+
+        if search.問い合わせ分類 is not None:
+            conditions.append('"問い合わせ分類" = %s')
+            params.append(search.問い合わせ分類)
+
+        if search.件名 is not None:
+            conditions.append('"件名" ILIKE %s')
+            params.append(f"%{search.件名}%")
+
+        if search.緊急度 is not None:
+            conditions.append('"緊急度" = %s')
+            params.append(search.緊急度)
+
+        if search.受付担当者 is not None:
+            conditions.append('"受付担当者" = %s')
+            params.append(search.受付担当者)
+
+        if search.対応担当者 is not None:
+            conditions.append('"対応担当者" = %s')
+            params.append(search.対応担当者)
+
+        # 同一項目内の状態はOR、ほかの項目とはAND
+        if search.状態:
+            status_conditions = []
+
+            if "引き受け待ち" in search.状態:
+                status_conditions.append(
+                    """
+                    (
+                        "引き受け日時" IS NULL
+                        AND "対応完了日時" IS NULL
+                    )
+                    """
+                )
+
+            if "対応中" in search.状態:
+                status_conditions.append(
+                    """
+                    (
+                        "引き受け日時" IS NOT NULL
+                        AND "対応完了日時" IS NULL
+                    )
+                    """
+                )
+
+            if "対応完了" in search.状態:
+                status_conditions.append(
+                    '"対応完了日時" IS NOT NULL'
+                )
+
+            conditions.append(
+                "(" + " OR ".join(status_conditions) + ")"
+            )
+
+        if search.受信日時開始 is not None:
+            conditions.append('"受信日時" >= %s')
+            params.append(search.受信日時開始)
+
+        if search.受信日時終了 is not None:
+            conditions.append('"受信日時" <= %s')
+            params.append(search.受信日時終了)
+
+    # 3. WHERE句を構築する
     where_sql = ""
     if conditions:
         where_sql = "WHERE " + " AND ".join(conditions)
 
-    # 3. 総件数と検索結果を取得する
-    offset = (page - 1) * page_size
+    offset = (search.page - 1) * search.page_size
 
+    # 4. 件数と一覧データを取得する
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
-            # 検索条件に合致する総件数
             cur.execute(
-                f'''
+                f"""
                 SELECT COUNT(*)
                 FROM "問い合わせ"
                 {where_sql}
-                ''',
+                """,
                 tuple(params),
             )
             total = cur.fetchone()[0]
 
-            # 検索結果を受信日時の新しい順で取得
             cur.execute(
-                f'''
+                f"""
                 SELECT
                     "問い合わせ番号",
-                    "件名",
+                    "問い合わせ職員番号",
+                    "問い合わせ当時の所属",
+                    "受付経路",
                     "問い合わせ分類",
+                    "件名",
+                    "緊急度",
+                    "受付担当者",
+                    "対応担当者",
                     "受信日時",
                     CASE
                         WHEN "対応完了日時" IS NOT NULL
@@ -1442,30 +1526,39 @@ def search_inquiries_api(
                     "問い合わせ番号" DESC
                 LIMIT %s
                 OFFSET %s
-                ''',
-                tuple(params) + (page_size, offset),
+                """,
+                tuple(params) + (
+                    search.page_size,
+                    offset,
+                ),
             )
-
             rows = cur.fetchall()
 
-    # 4. APIレスポンスを作成する
+    # 5. レスポンスを作成する
     items = [
         {
             "問い合わせ番号": row[0],
-            "件名": row[1],
-            "問い合わせ分類": row[2],
-            "受信日時": row[3],
-            "状態": row[4],
+            "問い合わせ職員番号": row[1],
+            "問い合わせ当時の所属": row[2],
+            "受付経路": row[3],
+            "問い合わせ分類": row[4],
+            "件名": row[5],
+            "緊急度": row[6],
+            "受付担当者": row[7],
+            "対応担当者": row[8],
+            "受信日時": row[9],
+            "状態": row[10],
         }
         for row in rows
     ]
 
     return {
         "items": items,
-        "page": page,
-        "page_size": page_size,
+        "page": search.page,
+        "page_size": search.page_size,
         "total": total,
     }
+
 
 #個別の詳細取得
 @router.get("/api/inquiries/{inquiry_number}")
