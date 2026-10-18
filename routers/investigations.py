@@ -850,17 +850,20 @@ def abandon_inquiry_problem_investigation_api(
                     ),
                 )
 
-            # 5. 対象の関連レコードだけを個別断念にする
+                        # 5. 対象の関連レコードだけを個別断念にする
             cur.execute(
                 """
                 UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 2
+                SET
+                    "問い合わせ問題調査状態" = 2,
+                    "断念日時" = CURRENT_TIMESTAMP
                 WHERE "問い合わせ問題調査番号" = %s
                 RETURNING
                     "問い合わせ問題調査番号",
                     "問い合わせ番号",
                     "問題調査番号",
-                    "問い合わせ問題調査状態"
+                    "問い合わせ問題調査状態",
+                    "断念日時"
                 """,
                 (relation_id,),
             )
@@ -871,6 +874,7 @@ def abandon_inquiry_problem_investigation_api(
                 "問い合わせ番号": updated[1],
                 "問題調査番号": updated[2],
                 "問い合わせ問題調査状態": updated[3],
+                "断念日時": updated[4],
                 "message": "問い合わせ問題調査を個別断念にしました。",
             }
 
@@ -943,17 +947,22 @@ def ok_inquiry_problem_investigation_api(
                     ),
                 )
 
-            # 4. 対象の子レコードをOKに更新する
+            # 4. 対象の子レコードにOK回答を記録する
             cur.execute(
                 """
                 UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 4
+                SET
+                    "問い合わせ問題調査状態" = 4,
+                    "リアクション内容" = 1,
+                    "リアクション日時" = CURRENT_TIMESTAMP
                 WHERE "問い合わせ問題調査番号" = %s
                 RETURNING
                     "問い合わせ問題調査番号",
                     "問い合わせ番号",
                     "問題調査番号",
-                    "問い合わせ問題調査状態"
+                    "問い合わせ問題調査状態",
+                    "リアクション内容",
+                    "リアクション日時"
                 """,
                 (relation_id,),
             )
@@ -964,6 +973,8 @@ def ok_inquiry_problem_investigation_api(
                 "問い合わせ番号": updated[1],
                 "問題調査番号": updated[2],
                 "問い合わせ問題調査状態": updated[3],
+                "リアクション内容": updated[4],
+                "リアクション日時": updated[5],
                 "message": "問い合わせ問題調査にOKと回答しました。",
             }
 
@@ -1200,7 +1211,29 @@ def ng_inquiry_problem_investigation_api(
             )
             updated_relation = cur.fetchone()
 
-            # 8. 問い合わせと移行先問題調査を新たに関連づける
+
+            # 8. 移行先に同じ問い合わせが関連付け済みでないか確認
+            cur.execute(
+                """
+                SELECT "問い合わせ番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
+                  AND "問い合わせ番号" = %s
+                """,
+                (destination_id, inquiry_number),
+            )
+            existing_relation = cur.fetchone()
+
+            if existing_relation is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"問い合わせ番号 {inquiry_number} は"
+                        "すでにこの問題調査に関連付けられています。"
+                    ),
+                )
+
+            # 9. 問い合わせと移行先問題調査を新たに関連づける
             # 関連レコードの状態はDBの初期値1を使用する
             cur.execute(
                 """
@@ -1220,6 +1253,7 @@ def ng_inquiry_problem_investigation_api(
                     destination_id,
                 ),
             )
+
             new_relation = cur.fetchone()
 
             result = {
