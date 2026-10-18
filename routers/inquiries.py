@@ -815,20 +815,66 @@ def link_existing_investigation_api(
                     detail="調査中の問題調査だけ関連付けできます。",
                 )
 
-            # 2. 対象の問い合わせを取得し、ロックする
+            
+            # 2. 既存の関連付け対象を取得する
             cur.execute(
                 """
-                SELECT
-                    "対応担当者",
-                    "引き受け日時",
-                    "対応完了日時"
-                FROM "問い合わせ"
-                WHERE "問い合わせ番号" = %s
-                FOR UPDATE
+                SELECT "問い合わせ番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
                 """,
-                (inquiry_number,),
+                (investigation_number,),
             )
-            inquiry = cur.fetchone()
+            existing_numbers = {
+                row[0] for row in cur.fetchall()
+            }
+
+            if not existing_numbers:
+                raise HTTPException(
+                    status_code=409,
+                    detail="既存の関連付けがない問題調査には追加できません。",
+                )
+
+            # 3. 今回の対象と既存の関連付け対象をまとめて番号順にロック
+            cur.execute(
+                """
+                WITH target_numbers AS (
+                    SELECT unnest(%s::integer[]) AS "問い合わせ番号"
+                ),
+                existing_numbers AS (
+                    SELECT "問い合わせ番号"
+                    FROM "問い合わせ問題調査"
+                    WHERE "問題調査番号" = %s
+                ),
+                lock_targets AS (
+                    SELECT "問い合わせ番号"
+                    FROM target_numbers
+
+                    UNION
+
+                    SELECT "問い合わせ番号"
+                    FROM existing_numbers
+                )
+                SELECT
+                    i."問い合わせ番号",
+                    i."対応担当者",
+                    i."引き受け日時",
+                    i."対応完了日時"
+                FROM "問い合わせ" AS i
+                JOIN lock_targets AS t
+                  ON t."問い合わせ番号" = i."問い合わせ番号"
+                ORDER BY i."問い合わせ番号"
+                FOR UPDATE OF i
+                """,
+                ([inquiry_number], investigation_number),
+            )
+            locked_inquiries = {
+                row[0]: row[1:]
+                for row in cur.fetchall()
+            }
+
+            # 4. 対象の問い合わせが存在するか確認
+            inquiry = locked_inquiries.get(inquiry_number)
 
             if inquiry is None:
                 raise HTTPException(
@@ -850,30 +896,15 @@ def link_existing_investigation_api(
                     detail="対応担当者本人だけが関連付けできます。",
                 )
 
-            # 3. 既存の関連問い合わせを取得する
-            cur.execute(
-                """
-                SELECT i."問い合わせ番号", i."対応担当者"
-                FROM "問い合わせ問題調査" AS r
-                JOIN "問い合わせ" AS i
-                  ON i."問い合わせ番号" = r."問い合わせ番号"
-                WHERE r."問題調査番号" = %s
-                ORDER BY i."問い合わせ番号"
-                FOR UPDATE OF i
-                """,
-                (investigation_number,),
-            )
-            related_inquiries = cur.fetchall()
+            # 5. 既存の関連問い合わせの対応担当者を確認
+            for related_number in existing_numbers:
+                related = locked_inquiries.get(related_number)
 
-            if not related_inquiries:
-                raise HTTPException(
-                    status_code=409,
-                    detail="既存の関連付けがない問題調査には追加できません。",
-                )
+                if related is None:
+                    continue
 
-            # 4. 既存の関連問い合わせの対応担当者が
-            #    全員、操作者と一致することを確認する
-            for related_number, related_handler in related_inquiries:
+                related_handler = related[0]
+
                 if related_handler != current_user.職員番号:
                     raise HTTPException(
                         status_code=403,
@@ -883,7 +914,8 @@ def link_existing_investigation_api(
                         ),
                     )
 
-            # 5. 同じ組み合わせの二重登録を防ぐ
+
+            # 6. 同じ組み合わせの二重登録を防ぐ
             cur.execute(
                 """
                 SELECT 1
@@ -900,7 +932,7 @@ def link_existing_investigation_api(
                     detail="この問い合わせには、すでに関連付けられています。",
                 )
 
-            # 6. 関連レコードだけを追加する
+            # 7. 関連レコードだけを追加する
             cur.execute(
                 """
                 INSERT INTO "問い合わせ問題調査" (
@@ -1069,37 +1101,77 @@ def bulk_link_existing_investigation_api(
                     detail="調査中の問題調査だけ関連付けできます。",
                 )
 
-            # 2. 対象の問い合わせを番号順にロック
+            
+            # 2. 既存の関連付け対象を取得する
             cur.execute(
                 """
-                SELECT
-                    "問い合わせ番号",
-                    "対応担当者",
-                    "引き受け日時",
-                    "対応完了日時"
-                FROM "問い合わせ"
-                WHERE "問い合わせ番号" = ANY(%s)
-                ORDER BY "問い合わせ番号"
-                FOR UPDATE
+                SELECT "問い合わせ番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問題調査番号" = %s
                 """,
-                (inquiry_numbers,),
+                (investigation_number,),
             )
-            inquiries = cur.fetchall()
+            existing_numbers = {
+                row[0] for row in cur.fetchall()
+            }
 
-            # 3. すべての問い合わせが存在するか確認
-            if len(inquiries) != len(inquiry_numbers):
+            if not existing_numbers:
+                raise HTTPException(
+                    status_code=409,
+                    detail="既存の関連付けがない問題調査には追加できません。",
+                )
+
+            # 3. 今回の対象と既存の関連付け対象をまとめて番号順にロック
+            cur.execute(
+                """
+                WITH target_numbers AS (
+                    SELECT unnest(%s::integer[]) AS "問い合わせ番号"
+                ),
+                existing_numbers AS (
+                    SELECT "問い合わせ番号"
+                    FROM "問い合わせ問題調査"
+                    WHERE "問題調査番号" = %s
+                ),
+                lock_targets AS (
+                    SELECT "問い合わせ番号"
+                    FROM target_numbers
+
+                    UNION
+
+                    SELECT "問い合わせ番号"
+                    FROM existing_numbers
+                )
+                SELECT
+                    i."問い合わせ番号",
+                    i."対応担当者",
+                    i."引き受け日時",
+                    i."対応完了日時"
+                FROM "問い合わせ" AS i
+                JOIN lock_targets AS t
+                  ON t."問い合わせ番号" = i."問い合わせ番号"
+                ORDER BY i."問い合わせ番号"
+                FOR UPDATE OF i
+                """,
+                (inquiry_numbers, investigation_number),
+            )
+            locked_inquiries = {
+                row[0]: row[1:]
+                for row in cur.fetchall()
+            }
+
+            # 4. 対象の問い合わせがすべて存在するか確認
+            if not set(inquiry_numbers).issubset(locked_inquiries):
                 raise HTTPException(
                     status_code=404,
                     detail="指定された問い合わせの中に存在しないものがあります。",
                 )
 
-            # 4. すべて対応中か確認
-            for (
-                inquiry_number,
-                handler,
-                accepted_at,
-                completed_at,
-            ) in inquiries:
+            # 5. 今回の対象がすべて対応中か確認
+            for inquiry_number in inquiry_numbers:
+                _, accepted_at, completed_at = (
+                    locked_inquiries[inquiry_number]
+                )
+
                 if accepted_at is None or completed_at is not None:
                     raise HTTPException(
                         status_code=409,
@@ -1109,8 +1181,10 @@ def bulk_link_existing_investigation_api(
                         ),
                     )
 
-            # 5. すべて自分が対応担当者か確認
-            for inquiry_number, handler, _, _ in inquiries:
+            # 6. 今回の対象がすべて自分の担当か確認
+            for inquiry_number in inquiry_numbers:
+                handler = locked_inquiries[inquiry_number][0]
+
                 if handler != current_user.職員番号:
                     raise HTTPException(
                         status_code=403,
@@ -1119,31 +1193,16 @@ def bulk_link_existing_investigation_api(
                             "対応担当者本人ではありません。"
                         ),
                     )
-            # 6. 既存の関連付けがあるか確認し、
-            #    既存の問い合わせも自分が担当しているか確認
-            cur.execute(
-                """
-                SELECT
-                    i."問い合わせ番号",
-                    i."対応担当者"
-                FROM "問い合わせ問題調査" AS r
-                JOIN "問い合わせ" AS i
-                  ON i."問い合わせ番号" = r."問い合わせ番号"
-                WHERE r."問題調査番号" = %s
-                ORDER BY i."問い合わせ番号"
-                FOR UPDATE OF i
-                """,
-                (investigation_number,),
-            )
-            existing_inquiries = cur.fetchall()
 
-            if not existing_inquiries:
-                raise HTTPException(
-                    status_code=409,
-                    detail="既存の関連付けがない問題調査には追加できません。",
-                )
+            # 7. 既存の関連問い合わせも自分の担当か確認
+            for existing_number in existing_numbers:
+                related = locked_inquiries.get(existing_number)
 
-            for existing_number, existing_handler in existing_inquiries:
+                if related is None:
+                    continue
+
+                existing_handler = related[0]
+
                 if existing_handler != current_user.職員番号:
                     raise HTTPException(
                         status_code=403,
@@ -1154,7 +1213,8 @@ def bulk_link_existing_investigation_api(
                         ),
                     )
 
-            # 7. すでに関連付けられている問い合わせがないか確認
+
+            # 8. すでに関連付けられている問い合わせがないか確認
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
@@ -1178,7 +1238,7 @@ def bulk_link_existing_investigation_api(
                     ),
                 )
 
-            # 8. 全件の確認が済んでから関連レコードを追加
+            # 9. 全件の確認が済んでから関連レコードを追加
             relations = []
 
             for inquiry_number in inquiry_numbers:
@@ -1596,6 +1656,24 @@ def get_inquiry_api(
             )
 
             row = cur.fetchone()
+            # 関連する問題調査番号を取得する
+            if row is not None:
+                cur.execute(
+                    '''
+                    SELECT DISTINCT "問題調査番号"
+                    FROM "問い合わせ問題調査"
+                    WHERE "問い合わせ番号" = %s
+                    ORDER BY "問題調査番号"
+                    ''',
+                    (inquiry_number,),
+                )
+
+                関連する問題調査番号一覧 = [
+                    relation[0]
+                    for relation in cur.fetchall()
+                ]
+            else:
+                関連する問題調査番号一覧 = []
 
     # 2. 該当する問い合わせが存在しない場合
     if row is None:
@@ -1630,4 +1708,5 @@ def get_inquiry_api(
         "引き受け日時": row[13],
         "対応完了日時": row[14],
         "状態": 状態,
+        "関連する問題調査番号一覧": 関連する問題調査番号一覧,
     }
