@@ -3,6 +3,9 @@ import psycopg
 from psycopg import sql
 from schemas.schemas_investigations import InvestigationUpdate
 import main
+import logging
+
+logger = logging.getLogger(__name__)
 
 DATABASE_NAME = main.DATABASE_NAME
 
@@ -554,16 +557,22 @@ def abandon_investigation_api(
             全件状態2 = cur.fetchone()[0]
 
             if not 全件状態2:
+                logger.error(
+                    "問題調査の断念処理でデータ整合性エラー: "
+                    "問題調査番号=%s",
+                    investigation_id,
+                ),
+
                 # HTTPExceptionによってトランザクションをロールバックする。
                 # 問題調査本体・関連レコードの更新はすべて取り消される。
                 raise HTTPException(
                     status_code=500,
                     detail=(
-                        "データ整合性エラー：問題調査が調査中なのに、"
-                        "関連する問い合わせ問題調査に状態2以外の"
-                        "レコードが存在します。"
+                        "サーバー内部でエラーが発生しました。"
+                        "時間をおいて再度お試しください。"
+                        "解決しない場合は、システム管理者にお問い合わせください。"
                     ),
-                )
+            )
 
             result = {
                 "問題調査番号": updated_row[0],
@@ -658,12 +667,17 @@ def request_reaction_investigation_api(
             要求前の整合性あり = cur.fetchone()[0]
 
             if not 要求前の整合性あり:
+                logger.error(
+                    "問題調査の断念処理でデータ整合性エラー: "
+                    "問題調査番号=%s",
+                    investigation_id,
+                ),
                 raise HTTPException(
                     status_code=500,
                     detail=(
-                        "データ整合性エラー：調査中の問題調査に、"
-                        "関連する問い合わせ問題調査の状態1・2以外の"
-                        "レコードが存在します。"
+                        "サーバー内部でエラーが発生しました。"
+                        "時間をおいて再度お試しください。"
+                        "解決しない場合は、システム管理者にお問い合わせください。"
                     ),
                 )
 
@@ -716,11 +730,17 @@ def request_reaction_investigation_api(
             更新後の整合性あり = cur.fetchone()[0]
 
             if not 更新後の整合性あり:
+                logger.error(
+                    "問題調査の断念処理でデータ整合性エラー: "
+                    "問題調査番号=%s",
+                    investigation_id,
+                ),                
                 raise HTTPException(
                     status_code=500,
                     detail=(
-                        "データ整合性エラー：リクエスト要求後の"
-                        "問い合わせ問題調査の状態が不正です。"
+                        "サーバー内部でエラーが発生しました。"
+                        "時間をおいて再度お試しください。"
+                        "解決しない場合は、システム管理者にお問い合わせください。"
                     ),
                 )
 
@@ -892,7 +912,52 @@ def ok_inquiry_problem_investigation_api(
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
-            # 1. 対象の子レコードをロックして取得する
+            # 1. 対象の関連レコードから旧問題調査番号を取得する
+            cur.execute(
+                """
+                SELECT "問題調査番号"
+                FROM "問い合わせ問題調査"
+                WHERE "問い合わせ問題調査番号" = %s
+                """,
+                (relation_id,),
+            )
+
+            relation_ref = cur.fetchone()
+            if relation_ref is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="指定された問い合わせ問題調査が見つかりません。",
+                )
+
+            old_investigation_id = relation_ref[0]
+
+            # 2. 問題調査をロックする
+            cur.execute(
+                """
+                SELECT
+                    "問題調査状態",
+                    "問題調査の名称や仮説",
+                    "問題の原因",
+                    "情シス側での対応",
+                    "問い合わせ者側で必要な対応",
+                    "対応案策定予定日時",
+                    "進捗更新の次回更新予定日時",
+                    "最新移行先の問題調査番号"
+                FROM "問題調査"
+                WHERE "問題調査番号" = %s
+                FOR UPDATE
+                """,
+                (old_investigation_id,),
+            )
+            investigation = cur.fetchone()
+
+            if investigation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="関連する問題調査が見つかりません。",
+                )
+
+            # 3. 対象の子レコードをロックして取得する
             cur.execute(
                 """
                 SELECT
@@ -914,7 +979,7 @@ def ok_inquiry_problem_investigation_api(
 
             inquiry_number, relation_state = relation
 
-            # 2. 問い合わせ者本人であることを確認する
+            # 4. 問い合わせ者本人であることを確認する
             cur.execute(
                 """
                 SELECT "問い合わせ職員番号"
@@ -934,10 +999,10 @@ def ok_inquiry_problem_investigation_api(
             if inquiry[0] != current_user.職員番号:
                 raise HTTPException(
                     status_code=403,
-                    detail="問い合わせ者本だけがOKと回答できます。",
+                    detail="問い合わせ者本人だけがOKと回答できます。",
                 )
 
-            # 3. リアクション待ちであることを確認する
+            # 5. リアクション待ちであることを確認する
             if relation_state != 3:
                 raise HTTPException(
                     status_code=409,
@@ -947,7 +1012,7 @@ def ok_inquiry_problem_investigation_api(
                     ),
                 )
 
-            # 4. 対象の子レコードにOK回答を記録する
+            # 6. 対象の子レコードにOK回答を記録する
             cur.execute(
                 """
                 UPDATE "問い合わせ問題調査"
@@ -1109,7 +1174,7 @@ def ng_inquiry_problem_investigation_api(
             if inquiry[0] != current_user.職員番号:
                 raise HTTPException(
                     status_code=403,
-                    detail="問い合わせ者本だけがNGと回答できます。",
+                    detail="問い合わせ者本人だけがNGと回答できます。",
                 )
 
             # 5. 最新移行先が調査中かどうかを判定する
