@@ -664,7 +664,7 @@ def test_create_inquiry_unknown_staff(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == (
-        "指定された問い合わせ職員番号は登録されていません"
+        "指定された問い合わせ職員は登録されていません"
     )
 
 
@@ -684,9 +684,9 @@ def test_create_inquiry_invalid_receptionist(monkeypatch):
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 403
     assert response.json()["detail"] == (
-        "受付担当者が情シス職員として登録されていません"
+        "操作者が情シス職員として登録されていません"
     )
 
 
@@ -800,7 +800,7 @@ def test_accept_inquiry_unknown_number(monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["detail"] == (
-        "指定された問い合わせは存在しません"
+        "指定された問い合わせが見つかりません。"
     )
 
 
@@ -1254,7 +1254,7 @@ def test_complete_inquiry_not_found():
 
     assert response.status_code == 404
     assert response.json()["detail"] == (
-        "指定された問い合わせが存在しません。"
+        "指定された問い合わせが見つかりません。"
     )
 
 @pytest.mark.parametrize(

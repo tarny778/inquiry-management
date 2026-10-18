@@ -46,7 +46,7 @@ def create_inquiry_api(
     if staff is None:
         raise HTTPException(
             status_code=400,
-            detail="指定された問い合わせ職員番号は登録されていません"
+            detail="指定された問い合わせ職員は登録されていません"
         )
 
     # 2. 問い合わせ当時の所属を取得
@@ -89,8 +89,8 @@ def create_inquiry_api(
 
     if 受付担当者所属 != "情報システム課":
         raise HTTPException(
-            status_code=400,
-            detail="受付担当者が情シス職員として登録されていません"
+            status_code=403,
+            detail="操作者が情シス職員として登録されていません"
         )
 
 
@@ -241,7 +241,7 @@ def accept_inquiry_api(
                 if exists is None:
                     raise HTTPException(
                         status_code=404,
-                        detail="指定された問い合わせは存在しません",
+                        detail="指定された問い合わせが見つかりません。",
                     )
 
                 raise HTTPException(
@@ -328,7 +328,7 @@ def accept_inquiries_bulk_api(
                 raise HTTPException(
                     status_code=404,
                     detail={
-                        "message": "指定された問い合わせが存在しません",
+                        "message": "指定された問い合わせが見つかりません。",
                         "問い合わせ番号一覧": missing_numbers,
                     },
                 )
@@ -411,7 +411,7 @@ def complete_inquiry_api(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせが存在しません。",
+                    detail="指定された問い合わせが見つかりません。",
                 )
 
             handler, accepted_at, completed_at = row
@@ -455,7 +455,7 @@ def complete_inquiry_api(
                     status_code=409,
                     detail=(
                         "調査中またはリアクション待ちの"
-                        "問い合わせ問題が残っているため、"
+                        "問い合わせ問題調査が残っているため、"
                         "対応完了できません。"
                     ),
                 )
@@ -523,7 +523,7 @@ def complete_inquiries_bulk_api(
                 raise HTTPException(
                     status_code=404,
                     detail={
-                        "message": "指定された問い合わせが存在しません。",
+                        "message": "指定された問い合わせが見つかりません。",
                         "問い合わせ番号一覧": missing_numbers,
                     },
                 )
@@ -581,7 +581,7 @@ def complete_inquiries_bulk_api(
                     detail={
                         "message": (
                             "調査中またはリアクション待ちの"
-                            "問い合わせ問題が残っています。"
+                            "問い合わせ問題調査が残っています。"
                         ),
                         "問い合わせ番号一覧": unfinished_numbers,
                     },
@@ -636,7 +636,7 @@ def reopen_inquiry_api(
             if inquiry is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問い合わせが存在しません。",
+                    detail="指定された問い合わせが見つかりません。",
                 )
 
             handler, accepted_at, completed_at = inquiry
@@ -719,7 +719,7 @@ def create_investigation_api(
             if inquiry is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせが存在しません。",
+                    detail="指定された問い合わせが見つかりません。",
                 )
 
             handler, accepted_at, completed_at = inquiry
@@ -806,7 +806,7 @@ def link_existing_investigation_api(
             if investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が存在しません。",
+                    detail="指定された問題調査が見つかりません。",
                 )
 
             if investigation[0] != 1:
@@ -879,7 +879,7 @@ def link_existing_investigation_api(
             if inquiry is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせが存在しません。",
+                    detail="指定された問い合わせが見つかりません。",
                 )
 
             handler, accepted_at, completed_at = inquiry
@@ -909,7 +909,7 @@ def link_existing_investigation_api(
                     raise HTTPException(
                         status_code=403,
                         detail=(
-                            "既存の関連問い合わせの対応担当者と"
+                            "操作者が、既存の関連問い合わせの対応担当者と"
                             "一致しないため、関連付けできません。"
                         ),
                     )
@@ -1002,7 +1002,7 @@ def bulk_create_investigation_api(
                         status_code=409,
                         detail=(
                             f"問い合わせ番号 {inquiry_number} は"
-                            "対応中ではありません。"
+                            "対応中ではないので、関連付けできません。"
                         ),
                     )
 
@@ -1013,7 +1013,7 @@ def bulk_create_investigation_api(
                         status_code=403,
                         detail=(
                             f"問い合わせ番号 {inquiry_number} は"
-                            "対応担当者本人ではありません。"
+                            "操作者が対応担当者本人ではありません。"
                         ),
                     )
 
@@ -1092,7 +1092,7 @@ def bulk_link_existing_investigation_api(
             if investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が存在しません。",
+                    detail="指定された問題調査が見つかりません。",
                 )
 
             if investigation[0] != 1:
@@ -1177,7 +1177,7 @@ def bulk_link_existing_investigation_api(
                         status_code=409,
                         detail=(
                             f"問い合わせ番号 {inquiry_number} は"
-                            "対応中ではありません。"
+                            "対応中ではないので関連付けできません。"
                         ),
                     )
 
@@ -1190,7 +1190,7 @@ def bulk_link_existing_investigation_api(
                         status_code=403,
                         detail=(
                             f"問い合わせ番号 {inquiry_number} は"
-                            "対応担当者本人ではありません。"
+                            "操作者が対応担当者本人ではありません。"
                         ),
                     )
 
@@ -1300,7 +1300,7 @@ def update_inquiry_api(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせが存在しません。",
+                    detail="指定された問い合わせが見つかりません。",
                 )
 
             (

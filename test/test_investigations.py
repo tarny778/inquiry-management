@@ -1316,7 +1316,7 @@ def test_abandon_investigation_detects_inconsistent_related_state(
             assert states_by_inquiry[other_inquiry_number] == 1
 
 
-# 問題調査のリクエスト要求APIテスト
+# 問題調査のリアクション要求APIテスト
 
 def test_request_reaction_investigation_success(
     investigation_search_test_data,

@@ -414,7 +414,7 @@ def update_investigation_api(
             if not 編集権限あり:
                 raise HTTPException(
                     status_code=403,
-                    detail="関連する問い合わせの対応担当者だけが編集できます。",
+                    detail="関連する問い合わせの対応担当者本人だけが編集できます。",
                 )
 
             # 調査中の問題調査だけ編集可能
@@ -498,7 +498,7 @@ def abandon_investigation_api(
             if not 編集権限あり:
                 raise HTTPException(
                     status_code=403,
-                    detail="関連する問い合わせの対応担当者だけが断念できます。",
+                    detail="関連する問い合わせの対応担当者本人だけが断念できます。",
                 )
 
             if 問題調査状態 != 1:
@@ -576,7 +576,7 @@ def abandon_investigation_api(
     return result
 
 
-# 問題調査のリクエスト要求
+# 問題調査のリアクション要求
 @router.post(
     "/api/investigations/{investigation_id}/request-reaction"
 )
@@ -629,15 +629,15 @@ def request_reaction_investigation_api(
                 raise HTTPException(
                     status_code=403,
                     detail=(
-                        "関連する問い合わせの対応担当者だけが"
-                        "リクエスト要求できます。"
+                        "関連する問い合わせの対応担当者本人だけが"
+                        "リアクション要求できます。"
                     ),
                 )
 
             if 問題調査状態 != 1:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけリクエスト要求できます。",
+                    detail="調査中の問題調査だけリアクション要求できます。",
                 )
 
             # 要求前の整合性チェック：
@@ -763,7 +763,7 @@ def abandon_inquiry_problem_investigation_api(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ問題調査が見つかりません。",
                 )
 
             investigation_id = row[0]
@@ -783,7 +783,7 @@ def abandon_inquiry_problem_investigation_api(
             if parent is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="親となる問題調査が見つかりません。",
+                    detail="関連する問題調査が存在しません。",
                 )
 
             if parent[0] != 1:
@@ -813,7 +813,7 @@ def abandon_inquiry_problem_investigation_api(
             if relation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ問題調査が見つかりません。",
                 )
 
             inquiry_number, relation_state = relation
@@ -838,7 +838,7 @@ def abandon_inquiry_problem_investigation_api(
             if inquiry[0] != current_user.職員番号:
                 raise HTTPException(
                     status_code=403,
-                    detail="対応担当者のみ操作できます。",
+                    detail="関連する問い合わせの対応担当者本人だけが個別断念できます。",
                 )
 
             if relation_state != 1:
@@ -909,7 +909,7 @@ def ok_inquiry_problem_investigation_api(
             if relation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ問題調査が見つかりません。",
                 )
 
             inquiry_number, relation_state = relation
@@ -934,7 +934,7 @@ def ok_inquiry_problem_investigation_api(
             if inquiry[0] != current_user.職員番号:
                 raise HTTPException(
                     status_code=403,
-                    detail="問い合わせ者本人のみOKと回答できます。",
+                    detail="問い合わせ者本だけがOKと回答できます。",
                 )
 
             # 3. リアクション待ちであることを確認する
@@ -1006,7 +1006,7 @@ def ng_inquiry_problem_investigation_api(
             if relation_ref is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ問題調査が見つかりません。",
                 )
 
             old_investigation_id = relation_ref[0]
@@ -1035,7 +1035,7 @@ def ng_inquiry_problem_investigation_api(
             if old_investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問題調査が見つかりません。",
+                    detail="関連する問題調査が見つかりません。",
                 )
 
             (
@@ -1067,7 +1067,7 @@ def ng_inquiry_problem_investigation_api(
             if relation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ問題調査が見つかりません。",
                 )
 
             inquiry_number, relation_investigation_id, relation_state = (
@@ -1109,7 +1109,7 @@ def ng_inquiry_problem_investigation_api(
             if inquiry[0] != current_user.職員番号:
                 raise HTTPException(
                     status_code=403,
-                    detail="問い合わせ者本人のみNGと回答できます。",
+                    detail="問い合わせ者本だけがNGと回答できます。",
                 )
 
             # 5. 最新移行先が調査中かどうかを判定する
