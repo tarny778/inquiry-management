@@ -1,5 +1,6 @@
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -203,7 +204,7 @@ def login(
         key=SESSION_COOKIE_NAME,
         value=session_id,
         httponly=True,
-        secure=True,
+        secure=os.getenv("ENVIRONMENT") == "production",
         samesite="lax",
         max_age=int(ABSOLUTE_TIMEOUT.total_seconds()),
         path="/",
@@ -256,7 +257,7 @@ def logout(
         key=SESSION_COOKIE_NAME,
         path="/",
         httponly=True,
-        secure=True,
+        secure=os.getenv("ENVIRONMENT") == "production",
         samesite="lax",
     )
 
