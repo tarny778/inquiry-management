@@ -4,6 +4,7 @@ import './App.css'
 
 const API_BASE_URL = 'http://localhost:8000'
 
+
 type Inquiry = {
   問い合わせ番号: number
   件名: string
@@ -507,6 +508,7 @@ function App() {
             : 'サーバーに接続できません。',
         )
       }
+      
     } finally {
       setLoading(false)
     }
@@ -1372,7 +1374,7 @@ function App() {
                   onClick={() => setIsLinkInvestigationDialogOpen(true)}
                   disabled={selectedNumbers.length === 0 || loading}
                 >
-                  既存の問題調査に一括関連付け
+                  既存の問題調査に関連付け
                 </button>
 
                 <button
