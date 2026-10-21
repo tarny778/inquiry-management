@@ -69,3 +69,14 @@ export type InquiryEditForm = {
   問い合わせ詳細: string
   受信日時: string
 }
+
+export type InquiryFilters = {
+  keyword: string
+  status: string
+  category: string
+  urgency: string
+  receptionist: string
+  handler: string
+  receivedFrom: string
+  receivedTo: string
+}

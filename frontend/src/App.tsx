@@ -2,9 +2,12 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import InquiryCreate  from './components/inquiries/InquiryCreate'
+import InquiryUpdate  from './components/inquiries/InquiryUpdate'
+import InquiryView  from './components/inquiries/InquiryView'
 import type {
   Inquiry,
   LoginUser,
+  InquiryFilters,
   InquiryListResponse,
   InquiryDetail,
   ScreenMode,
@@ -113,7 +116,8 @@ function App() {
   const [receivedTo, setReceivedTo] = useState('')
 
   // 最後に検索ボタンを押したときの条件
-  const [appliedFilters, setAppliedFilters] = useState({
+  const [appliedFilters, setAppliedFilters] =
+  useState<InquiryFilters>({
     keyword: '',
     status: '',
     category: '',
@@ -327,6 +331,10 @@ function App() {
 
   function openInquiryEdit() {
     if (!selectedInquiry) return
+    console.log(
+      '編集対象の受信日時:',
+      selectedInquiry.受信日時,
+    )
 
     setEditForm({
       問い合わせ職員番号:
@@ -344,7 +352,7 @@ function App() {
       問い合わせ詳細:
         selectedInquiry.問い合わせ詳細 ?? '',
       受信日時:
-        selectedInquiry.受信日時 ?? '',
+        (selectedInquiry.受信日時 ?? '').split('.')[0],
     })
 
     setScreenMode('edit')
@@ -1380,324 +1388,41 @@ function App() {
   // 編集画面
   if (screenMode === 'edit' && selectedInquiry !== null) {
     return (
-      <div className="app">
-        <header className="app-header">
-          <h1>問い合わせ管理システム</h1>
-          <span className="app-department">情報システム課</span>
-        </header>
-
-        <main className="main">
-          <div className="list-header">
-            <h2>問い合わせ編集</h2>
-          </div>
-
-          <form
-            className="search-section"
-            onSubmit={handleUpdateInquiry}
-          >
-            <div className="search-fields">
-              <label>
-                問い合わせ職員番号 *
-                <input
-                  value={editForm.問い合わせ職員番号}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      問い合わせ職員番号: event.target.value,
-                    })
-                  }
-                  maxLength={20}
-                  required
-                  disabled={loading}
-                />
-              </label>
-
-              <label>
-                受付経路 *
-                <select
-                  value={editForm.受付経路}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      受付経路: event.target.value,
-                    })
-                  }
-                  disabled={loading}
-                >
-                  <option value="電話">電話</option>
-                  <option value="メール">メール</option>
-                  <option value="フォーム">フォーム</option>
-                </select>
-              </label>
-
-              <label>
-                問い合わせ分類 *
-                <select
-                  value={editForm.問い合わせ分類}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      問い合わせ分類: event.target.value,
-                    })
-                  }
-                  disabled={loading}
-                >
-                  <option value="分類A">分類A</option>
-                  <option value="分類B">分類B</option>
-                  <option value="分類C">分類C</option>
-                </select>
-              </label>
-
-              <label>
-                件名 *
-                <input
-                  value={editForm.件名}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      件名: event.target.value,
-                    })
-                  }
-                  maxLength={100}
-                  required
-                  disabled={loading}
-                />
-              </label>
-
-              <label>
-                緊急度 *
-                <select
-                  value={editForm.緊急度}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      緊急度: event.target.value,
-                    })
-                  }
-                  disabled={loading}
-                >
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                </select>
-              </label>
-
-              <label>
-                受付時の処理 *
-                <select
-                  value={editForm.受付時の処理}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      受付時の処理: event.target.value,
-                    })
-                  }
-                  disabled={loading}
-                >
-                  <option value="1">即時解決</option>
-                  <option value="2">要調査</option>
-                  <option value="3">他所属案内</option>
-                </select>
-              </label>
-
-              <label>
-                受信日時
-                <input
-                  type="datetime-local"
-                  value={editForm.受信日時}
-                  onChange={(event) =>
-                    setEditForm({
-                      ...editForm,
-                      受信日時: event.target.value,
-                    })
-                  }
-                  required
-                  disabled={loading}
-                />
-              </label>
-            </div>
-
-            <label>
-              問い合わせ詳細
-              <textarea
-                value={editForm.問い合わせ詳細}
-                onChange={(event) =>
-                  setEditForm({
-                    ...editForm,
-                    問い合わせ詳細: event.target.value,
-                  })
-                }
-                maxLength={1000}
-                rows={5}
-                disabled={loading}
-              />
-            </label>
-
-            <div className="bulk-buttons">
-              <button
-                type="button"
-                onClick={() => setScreenMode('view')}
-                disabled={loading}
-              >
-                キャンセル
-              </button>
-
-              <button type="submit" disabled={loading}>
-                {loading ? '更新中...' : '更新する'}
-              </button>
-            </div>
-          </form>
-        </main>
-      </div>
+      <InquiryUpdate
+        userName={user?.氏名}
+        userNumber={user?.職員番号}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        loading={loading}
+        error={error}
+        onSubmit={handleUpdateInquiry}
+        onCancel={() => setScreenMode('view')}
+        onLogout={handleLogout}
+      />
     )
   }
 
   // 詳細画面
-  // 詳細画面
   if (selectedInquiry !== null) {
     return (
-      <div className="app">
-        <header className="app-header">
-          <h1>問い合わせ管理システム</h1>
-          <span className="app-department">情報システム課</span>
-
-          <div className="user-panel">
-            {user && (
-              <span>
-                {user.氏名}（{user.職員番号}）
-              </span>
-            )}
-
-            <button
-              type="button"
-              className="logout-button"
-              onClick={handleLogout}
-              disabled={loading}
-            >
-              ログアウト
-            </button>
-          </div>
-        </header>
-
-        <main className="main">
-          <div className="list-header">
-            <h2>問い合わせ詳細</h2>
-            <button
-              type="button"
-              onClick={async () => {
-                setSelectedInquiry(null)
-                setScreenMode('list')
-
-                if (listDisplayMode === 'initial') {
-                  await loadInquiries(currentPage)
-                } else {
-                  await fetchSearchResults(appliedFilters, currentPage)
-                }
-              }}
-              disabled={loading}
-            >
-              一覧に戻る
-            </button>
-            <button
-              type="button"
-              onClick={openInquiryEdit}
-              disabled={loading || selectedInquiry.状態 === '対応完了'}
-            >
-              編集
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleAcceptInquiry(selectedInquiry.問い合わせ番号)}
-              disabled={loading || selectedInquiry.状態 !== '引き受け待ち'}
-            >
-              {loading ? '処理中...' : '引き受け'}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleCompleteInquiry(selectedInquiry.問い合わせ番号)}
-              disabled={loading || selectedInquiry.状態 !== '対応中'}
-            >
-              {loading ? '処理中...' : '対応完了'}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleReopenInquiry(selectedInquiry.問い合わせ番号)}
-              disabled={loading || selectedInquiry.状態 !== '対応完了'}
-            >
-              {loading ? '処理中...' : '再開'}
-            </button>
-          </div>
-
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-
-          <section className="list-section">
-            <h3>
-              問い合わせ番号：{selectedInquiry.問い合わせ番号}
-            </h3>
-
-            <dl className="inquiry-detail">
-              <dt>状態</dt>
-              <dd>{selectedInquiry.状態}</dd>
-
-              <dt>件名</dt>
-              <dd>{selectedInquiry.件名}</dd>
-
-              <dt>問い合わせ職員番号</dt>
-              <dd>{selectedInquiry.問い合わせ職員番号 || '—'}</dd>
-
-              <dt>問い合わせ当時の所属</dt>
-              <dd>{selectedInquiry.問い合わせ当時の所属 || '—'}</dd>
-
-              <dt>受付経路</dt>
-              <dd>{selectedInquiry.受付経路 || '—'}</dd>
-
-              <dt>問い合わせ分類</dt>
-              <dd>{selectedInquiry.問い合わせ分類 || '—'}</dd>
-
-              <dt>緊急度</dt>
-              <dd>{selectedInquiry.緊急度 ?? '—'}</dd>
-
-              <dt>受付時の処理</dt>
-              <dd>{selectedInquiry.受付時の処理 || '—'}</dd>
-
-              <dt>問い合わせ詳細</dt>
-              <dd>{selectedInquiry.問い合わせ詳細 || '—'}</dd>
-
-              <dt>受付担当者</dt>
-              <dd>{selectedInquiry.受付担当者 || '—'}</dd>
-
-              <dt>対応担当者</dt>
-              <dd>{selectedInquiry.対応担当者 || '—'}</dd>
-
-              <dt>受信日時</dt>
-              <dd>{selectedInquiry.受信日時 || '—'}</dd>
-
-              <dt>登録日時</dt>
-              <dd>{selectedInquiry.登録日時 || '—'}</dd>
-
-              <dt>引き受け日時</dt>
-              <dd>{selectedInquiry.引き受け日時 || '—'}</dd>
-
-              <dt>対応完了日時</dt>
-              <dd>{selectedInquiry.対応完了日時 || '—'}</dd>
-
-              <dt>関連する問題調査番号</dt>
-              <dd>
-                {selectedInquiry.関連する問題調査番号一覧.length > 0
-                  ? selectedInquiry.関連する問題調査番号一覧.join('、')
-                  : 'なし'}
-              </dd>
-            </dl>
-          </section>
-        </main>
-      </div>
+      <InquiryView
+        user={user}
+        selectedInquiry={selectedInquiry}
+        setSelectedInquiry={setSelectedInquiry}
+        setScreenMode={setScreenMode}
+        loading={loading}
+        error={error}
+        listDisplayMode={listDisplayMode}
+        currentPage={currentPage}
+        appliedFilters={appliedFilters}
+        loadInquiries={loadInquiries}
+        fetchSearchResults={fetchSearchResults}
+        openInquiryEdit={openInquiryEdit}
+        handleAcceptInquiry={handleAcceptInquiry}
+        handleCompleteInquiry={handleCompleteInquiry}
+        handleReopenInquiry={handleReopenInquiry}
+        onLogout={handleLogout}
+      />
     )
   }
 
