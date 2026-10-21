@@ -52,6 +52,32 @@ type InquiryDetail = {
   関連する問題調査番号一覧: number[]
 }
 
+type ScreenMode = 'list' | 'new' | 'view' | 'edit'
+
+type InquiryCreateForm = {
+  問い合わせ職員番号: string
+  受付経路: string
+  問い合わせ分類: string
+  件名: string
+  緊急度: string
+  受付時の処理: string
+  問い合わせ詳細: string
+  受信日時: string
+}
+
+
+type InquiryEditForm = {
+  問い合わせ職員番号: string
+  受付経路: string
+  問い合わせ分類: string
+  件名: string
+  緊急度: string
+  受付時の処理: string
+  問い合わせ詳細: string
+  受信日時: string
+}
+
+
 function getErrorMessage(data: unknown, fallback: string): string {
   if (
     typeof data === 'object' &&
@@ -85,8 +111,31 @@ function App() {
 
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [total, setTotal] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedInquiry, setSelectedInquiry] =
     useState<InquiryDetail | null>(null)
+
+  const [screenMode, setScreenMode] = useState<ScreenMode>('list')
+  const [createForm, setCreateForm] = useState<InquiryCreateForm>({
+    問い合わせ職員番号: '',
+    受付経路: '電話',
+    問い合わせ分類: '分類A',
+    件名: '',
+    緊急度: '2',
+    受付時の処理: '2',
+    問い合わせ詳細: '',
+    受信日時: '',
+  })
+  const [editForm, setEditForm] = useState<InquiryEditForm>({
+    問い合わせ職員番号: '',
+    受付経路: '電話',
+    問い合わせ分類: '分類A',
+    件名: '',
+    緊急度: '2',
+    受付時の処理: '2',
+    問い合わせ詳細: '',
+    受信日時: '',
+  })
 
   // 初期条件：初期表示はチェックあり
   const [initialCondition, setInitialCondition] = useState(true)
@@ -142,9 +191,9 @@ function App() {
   const [loginError, setLoginError] = useState('')
 
   // 初期表示では、APIが職員の権限に応じて抽出した一覧を取得する。
-  async function loadInquiries() {
+  async function loadInquiries(pageNumber = 1) {
     const response = await fetch(
-      `${API_BASE_URL}/api/inquiries?初期条件=1&page=1&page_size=50`,
+      `${API_BASE_URL}/api/inquiries?初期条件=1&page=${pageNumber}&page_size=50`,
       {
         method: 'GET',
         credentials: 'include',
@@ -171,6 +220,7 @@ function App() {
 
     setInquiries(result.items)
     setTotal(result.total)
+    setCurrentPage(pageNumber)
     setListDisplayMode('initial')
     setAuthenticated(true)
 
@@ -258,6 +308,7 @@ function App() {
 
       setInquiries(result.items)
       setTotal(result.total)
+      setCurrentPage(pageNumber)
       setListDisplayMode('search')
       setSelectedNumbers([])
       setActionMessage('')
@@ -269,48 +320,6 @@ function App() {
           : 'サーバーに接続できません。',
       )
       return false
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function openInquiryDetail(inquiryNumber: number) {
-    setError('')
-    setLoading(true)
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/${inquiryNumber}`,
-        {
-          method: 'GET',
-          credentials: 'include',
-        },
-      )
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedInquiry(null)
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせ詳細の取得に失敗しました。'),
-        )
-      }
-
-      setSelectedInquiry(data as InquiryDetail)
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'サーバーに接続できません。',
-      )
     } finally {
       setLoading(false)
     }
@@ -332,6 +341,233 @@ function App() {
     void fetchSearchResults(filters, 1)
   }
 
+  async function openInquiryDetail(
+    inquiryNumber: number,
+  ): Promise<boolean> {
+    setError('')
+    setLoading(true)
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/inquiries/${inquiryNumber}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+        },
+      )
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setInquiries([])
+        setTotal(0)
+        setSelectedInquiry(null)
+        return false
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, '問い合わせ詳細の取得に失敗しました。'),
+        )
+      }
+
+      setSelectedInquiry(data as InquiryDetail)
+      setScreenMode('view')
+      return true
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openInquiryEdit() {
+    if (!selectedInquiry) return
+
+    setEditForm({
+      問い合わせ職員番号:
+        selectedInquiry.問い合わせ職員番号 ?? '',
+      受付経路:
+        selectedInquiry.受付経路 ?? '電話',
+      問い合わせ分類:
+        selectedInquiry.問い合わせ分類 ?? '分類A',
+      件名:
+        selectedInquiry.件名,
+      緊急度:
+        String(selectedInquiry.緊急度 ?? 2),
+      受付時の処理:
+        String(selectedInquiry.受付時の処理 ?? '2'),
+      問い合わせ詳細:
+        selectedInquiry.問い合わせ詳細 ?? '',
+      受信日時:
+        selectedInquiry.受信日時 ?? '',
+    })
+
+    setScreenMode('edit')
+  }
+
+  function openNewInquiry() {
+    setError('')
+    setSelectedInquiry(null)
+    setCreateForm({
+      問い合わせ職員番号: '',
+      受付経路: '電話',
+      問い合わせ分類: '分類A',
+      件名: '',
+      緊急度: '2',
+      受付時の処理: '2',
+      問い合わせ詳細: '',
+      受信日時: '',
+    })
+    setScreenMode('new')
+  }
+
+  async function handleCreateInquiry(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
+
+    if (loading) return
+
+    setError('')
+    setLoading(true)
+
+    try {
+      const payload: Record<string, unknown> = {
+        問い合わせ職員番号: createForm.問い合わせ職員番号.trim(),
+        受付経路: createForm.受付経路,
+        問い合わせ分類: createForm.問い合わせ分類,
+        件名: createForm.件名.trim(),
+        緊急度: Number(createForm.緊急度),
+        受付時の処理: Number(createForm.受付時の処理),
+        問い合わせ詳細: createForm.問い合わせ詳細.trim() || null,
+      }
+
+      if (createForm.受付経路 !== '電話') {
+        payload.受信日時 = createForm.受信日時
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/inquiries`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setInquiries([])
+        setTotal(0)
+        setSelectedInquiry(null)
+        setScreenMode('list')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, '問い合わせの登録に失敗しました。'),
+        )
+      }
+
+      const inquiryNumber = data?.問い合わせ番号
+
+      if (typeof inquiryNumber !== 'number') {
+        throw new Error('登録は完了しましたが、問い合わせ番号を取得できませんでした。')
+      }
+
+      // 新規登録後は一覧の1ページ目に戻る
+      setCurrentPage(1)
+
+      setScreenMode('view')
+      await openInquiryDetail(inquiryNumber)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  async function handleUpdateInquiry(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
+
+    if (loading || !selectedInquiry) return
+
+    setError('')
+    setLoading(true)
+
+    try {
+      const payload = {
+        問い合わせ職員番号: editForm.問い合わせ職員番号.trim(),
+        受付経路: editForm.受付経路,
+        問い合わせ分類: editForm.問い合わせ分類,
+        件名: editForm.件名.trim(),
+        緊急度: Number(editForm.緊急度),
+        受付時の処理: Number(editForm.受付時の処理),
+        問い合わせ詳細: editForm.問い合わせ詳細.trim() || null,
+        受信日時: editForm.受信日時 || null,
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/inquiries/${selectedInquiry.問い合わせ番号}`,
+        {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+      )
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setInquiries([])
+        setTotal(0)
+        setSelectedInquiry(null)
+        setScreenMode('list')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, '問い合わせの更新に失敗しました。'),
+        )
+      }
+
+      // 更新後の詳細を再取得する
+      await openInquiryDetail(selectedInquiry.問い合わせ番号)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function handleBulkAccept() {
     if (selectedNumbers.length === 0 || loading) {
@@ -343,6 +579,33 @@ function App() {
     )
 
     if (!confirmed) {
+      return
+    }
+
+    await acceptInquiries(selectedNumbers)
+  }
+
+  async function handleAcceptInquiry(inquiryNumber: number) {
+    if (loading) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `問い合わせ番号 ${inquiryNumber} を引き受けますか？`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    await acceptInquiries([inquiryNumber],true)
+  }
+
+  async function acceptInquiries(
+    inquiryNumbers: number[],
+    returnToDetail = false,
+  ) {
+    if (inquiryNumbers.length === 0 || loading) {
       return
     }
 
@@ -362,7 +625,7 @@ function App() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            問い合わせ番号一覧: selectedNumbers,
+            問い合わせ番号一覧: inquiryNumbers,
           }),
         },
       )
@@ -375,6 +638,8 @@ function App() {
         setInquiries([])
         setTotal(0)
         setSelectedNumbers([])
+        setSelectedInquiry(null)
+        setScreenMode('list')
         return
       }
 
@@ -386,13 +651,28 @@ function App() {
 
       acceptSucceeded = true
 
-      // 引き受け後、現在の表示条件を維持して一覧を更新する。
+      // 詳細画面からの単一引き受け
+      if (returnToDetail) {
+        const refreshed = await openInquiryDetail(inquiryNumbers[0])
+
+        if (!refreshed) {
+          setError(
+            '引き受けは完了しましたが、問い合わせ詳細の再取得に失敗しました。',
+          )
+          return
+        }
+
+        setActionMessage('問い合わせを引き受けました。')
+        return
+      }
+
+      // 一覧画面からの引き受け
       let refreshed: boolean
 
       if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries()
+        refreshed = await loadInquiries(currentPage)
       } else {
-        refreshed = await fetchSearchResults(appliedFilters, 1)
+        refreshed = await fetchSearchResults(appliedFilters, currentPage)
       }
 
       if (!refreshed) {
@@ -403,13 +683,17 @@ function App() {
       }
 
       setSelectedNumbers([])
-      setActionMessage('選択した問い合わせを引き受けました。')
+      setActionMessage(
+        inquiryNumbers.length === 1
+          ? '問い合わせを引き受けました。'
+          : '選択した問い合わせを引き受けました。',
+      )
     } catch (err) {
       if (acceptSucceeded) {
         setError(
           err instanceof Error
-            ? `引き受けは完了しましたが、一覧の更新に失敗しました。${err.message}`
-            : '引き受けは完了しましたが、一覧の更新に失敗しました。',
+            ? `引き受けは完了しましたが、画面の更新に失敗しました。${err.message}`
+            : '引き受けは完了しましたが、画面の更新に失敗しました。',
         )
       } else {
         setError(
@@ -423,6 +707,7 @@ function App() {
     }
   }
 
+
   async function handleBulkComplete() {
     if (selectedNumbers.length === 0 || loading) {
       return
@@ -433,6 +718,33 @@ function App() {
     )
 
     if (!confirmed) {
+      return
+    }
+
+    await completeInquiries(selectedNumbers)
+  }
+
+  async function handleCompleteInquiry(inquiryNumber: number) {
+    if (loading) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `問い合わせ番号 ${inquiryNumber} を対応完了にしますか？`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    await completeInquiries([inquiryNumber], true)
+  }
+
+  async function completeInquiries(
+    inquiryNumbers: number[],
+    returnToDetail = false,
+  ) {
+    if (inquiryNumbers.length === 0 || loading) {
       return
     }
 
@@ -452,7 +764,7 @@ function App() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            問い合わせ番号一覧: selectedNumbers,
+            問い合わせ番号一覧: inquiryNumbers,
           }),
         },
       )
@@ -465,6 +777,8 @@ function App() {
         setInquiries([])
         setTotal(0)
         setSelectedNumbers([])
+        setSelectedInquiry(null)
+        setScreenMode('list')
         return
       }
 
@@ -476,13 +790,28 @@ function App() {
 
       completeSucceeded = true
 
-      // 対応完了後、現在の表示条件を維持して一覧を更新する。
+      // 詳細画面からの個別完了
+      if (returnToDetail) {
+        const refreshed = await openInquiryDetail(inquiryNumbers[0])
+
+        if (!refreshed) {
+          setError(
+            '対応完了しましたが、問い合わせ詳細の再取得に失敗しました。',
+          )
+          return
+        }
+
+        setActionMessage('問い合わせを対応完了にしました。')
+        return
+      }
+
+      // 一覧画面からの完了
       let refreshed: boolean
 
       if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries()
+        refreshed = await loadInquiries(currentPage)
       } else {
-        refreshed = await fetchSearchResults(appliedFilters, 1)
+        refreshed = await fetchSearchResults(appliedFilters, currentPage)
       }
 
       if (!refreshed) {
@@ -493,13 +822,17 @@ function App() {
       }
 
       setSelectedNumbers([])
-      setActionMessage('選択した問い合わせを対応完了にしました。')
+      setActionMessage(
+        inquiryNumbers.length === 1
+          ? '問い合わせを対応完了にしました。'
+          : '選択した問い合わせを対応完了にしました。',
+      )
     } catch (err) {
       if (completeSucceeded) {
         setError(
           err instanceof Error
-            ? `対応完了しましたが、一覧の更新に失敗しました。${err.message}`
-            : '対応完了しましたが、一覧の更新に失敗しました。',
+            ? `対応完了しましたが、画面の更新に失敗しました。${err.message}`
+            : '対応完了しましたが、画面の更新に失敗しました。',
         )
       } else {
         setError(
@@ -508,11 +841,85 @@ function App() {
             : 'サーバーに接続できません。',
         )
       }
-      
     } finally {
       setLoading(false)
     }
   }
+
+
+  async function handleReopenInquiry(inquiryNumber: number) {
+    if (loading) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `問い合わせ番号 ${inquiryNumber} を再開しますか？`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setError('')
+    setActionMessage('')
+    setLoading(true)
+
+    let reopenSucceeded = false
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/inquiries/${inquiryNumber}/reopen`,
+        {
+          method: 'POST',
+          credentials: 'include',
+        },
+      )
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setInquiries([])
+        setTotal(0)
+        setSelectedNumbers([])
+        setSelectedInquiry(null)
+        setScreenMode('list')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, '問い合わせの再開に失敗しました。'),
+        )
+      }
+
+      reopenSucceeded = true
+
+      const refreshed = await openInquiryDetail(inquiryNumber)
+
+      if (!refreshed) {
+        setError(
+          '再開しましたが、問い合わせ詳細の再取得に失敗しました。',
+        )
+        return
+      }
+
+      setActionMessage('問い合わせを再開しました。')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? reopenSucceeded
+            ? `再開しましたが、画面の更新に失敗しました。${err.message}`
+            : err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
 
   async function handleBulkLinkInvestigation() {
     const investigationNumber = Number(existingInvestigationNumber)
@@ -581,9 +988,9 @@ function App() {
       let refreshed: boolean
 
       if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries()
+        refreshed = await loadInquiries(currentPage)
       } else {
-        refreshed = await fetchSearchResults(appliedFilters, 1)
+        refreshed = await fetchSearchResults(appliedFilters, currentPage)
       }
 
       if (!refreshed) {
@@ -684,9 +1091,9 @@ function App() {
       let refreshed: boolean
 
       if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries()
+        refreshed = await loadInquiries(currentPage)
       } else {
-        refreshed = await fetchSearchResults(appliedFilters, 1)
+        refreshed = await fetchSearchResults(appliedFilters, currentPage)
       }
 
       if (!refreshed) {
@@ -1016,7 +1423,386 @@ function App() {
       </div>
     )
   }
+  // 新規作成画面
+  if (screenMode === 'new') {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <h1>問い合わせ管理システム</h1>
+          <span className="app-department">情報システム課</span>
 
+          <div className="user-panel">
+            {user && <span>{user.氏名}（{user.職員番号}）</span>}
+            <button
+              type="button"
+              className="logout-button"
+              onClick={handleLogout}
+              disabled={loading}
+            >
+              ログアウト
+            </button>
+          </div>
+        </header>
+
+        <main className="main">
+          <div className="list-header">
+            <h2>問い合わせ新規登録</h2>
+            <button
+              type="button"
+              onClick={() => setScreenMode('list')}
+              disabled={loading}
+            >
+              一覧に戻る
+            </button>
+          </div>
+
+          {error && (
+            <p className="error-message" role="alert">{error}</p>
+          )}
+
+          <form
+            className="search-section"
+            onSubmit={handleCreateInquiry}
+          >
+            <div className="search-fields">
+              <label>
+                問い合わせ職員番号 *
+                <input
+                  value={createForm.問い合わせ職員番号}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      問い合わせ職員番号: event.target.value,
+                    })
+                  }
+                  maxLength={20}
+                  required
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                受付経路 *
+                <select
+                  value={createForm.受付経路}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      受付経路: event.target.value,
+                      受信日時: '',
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="電話">電話</option>
+                  <option value="メール">メール</option>
+                  <option value="フォーム">フォーム</option>
+                </select>
+              </label>
+
+              <label>
+                問い合わせ分類 *
+                <select
+                  value={createForm.問い合わせ分類}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      問い合わせ分類: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="分類A">分類A</option>
+                  <option value="分類B">分類B</option>
+                  <option value="分類C">分類C</option>
+                </select>
+              </label>
+
+              <label>
+                件名 *
+                <input
+                  value={createForm.件名}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      件名: event.target.value,
+                    })
+                  }
+                  maxLength={100}
+                  required
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                緊急度 *
+                <select
+                  value={createForm.緊急度}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      緊急度: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                </select>
+              </label>
+
+              <label>
+                受付時の処理 *
+                <select
+                  value={createForm.受付時の処理}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      受付時の処理: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="1">即時解決</option>
+                  <option value="2">要調査</option>
+                  <option value="3">他所属案内</option>
+                </select>
+              </label>
+
+              <label>
+                受信日時
+                <input
+                  type="datetime-local"
+                  value={createForm.受信日時}
+                  onChange={(event) =>
+                    setCreateForm({
+                      ...createForm,
+                      受信日時: event.target.value,
+                    })
+                  }
+                  required={createForm.受付経路 !== '電話'}
+                  disabled={loading || createForm.受付経路 === '電話'}
+                />
+                {createForm.受付経路 === '電話' && (
+                  <span className="initial-condition-description">
+                    電話の場合は登録時に自動設定されます。
+                  </span>
+                )}
+              </label>
+            </div>
+
+            <label>
+              問い合わせ詳細
+              <textarea
+                value={createForm.問い合わせ詳細}
+                onChange={(event) =>
+                  setCreateForm({
+                    ...createForm,
+                    問い合わせ詳細: event.target.value,
+                  })
+                }
+                maxLength={1000}
+                rows={5}
+                disabled={loading}
+              />
+            </label>
+
+            <div className="bulk-buttons">
+              <button
+                type="button"
+                onClick={() => setScreenMode('list')}
+                disabled={loading}
+              >
+                キャンセル
+              </button>
+
+              <button type="submit" disabled={loading}>
+                {loading ? '登録中...' : '登録する'}
+              </button>
+            </div>
+          </form>
+        </main>
+      </div>
+    )
+  }
+
+  // 編集画面
+  if (screenMode === 'edit' && selectedInquiry !== null) {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <h1>問い合わせ管理システム</h1>
+          <span className="app-department">情報システム課</span>
+        </header>
+
+        <main className="main">
+          <div className="list-header">
+            <h2>問い合わせ編集</h2>
+          </div>
+
+          <form
+            className="search-section"
+            onSubmit={handleUpdateInquiry}
+          >
+            <div className="search-fields">
+              <label>
+                問い合わせ職員番号 *
+                <input
+                  value={editForm.問い合わせ職員番号}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      問い合わせ職員番号: event.target.value,
+                    })
+                  }
+                  maxLength={20}
+                  required
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                受付経路 *
+                <select
+                  value={editForm.受付経路}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      受付経路: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="電話">電話</option>
+                  <option value="メール">メール</option>
+                  <option value="フォーム">フォーム</option>
+                </select>
+              </label>
+
+              <label>
+                問い合わせ分類 *
+                <select
+                  value={editForm.問い合わせ分類}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      問い合わせ分類: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="分類A">分類A</option>
+                  <option value="分類B">分類B</option>
+                  <option value="分類C">分類C</option>
+                </select>
+              </label>
+
+              <label>
+                件名 *
+                <input
+                  value={editForm.件名}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      件名: event.target.value,
+                    })
+                  }
+                  maxLength={100}
+                  required
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                緊急度 *
+                <select
+                  value={editForm.緊急度}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      緊急度: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                </select>
+              </label>
+
+              <label>
+                受付時の処理 *
+                <select
+                  value={editForm.受付時の処理}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      受付時の処理: event.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="1">即時解決</option>
+                  <option value="2">要調査</option>
+                  <option value="3">他所属案内</option>
+                </select>
+              </label>
+
+              <label>
+                受信日時
+                <input
+                  type="datetime-local"
+                  value={editForm.受信日時}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      受信日時: event.target.value,
+                    })
+                  }
+                  required
+                  disabled={loading}
+                />
+              </label>
+            </div>
+
+            <label>
+              問い合わせ詳細
+              <textarea
+                value={editForm.問い合わせ詳細}
+                onChange={(event) =>
+                  setEditForm({
+                    ...editForm,
+                    問い合わせ詳細: event.target.value,
+                  })
+                }
+                maxLength={1000}
+                rows={5}
+                disabled={loading}
+              />
+            </label>
+
+            <div className="bulk-buttons">
+              <button
+                type="button"
+                onClick={() => setScreenMode('view')}
+                disabled={loading}
+              >
+                キャンセル
+              </button>
+
+              <button type="submit" disabled={loading}>
+                {loading ? '更新中...' : '更新する'}
+              </button>
+            </div>
+          </form>
+        </main>
+      </div>
+    )
+  }
+
+  // 詳細画面
   // 詳細画面
   if (selectedInquiry !== null) {
     return (
@@ -1048,10 +1834,50 @@ function App() {
             <h2>問い合わせ詳細</h2>
             <button
               type="button"
-              onClick={() => setSelectedInquiry(null)}
+              onClick={async () => {
+                setSelectedInquiry(null)
+                setScreenMode('list')
+
+                if (listDisplayMode === 'initial') {
+                  await loadInquiries(currentPage)
+                } else {
+                  await fetchSearchResults(appliedFilters, currentPage)
+                }
+              }}
               disabled={loading}
             >
               一覧に戻る
+            </button>
+            <button
+              type="button"
+              onClick={openInquiryEdit}
+              disabled={loading || selectedInquiry.状態 === '対応完了'}
+            >
+              編集
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleAcceptInquiry(selectedInquiry.問い合わせ番号)}
+              disabled={loading || selectedInquiry.状態 !== '引き受け待ち'}
+            >
+              {loading ? '処理中...' : '引き受け'}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleCompleteInquiry(selectedInquiry.問い合わせ番号)}
+              disabled={loading || selectedInquiry.状態 !== '対応中'}
+            >
+              {loading ? '処理中...' : '対応完了'}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleReopenInquiry(selectedInquiry.問い合わせ番号)}
+              disabled={loading || selectedInquiry.状態 !== '対応完了'}
+            >
+              {loading ? '処理中...' : '再開'}
             </button>
           </div>
 
@@ -1152,9 +1978,20 @@ function App() {
       <main className="main">
         <div className="list-header">
           <h2>問い合わせ一覧</h2>
+
           <span className="list-description">
             問い合わせを検索・確認できます。
           </span>
+
+          {user?.所属 === '情報システム課' && (
+            <button
+              type="button"
+              onClick={openNewInquiry}
+              disabled={loading}
+            >
+              ＋ 新規登録
+            </button>
+          )}
         </div>
 
         {error && (
@@ -1532,7 +2369,59 @@ function App() {
               </tbody>
             </table>
           )}
+
+          <div className="pagination">
+            <button
+              type="button"
+              onClick={async () => {
+                const nextPage = currentPage - 1
+
+                if (nextPage < 1 || loading) return
+
+                setSelectedNumbers([])
+                setActionMessage('')
+
+                if (listDisplayMode === 'initial') {
+                  await loadInquiries(nextPage)
+                } else {
+                  await fetchSearchResults(appliedFilters, nextPage)
+                }
+              }}
+              disabled={currentPage <= 1 || loading}
+            >
+              前へ
+            </button>
+
+            <span>
+              {currentPage} / {Math.max(1, Math.ceil(total / 50))} ページ
+            </span>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const nextPage = currentPage + 1
+                const totalPages = Math.ceil(total / 50)
+
+                if (nextPage > totalPages || loading) return
+
+                setSelectedNumbers([])
+                setActionMessage('')
+
+                if (listDisplayMode === 'initial') {
+                  await loadInquiries(nextPage)
+                } else {
+                  await fetchSearchResults(appliedFilters, nextPage)
+                }
+              }}
+              disabled={
+                currentPage >= Math.ceil(total / 50) || loading
+              }
+            >
+              次へ
+            </button>
+          </div>
         </section>
+
 
       </main>
   

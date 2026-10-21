@@ -1346,6 +1346,12 @@ def update_inquiry_api(
                         status_code=403,
                         detail="対応中の問い合わせは対応担当者本人だけが編集できます。",
                     )
+                # 対応中：受付時の処理は要調査（2）であることを確認
+                if current_handling != 2:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="問い合わせの状態と受付時の処理が一致していません。",
+                    )
 
                 # 対応中は受付時の処理を変更できない
                 if request.受付時の処理 != current_handling:
@@ -1356,11 +1362,38 @@ def update_inquiry_api(
 
                 new_completed_at = None
 
-            # 3. 編集可能な項目を更新
+            # 3. 問い合わせ職員の存在確認と所属の取得
+            cur.execute(
+                """
+                SELECT "職員番号", "氏名", "所属"
+                FROM "職員"
+                WHERE "職員番号" = %s
+                """,
+                (request.問い合わせ職員番号,),
+            )
+            staff = cur.fetchone()
+            if staff is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="指定された問い合わせ職員は登録されていません"
+                )
+            # 4. 問い合わせ当時の所属を取得
+            問い合わせ当時の所属 = staff[2]
+            if (
+                問い合わせ当時の所属 is None
+                or len(問い合わせ当時の所属) > 30
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="問い合わせ職員の所属が不正です"
+                )
+
+            # 5. 編集可能な項目を更新
             cur.execute(
                 """
                 UPDATE "問い合わせ"
                 SET
+                    "問い合わせ職員番号" = %s,
                     "問い合わせ当時の所属" = %s,
                     "受付経路" = %s,
                     "問い合わせ分類" = %s,
@@ -1373,7 +1406,8 @@ def update_inquiry_api(
                 WHERE "問い合わせ番号" = %s
                 """,
                 (
-                    request.問い合わせ当時の所属,
+                    request.問い合わせ職員番号,
+                    staff[2],
                     request.受付経路,
                     request.問い合わせ分類,
                     request.件名,

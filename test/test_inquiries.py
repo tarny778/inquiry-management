@@ -3287,7 +3287,7 @@ def build_inquiry_update_payload(
     inquiry = response.json()
 
     payload = {
-        "問い合わせ当時の所属": inquiry["問い合わせ当時の所属"],
+        "問い合わせ職員番号": inquiry["問い合わせ職員番号"],
         "受付経路": inquiry["受付経路"],
         "問い合わせ分類": inquiry["問い合わせ分類"],
         "件名": inquiry["件名"],

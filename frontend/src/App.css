@@ -514,6 +514,34 @@
 }
 
 
+/* 一覧のページ切り替え */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+  padding: 16px 0;
+}
+
+.pagination span {
+  min-width: 100px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.pagination button {
+  padding: 8px 20px;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+
+
 /* ==================================================
    10. 問い合わせ状態ラベル
    ================================================== */

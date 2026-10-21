@@ -177,7 +177,7 @@ class BulkLinkInvestigation(BaseModel):
 class InquiryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    問い合わせ当時の所属: str = Field(min_length=1, max_length=30)
+    問い合わせ職員番号: str = Field(min_length=1, max_length=20)
     受付経路: str
     問い合わせ分類: str = Field(min_length=1, max_length=30)
     件名: str = Field(min_length=1, max_length=100)
@@ -218,12 +218,6 @@ class InquiryUpdate(BaseModel):
             raise ValueError("受付時の処理は1、2、3のいずれかを指定してください")
         return value
 
-    @model_validator(mode="after")
-    def validate_receipt_datetime(self):
-        if self.受信日時 is None:
-            raise ValueError("受信日時は必須です")
-
-        return self
 
 
 class InquirySearch(BaseModel):
