@@ -4,7 +4,7 @@ import './App.css'
 import InquiryCreate  from './components/inquiries/InquiryCreate'
 import InquiryUpdate  from './components/inquiries/InquiryUpdate'
 import InquiryView  from './components/inquiries/InquiryView'
-import InquiryList  from './components/inquiries/InquiryList'
+import InquiryListPage  from './components/inquiries/InquiryListPage'
 import type {
   Inquiry,
   LoginUser,
@@ -1429,7 +1429,7 @@ function App() {
 
   // 一覧画面
   return (
-    <InquiryList
+    <InquiryListPage
       user={user}
       loading={loading}
       error={error}
