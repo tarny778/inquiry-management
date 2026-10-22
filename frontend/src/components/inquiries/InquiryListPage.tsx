@@ -5,6 +5,8 @@ import type {
   Inquiry,
 } from '../../types'
 import InquiryTable from './InquiryTable'
+import InquiryBulkAction from './InquiryBulkAction'
+import InvestigationDailog from './InvestigationDialog'
 
 type InquiryListPageProps = {
   user: {
@@ -208,7 +210,7 @@ export default function InquiryListPage({
           </div>
         )}
 
-        // 検索セクション
+        {/*検索セクション*/}
         <InquirySearch
           loading={loading}
           handleInitialConditionChange={handleInitialConditionChange}
@@ -248,53 +250,18 @@ export default function InquiryListPage({
               （全件数：{total}件、最大50件取得）
             </p>
           </div>
+          
+          {/* 一括操作*/}
+          <InquiryBulkAction
+            loading={loading}
+            selectedNumbers={selectedNumbers}
+            handleBulkAccept={handleBulkAccept}
+            handleBulkComplete={handleBulkComplete}
+            setIsLinkInvestigationDialogOpen={setIsLinkInvestigationDialogOpen}
+            setIsCreateInvestigationDialogOpen={setIsCreateInvestigationDialogOpen}
+          />
 
-          <div className="bulk-toolbar">
-            <span className="selected-count">
-              選択中：{selectedNumbers.length}件
-            </span>
-
-            <div className="bulk-buttons">
-              <button
-                type="button"
-                onClick={() => void handleBulkAccept()}
-                disabled={selectedNumbers.length === 0 || loading}
-              >
-                {loading ? '処理中...' : '引き受け'}
-              </button>
-
-              
-              <div className="bulk-investigation-actions">
-                <button
-                  type="button"
-                  onClick={() => setIsLinkInvestigationDialogOpen(true)}
-                  disabled={selectedNumbers.length === 0 || loading}
-                >
-                  既存の問題調査に関連付け
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsCreateInvestigationDialogOpen(true)}
-                  disabled={selectedNumbers.length === 0 || loading}
-                >
-                  新しい問題調査を作成・関連付け
-                </button>
-              </div>
-
-
-              
-              <button
-                type="button"
-                onClick={() => void handleBulkComplete()}
-                disabled={selectedNumbers.length === 0 || loading}
-              >
-                {loading ? '処理中...' : '対応完了'}
-              </button>
-
-            </div>
-          </div>
-
+          {/* テーブル部分 */}
           <InquiryTable
             loading={loading}
             inquiries={inquiries}
@@ -359,132 +326,23 @@ export default function InquiryListPage({
 
 
       </main>
-  
-      {/* 既存の問題調査への関連付けダイアログ */}
-      {isLinkInvestigationDialogOpen && (
-        <div className="modal-overlay">
-          <section
-            className="input-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="link-investigation-title"
-          >
-            <h2 id="link-investigation-title">
-              既存の問題調査に関連付け
-            </h2>
 
-            <label htmlFor="existing-investigation-number">
-              問題調査番号
-            </label>
+      {/*　関連付けダイアログ */}
+      <InvestigationDailog
+        loading={loading}
+        selectedNumbers={selectedNumbers}
+        handleBulkLinkInvestigation={handleBulkLinkInvestigation}
+        handleBulkCreateInvestigation={handleBulkCreateInvestigation}
+        isLinkInvestigationDialogOpen={isLinkInvestigationDialogOpen}
+        setIsLinkInvestigationDialogOpen={setIsLinkInvestigationDialogOpen}
+        isCreateInvestigationDialogOpen={isCreateInvestigationDialogOpen}
+        setIsCreateInvestigationDialogOpen={setIsCreateInvestigationDialogOpen}
 
-            <input
-              id="existing-investigation-number"
-              type="number"
-              min={1}
-              step={1}
-              value={existingInvestigationNumber}
-              onChange={(event) =>
-                setExistingInvestigationNumber(event.target.value)
-              }
-              placeholder="例：1"
-              disabled={loading}
-              autoFocus
-            />
-
-            <div className="dialog-actions">
-              <button
-                type="button"
-                onClick={() => setIsLinkInvestigationDialogOpen(false)}
-                disabled={loading}
-              >
-                キャンセル
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await handleBulkLinkInvestigation()
-                  } finally {
-                    setIsLinkInvestigationDialogOpen(false)
-                  }
-                }}
-                disabled={
-                  selectedNumbers.length === 0 ||
-                  loading ||
-                  existingInvestigationNumber.trim() === '' ||
-                  !Number.isInteger(Number(existingInvestigationNumber)) ||
-                  Number(existingInvestigationNumber) < 1
-                }
-              >
-                {loading ? '処理中...' : '関連付ける'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* 新しい問題調査の作成・関連付けダイアログ */}
-      {isCreateInvestigationDialogOpen && (
-        <div className="modal-overlay">
-          <section
-            className="input-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="create-investigation-title"
-          >
-            <h2 id="create-investigation-title">
-              新しい問題調査を作成・関連付け
-            </h2>
-
-            <label htmlFor="new-investigation-name">
-              問題調査の名称・仮説（30文字以内）
-            </label>
-
-            <input
-              id="new-investigation-name"
-              type="text"
-              value={newInvestigationName}
-              onChange={(event) =>
-                setNewInvestigationName(event.target.value)
-              }
-              maxLength={30}
-              placeholder="例：メール送信エラーの原因調査"
-              disabled={loading}
-              autoFocus
-            />
-
-            <div className="dialog-actions">
-              <button
-                type="button"
-                onClick={() => setIsCreateInvestigationDialogOpen(false)}
-                disabled={loading}
-              >
-                キャンセル
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await handleBulkCreateInvestigation()
-                  } finally {
-                    setIsCreateInvestigationDialogOpen(false)
-                  }
-                }}
-                disabled={
-                  selectedNumbers.length === 0 ||
-                  loading ||
-                  !newInvestigationName.trim() ||
-                  newInvestigationName.trim().length > 30
-                }
-              >
-                {loading ? '処理中...' : '作成・関連付ける'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+        existingInvestigationNumber={existingInvestigationNumber}
+        setExistingInvestigationNumber={setExistingInvestigationNumber}
+        newInvestigationName={newInvestigationName}
+        setNewInvestigationName={setNewInvestigationName}
+      />
     </div>
   )
 }
