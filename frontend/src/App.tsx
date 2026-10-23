@@ -6,6 +6,19 @@ import InquiryUpdate  from './components/inquiries/InquiryUpdate'
 import InquiryView  from './components/inquiries/InquiryView'
 import InquiryListPage  from './components/inquiries/InquiryListPage'
 import { useInquiryList } from './useInquiryList'
+import {
+  getInitialInquiries,
+  getSearchInquiries,
+  getInquiryDetail,
+  createNewInquiry,
+  editInquiry,
+  requestInquiryAccept,
+  requestInquiryComplete,
+  requestInquiryReopen,
+  linkInvestigation,
+  createInvestigation,
+} from './api/inquiries'
+import { ApiError } from './api/client'
 import type {
   Inquiry,
   LoginUser,
@@ -143,106 +156,52 @@ function App() {
     )
   }
 
+  
   // 初期表示では、APIが職員の権限に応じて抽出した一覧を取得する。
   async function loadInquiries(pageNumber = 1) {
-    const response = await fetch(
-      `${API_BASE_URL}/api/inquiries?初期条件=1&page=${pageNumber}&page_size=50`,
-      {
-        method: 'GET',
-        credentials: 'include',
-      },
-    )
+    try {
+      const result = await getInitialInquiries(pageNumber)
 
-    const data = await response.json().catch(() => null)
+      setInquiries(result.items)
+      setTotal(result.total)
+      setCurrentPage(pageNumber)
+      setListDisplayMode('initial')
+      setAuthenticated(true)
 
-    if (response.status === 401) {
-      setAuthenticated(false)
-      setUser(null)
-      setInquiries([])
-      setTotal(0)
-      return false
+      return true
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setInquiries([])
+        setTotal(0)
+        return false
+      }
+
+      throw error
     }
-
-    if (!response.ok) {
-      throw new Error(
-        getErrorMessage(data, '問い合わせ一覧の取得に失敗しました。'),
-      )
-    }
-
-    const result = data as InquiryListResponse
-
-    setInquiries(result.items)
-    setTotal(result.total)
-    setCurrentPage(pageNumber)
-    setListDisplayMode('initial')
-    setAuthenticated(true)
-
-    return true
   }
-
+  
+  // 検索条件に基づく検索一覧を取得し画面状態へ反映させる。
   async function fetchSearchResults(
     filters: typeof appliedFilters,
     pageNumber = 1,
   ) {
     setError('')
-    setLoading(true)
 
     try {
-      const params = new URLSearchParams({
-        初期条件: '2',
-        page: String(pageNumber),
-        page_size: '50',
-      })
+      const result = await getSearchInquiries(filters, pageNumber)
 
-      if (filters.keyword.trim()) {
-        params.set('件名', filters.keyword.trim())
-      }
+      setInquiries(result.items)
+      setTotal(result.total)
+      setCurrentPage(pageNumber)
+      setListDisplayMode('search')
+      setSelectedNumbers([])
+      setActionMessage('')
 
-      if (filters.status) {
-        params.append('状態', filters.status)
-      }
-
-      if (filters.category) {
-        params.set('問い合わせ分類', filters.category)
-      }
-
-      if (filters.urgency) {
-        params.set('緊急度', filters.urgency)
-      }
-
-      if (filters.receptionist.trim()) {
-        params.set('受付担当者', filters.receptionist.trim())
-      }
-
-      if (filters.handler.trim()) {
-        params.set('対応担当者', filters.handler.trim())
-      }
-
-      if (filters.receivedFrom) {
-        params.set(
-          '受信日時開始',
-          `${filters.receivedFrom}T00:00:00`,
-        )
-      }
-
-      if (filters.receivedTo) {
-        params.set(
-          '受信日時終了',
-          `${filters.receivedTo}T23:59:59.999999`,
-        )
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries?${params.toString()}`,
-        {
-          method: 'GET',
-          credentials: 'include',
-        },
-      )
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
+      return true
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
         setAuthenticated(false)
         setUser(null)
         setInquiries([])
@@ -251,34 +210,16 @@ function App() {
         return false
       }
 
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせの検索に失敗しました。'),
-        )
-      }
-
-      const result = data as InquiryListResponse
-
-      setInquiries(result.items)
-      setTotal(result.total)
-      setCurrentPage(pageNumber)
-      setListDisplayMode('search')
-      setSelectedNumbers([])
-      setActionMessage('')
-      return true
-    } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : 'サーバーに接続できません。',
       )
       return false
-    } finally {
-      setLoading(false)
     }
   }
 
-  function handleSearch() {
+  async function handleSearch() {
     const filters = {
       keyword: keyword.trim(),
       status: statusFilter,
@@ -291,51 +232,64 @@ function App() {
     }
 
     setAppliedFilters(filters)
-    void fetchSearchResults(filters, 1)
-  }
-
-  async function openInquiryDetail(
-    inquiryNumber: number,
-  ): Promise<boolean> {
-    setError('')
     setLoading(true)
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/${inquiryNumber}`,
-        {
-          method: 'GET',
-          credentials: 'include',
-        },
-      )
+      await fetchSearchResults(filters, 1)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
+  // 問い合わせ詳細データを取得する
+  async function fetchInquiryDetail(
+    inquiryNumber: number,
+  ): Promise<InquiryDetail | null> {
+    try {
+      return await getInquiryDetail(inquiryNumber)
+    } catch (error) {
+      // セッション切れ
+      if (error instanceof ApiError && error.status === 401) {
         setAuthenticated(false)
         setUser(null)
         setInquiries([])
         setTotal(0)
         setSelectedInquiry(null)
+        return null
+      }
+
+      // その他のAPIエラー
+      throw error
+    }
+  }
+
+  // 問い合わせ詳細画面を開く
+  async function openInquiryDetail(
+    inquiryNumber: number
+  ): Promise<boolean> {
+    setError('')
+    setLoading(true)
+
+    try {
+      const detail = await fetchInquiryDetail(inquiryNumber)
+
+      // セッション切れなどで取得できなかった場合
+      if (detail === null) {
         return false
       }
 
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせ詳細の取得に失敗しました。'),
-        )
-      }
-
-      setSelectedInquiry(data as InquiryDetail)
+      setSelectedInquiry(detail)
       setScreenMode('view')
       return true
+
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'サーバーに接続できません。',
+          : 'サーバーに接続できません。'
       )
       return false
+
     } finally {
       setLoading(false)
     }
@@ -386,6 +340,7 @@ function App() {
     setScreenMode('new')
   }
 
+  // 問い合わせを新規作成し、画面へ反映
   async function handleCreateInquiry(
     event: React.FormEvent<HTMLFormElement>,
   ) {
@@ -397,58 +352,39 @@ function App() {
     setLoading(true)
 
     try {
-      const payload: Record<string, unknown> = {
-        問い合わせ職員番号: createForm.問い合わせ職員番号.trim(),
-        受付経路: createForm.受付経路,
-        問い合わせ分類: createForm.問い合わせ分類,
-        件名: createForm.件名.trim(),
-        緊急度: Number(createForm.緊急度),
-        受付時の処理: Number(createForm.受付時の処理),
-        問い合わせ詳細: createForm.問い合わせ詳細.trim() || null,
-      }
+      let inquiryNumber: number
 
-      if (createForm.受付経路 !== '電話') {
-        payload.受信日時 = createForm.受信日時
-      }
+      try {
+        inquiryNumber = await createNewInquiry(createForm)
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
 
-      const response = await fetch(`${API_BASE_URL}/api/inquiries`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedInquiry(null)
-        setScreenMode('list')
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせの登録に失敗しました。'),
-        )
-      }
-
-      const inquiryNumber = data?.問い合わせ番号
-
-      if (typeof inquiryNumber !== 'number') {
-        throw new Error('登録は完了しましたが、問い合わせ番号を取得できませんでした。')
+        throw error
       }
 
       // 新規登録後は一覧の1ページ目に戻る
       setCurrentPage(1)
 
+      // 登録した問い合わせの詳細を取得する
       setScreenMode('view')
-      await openInquiryDetail(inquiryNumber)
+      const inquiryDetail = await fetchInquiryDetail(
+        inquiryNumber,
+      )
+
+      if (inquiryDetail === null) {
+        return
+      }
+
+      setSelectedInquiry(inquiryDetail)
     } catch (err) {
       setError(
         err instanceof Error
@@ -459,7 +395,6 @@ function App() {
       setLoading(false)
     }
   }
-
 
   async function handleUpdateInquiry(
     event: React.FormEvent<HTMLFormElement>,
@@ -472,49 +407,40 @@ function App() {
     setLoading(true)
 
     try {
-      const payload = {
-        問い合わせ職員番号: editForm.問い合わせ職員番号.trim(),
-        受付経路: editForm.受付経路,
-        問い合わせ分類: editForm.問い合わせ分類,
-        件名: editForm.件名.trim(),
-        緊急度: Number(editForm.緊急度),
-        受付時の処理: Number(editForm.受付時の処理),
-        問い合わせ詳細: editForm.問い合わせ詳細.trim() || null,
-        受信日時: editForm.受信日時 || null,
+      let inquiryNumber: number
+
+      try {
+        inquiryNumber = await editInquiry(
+          selectedInquiry.問い合わせ番号,
+          editForm,
+        )
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
+
+        throw error
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/${selectedInquiry.問い合わせ番号}`,
-        {
-          method: 'PUT',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        },
+      // 編集した問い合わせの詳細を取得する
+      setScreenMode('view')
+      const inquiryDetail = await fetchInquiryDetail(
+        inquiryNumber,
       )
 
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedInquiry(null)
-        setScreenMode('list')
+      if (inquiryDetail === null) {
         return
       }
 
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせの更新に失敗しました。'),
-        )
-      }
-
-      // 更新後の詳細を再取得する
-      await openInquiryDetail(selectedInquiry.問い合わせ番号)
+      // 編集した問い合わせをそのまま詳細画面に表示する
+      setSelectedInquiry(inquiryDetail)
     } catch (err) {
       setError(
         err instanceof Error
@@ -570,57 +496,40 @@ function App() {
     setActionMessage('')
     setLoading(true)
 
-    let acceptSucceeded = false
-
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/bulk-accept`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            問い合わせ番号一覧: inquiryNumbers,
-          }),
-        },
-      )
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedNumbers([])
-        setSelectedInquiry(null)
-        setScreenMode('list')
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせの引き受けに失敗しました。'),
+      try {
+        await requestInquiryAccept(
+          inquiryNumbers,
         )
-      }
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedNumbers([])
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
 
-      acceptSucceeded = true
+        throw error
+      }
 
       // 詳細画面からの単一引き受け
       if (returnToDetail) {
-        const refreshed = await openInquiryDetail(inquiryNumbers[0])
+        // 引き受け後の詳細を再取得する
+        const detail = await fetchInquiryDetail(inquiryNumbers[0])
 
-        if (!refreshed) {
+        if (detail === null) {
           setError(
             '引き受けは完了しましたが、問い合わせ詳細の再取得に失敗しました。',
           )
           return
         }
 
-        setActionMessage('問い合わせを引き受けました。')
-        return
+        setSelectedInquiry(detail)
       }
 
       const refreshed = await refreshCurrentInquiryList()
@@ -639,19 +548,11 @@ function App() {
           : '選択した問い合わせを引き受けました。',
       )
     } catch (err) {
-      if (acceptSucceeded) {
-        setError(
-          err instanceof Error
-            ? `引き受けは完了しましたが、画面の更新に失敗しました。${err.message}`
-            : '引き受けは完了しましたが、画面の更新に失敗しました。',
-        )
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'サーバーに接続できません。',
-        )
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
     } finally {
       setLoading(false)
     }
@@ -702,65 +603,47 @@ function App() {
     setActionMessage('')
     setLoading(true)
 
-    let completeSucceeded = false
-
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/bulk-complete`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            問い合わせ番号一覧: inquiryNumbers,
-          }),
-        },
-      )
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedNumbers([])
-        setSelectedInquiry(null)
-        setScreenMode('list')
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせの対応完了に失敗しました。'),
+      try {
+        await requestInquiryComplete(
+          inquiryNumbers,
         )
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedNumbers([])
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
+
+        throw error
       }
 
-      completeSucceeded = true
-
-      // 詳細画面からの個別完了
+      // 詳細画面からの単一引き受け
       if (returnToDetail) {
-        const refreshed = await openInquiryDetail(inquiryNumbers[0])
+        // 完了後の詳細を再取得する
+        const detail = await fetchInquiryDetail(inquiryNumbers[0])
 
-        if (!refreshed) {
+        if (detail === null) {
           setError(
-            '対応完了しましたが、問い合わせ詳細の再取得に失敗しました。',
+            '完了はできましたが、問い合わせ詳細の再取得に失敗しました。',
           )
           return
         }
 
-        setActionMessage('問い合わせを対応完了にしました。')
-        return
+        setSelectedInquiry(detail)
       }
 
-      // 一覧画面からの完了
       const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
-          '対応完了しましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。',
+          '完了はできましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。',
         )
         return
       }
@@ -768,28 +651,19 @@ function App() {
       setSelectedNumbers([])
       setActionMessage(
         inquiryNumbers.length === 1
-          ? '問い合わせを対応完了にしました。'
-          : '選択した問い合わせを対応完了にしました。',
+          ? '問い合わせを完了しました。'
+          : '選択した問い合わせを完了しました。',
       )
     } catch (err) {
-      if (completeSucceeded) {
-        setError(
-          err instanceof Error
-            ? `対応完了しましたが、画面の更新に失敗しました。${err.message}`
-            : '対応完了しましたが、画面の更新に失敗しました。',
-        )
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'サーバーに接続できません。',
-        )
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
     } finally {
       setLoading(false)
     }
   }
-
 
   async function handleReopenInquiry(inquiryNumber: number) {
     if (loading) {
@@ -808,62 +682,59 @@ function App() {
     setActionMessage('')
     setLoading(true)
 
-    let reopenSucceeded = false
-
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/${inquiryNumber}/reopen`,
-        {
-          method: 'POST',
-          credentials: 'include',
-        },
-      )
+      try {
+        await requestInquiryReopen(
+          inquiryNumber,
+        )
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedNumbers([])
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
 
-      const data = await response.json().catch(() => null)
+        throw error
+      }
 
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedNumbers([])
-        setSelectedInquiry(null)
-        setScreenMode('list')
+      const detail = await fetchInquiryDetail(inquiryNumber)
+
+      if (detail === null) {
+        setError(
+          '再開できましたが、問い合わせ詳細の再取得に失敗しました。',
+        )
         return
       }
 
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, '問い合わせの再開に失敗しました。'),
-        )
-      }
+      setSelectedInquiry(detail)
 
-      reopenSucceeded = true
-
-      const refreshed = await openInquiryDetail(inquiryNumber)
+      const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
-        setError(
-          '再開しましたが、問い合わせ詳細の再取得に失敗しました。',
+        setActionMessage(
+          '再開できましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。',
         )
         return
       }
 
-      setActionMessage('問い合わせを再開しました。')
+      setSelectedNumbers([])
+      setActionMessage('問い合わせを完了しました。')
     } catch (err) {
       setError(
         err instanceof Error
-          ? reopenSucceeded
-            ? `再開しましたが、画面の更新に失敗しました。${err.message}`
-            : err.message
+          ? err.message
           : 'サーバーに接続できません。',
       )
     } finally {
       setLoading(false)
     }
   }
-
-
 
   async function handleBulkLinkInvestigation() {
     const investigationNumber = Number(existingInvestigationNumber)
@@ -889,75 +760,45 @@ function App() {
     setActionMessage('')
     setLoading(true)
 
-    let linkSucceeded = false
-
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/bulk-link-investigation`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            問い合わせ番号一覧: selectedNumbers,
-            問題調査番号: investigationNumber,
-          }),
-        },
-      )
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedNumbers([])
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(
-            data,
-            '既存の問題調査への関連付けに失敗しました。',
-          ),
+      try {
+        await linkInvestigation(
+          selectedNumbers,
+          investigationNumber,
         )
-      }
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedNumbers([])
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
 
-      linkSucceeded = true
+        throw error
+      }
 
       const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
-          `問題調査番号 ${investigationNumber} への関連付けは完了しましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。`,
+          '関連付けはできましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。',
         )
         return
       }
 
       setSelectedNumbers([])
-      setExistingInvestigationNumber('')
-
-      setActionMessage(
-        `問題調査番号 ${data?.問題調査番号 ?? investigationNumber} に、${data?.関連付け件数 ?? selectedNumbers.length} 件の問い合わせを関連付けました。`,
-      )
+      setActionMessage('問い合わせを既存の問題調査に関連付けました。')
     } catch (err) {
-      if (linkSucceeded) {
-        setError(
-          err instanceof Error
-            ? `関連付けは完了しましたが、一覧の更新に失敗しました。${err.message}`
-            : '関連付けは完了しましたが、一覧の更新に失敗しました。',
-        )
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'サーバーに接続できません。',
-        )
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
     } finally {
       setLoading(false)
     }
@@ -986,81 +827,49 @@ function App() {
     setActionMessage('')
     setLoading(true)
 
-    let createSucceeded = false
-
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/inquiries/bulk-investigations`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            問い合わせ番号一覧: selectedNumbers,
-            問題調査の名称や仮説: newInvestigationName.trim(),
-          }),
-        },
-      )
-
-      const data = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        setSelectedNumbers([])
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(
-            data,
-            '新しい問題調査の作成・関連付けに失敗しました。',
-          ),
+      try {
+        await createInvestigation(
+          selectedNumbers,
+          newInvestigationName,
         )
-      }
+      } catch (error) {
+        // セッション切れ
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthenticated(false)
+          setUser(null)
+          setInquiries([])
+          setTotal(0)
+          setSelectedNumbers([])
+          setSelectedInquiry(null)
+          setScreenMode('list')
+          return
+        }
 
-      createSucceeded = true
+        throw error
+      }
 
       const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
-          `問題調査を作成して ${selectedNumbers.length} 件に関連付けましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。`,
+          '関連付けはできましたが、一覧の再取得に失敗しました。必要に応じて一覧を再読み込みしてください。',
         )
         return
       }
 
       setSelectedNumbers([])
-      setNewInvestigationName('')
-      setActionMessage(
-        `新しい問題調査を作成し、${data?.関連付け件数 ?? selectedNumbers.length} 件の問い合わせに関連付けました。問題調査番号：${data?.問題調査番号 ?? '不明'}`,
-      )
+      setActionMessage('問い合わせを新規の問題調査に関連付けました。')
     } catch (err) {
-      if (createSucceeded) {
-        setError(
-          err instanceof Error
-            ? `問題調査の作成・関連付けは完了しましたが、一覧の更新に失敗しました。${err.message}`
-            : '問題調査の作成・関連付けは完了しましたが、一覧の更新に失敗しました。',
-        )
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'サーバーに接続できません。',
-        )
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
     } finally {
       setLoading(false)
     }
   }
-
-
-
 
   const handleInitialConditionChange = async (checked: boolean) => {
     // なし → あり：確認後に初期条件で再検索
@@ -1441,5 +1250,6 @@ function App() {
     />
   )
 }
+
 
 export default App
