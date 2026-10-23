@@ -14,6 +14,7 @@ type InquiryViewProps = {
   listDisplayMode: string
   currentPage: number
   appliedFilters: InquiryFilters
+  refreshCurrentInquiryList: () => Promise<boolean>
   loadInquiries: (pageNumber?: number) => Promise<boolean>
   fetchSearchResults: (
     filters: InquiryFilters,
@@ -36,11 +37,7 @@ export default function InquiryView({
   setScreenMode,
   loading,
   error,
-  listDisplayMode,
-  currentPage,
-  appliedFilters,
-  loadInquiries,
-  fetchSearchResults,
+  refreshCurrentInquiryList,
   openInquiryEdit,
   handleAcceptInquiry,
   handleCompleteInquiry,
@@ -78,14 +75,9 @@ export default function InquiryView({
             <button
             type="button"
             onClick={async () => {
+                await refreshCurrentInquiryList()
                 setSelectedInquiry(null)
                 setScreenMode('list')
-
-                if (listDisplayMode === 'initial') {
-                await loadInquiries(currentPage)
-                } else {
-                await fetchSearchResults(appliedFilters, currentPage)
-                }
             }}
             disabled={loading}
             >

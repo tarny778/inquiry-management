@@ -5,10 +5,10 @@ import InquiryCreate  from './components/inquiries/InquiryCreate'
 import InquiryUpdate  from './components/inquiries/InquiryUpdate'
 import InquiryView  from './components/inquiries/InquiryView'
 import InquiryListPage  from './components/inquiries/InquiryListPage'
+import { useInquiryList } from './useInquiryList'
 import type {
   Inquiry,
   LoginUser,
-  InquiryFilters,
   InquiryListResponse,
   InquiryDetail,
   ScreenMode,
@@ -96,8 +96,6 @@ function App() {
   // 一括操作ボタンの画面確認用メッセージ
   const [actionMessage, setActionMessage] = useState('')
 
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
-
   const [isLinkInvestigationDialogOpen, setIsLinkInvestigationDialogOpen] =
   useState(false)
   const [isCreateInvestigationDialogOpen, setIsCreateInvestigationDialogOpen] =
@@ -107,30 +105,43 @@ function App() {
   const [newInvestigationName, setNewInvestigationName] = useState('')
 
   // 入力中の検索条件
-  const [keyword, setKeyword] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [urgencyFilter, setUrgencyFilter] = useState('')
-  const [receptionistFilter, setReceptionistFilter] = useState('')
-  const [handlerFilter, setHandlerFilter] = useState('')
-  const [receivedFrom, setReceivedFrom] = useState('')
-  const [receivedTo, setReceivedTo] = useState('')
-
-  // 最後に検索ボタンを押したときの条件
-  const [appliedFilters, setAppliedFilters] =
-  useState<InquiryFilters>({
-    keyword: '',
-    status: '',
-    category: '',
-    urgency: '',
-    receptionist: '',
-    handler: '',
-    receivedFrom: '',
-    receivedTo: '',
-  })
+  const {
+    keyword,
+    setKeyword,
+    statusFilter,
+    setStatusFilter,
+    categoryFilter,
+    setCategoryFilter,
+    urgencyFilter,
+    setUrgencyFilter,
+    receptionistFilter,
+    setReceptionistFilter,
+    handlerFilter,
+    setHandlerFilter,
+    receivedFrom,
+    setReceivedFrom,
+    receivedTo,
+    setReceivedTo,
+    showAdvancedSearch,
+    setShowAdvancedSearch,
+    appliedFilters,
+    setAppliedFilters,
+    clearSearchFilters,
+  } = useInquiryList()
 
   const [error, setError] = useState('')
   const [loginError, setLoginError] = useState('')
+
+  async function refreshCurrentInquiryList(): Promise<boolean> {
+    if (listDisplayMode === 'initial') {
+      return await loadInquiries(currentPage)
+    }
+
+    return await fetchSearchResults(
+      appliedFilters,
+      currentPage,
+    )
+  }
 
   // 初期表示では、APIが職員の権限に応じて抽出した一覧を取得する。
   async function loadInquiries(pageNumber = 1) {
@@ -612,14 +623,7 @@ function App() {
         return
       }
 
-      // 一覧画面からの引き受け
-      let refreshed: boolean
-
-      if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries(currentPage)
-      } else {
-        refreshed = await fetchSearchResults(appliedFilters, currentPage)
-      }
+      const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
@@ -752,13 +756,7 @@ function App() {
       }
 
       // 一覧画面からの完了
-      let refreshed: boolean
-
-      if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries(currentPage)
-      } else {
-        refreshed = await fetchSearchResults(appliedFilters, currentPage)
-      }
+      const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
@@ -931,13 +929,7 @@ function App() {
 
       linkSucceeded = true
 
-      let refreshed: boolean
-
-      if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries(currentPage)
-      } else {
-        refreshed = await fetchSearchResults(appliedFilters, currentPage)
-      }
+      const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
@@ -1034,13 +1026,7 @@ function App() {
 
       createSucceeded = true
 
-      let refreshed: boolean
-
-      if (listDisplayMode === 'initial') {
-        refreshed = await loadInquiries(currentPage)
-      } else {
-        refreshed = await fetchSearchResults(appliedFilters, currentPage)
-      }
+      const refreshed = await refreshCurrentInquiryList()
 
       if (!refreshed) {
         setActionMessage(
@@ -1089,23 +1075,8 @@ function App() {
       }
 
       // 検索条件をすべてクリア
-      setKeyword('')
-      setStatusFilter('')
-      setCategoryFilter('')
-      setUrgencyFilter('')
-      setReceptionistFilter('')
-      setHandlerFilter('')
-
-      setAppliedFilters({
-        keyword: '',
-        status: '',
-        category: '',
-        urgency: '',
-        receptionist: '',
-        handler: '',
-        receivedFrom: '',
-        receivedTo: '',
-      })
+      // 検索条件をすべてクリア
+      clearSearchFilters()
 
       setError('')
       setActionMessage('')
@@ -1127,25 +1098,7 @@ function App() {
   }
 
   const clearSearch = () => {
-    setKeyword('')
-    setStatusFilter('')
-    setCategoryFilter('')
-    setUrgencyFilter('')
-    setReceptionistFilter('')
-    setHandlerFilter('')
-    setReceivedFrom('')
-    setReceivedTo('')
-
-    setAppliedFilters({
-      keyword: '',
-      status: '',
-      category: '',
-      urgency: '',
-      receptionist: '',
-      handler: '',
-      receivedFrom: '',
-      receivedTo: '',
-    })
+    clearSearchFilters()
 
     setSelectedNumbers([])
     setActionMessage('')
@@ -1416,6 +1369,7 @@ function App() {
         listDisplayMode={listDisplayMode}
         currentPage={currentPage}
         appliedFilters={appliedFilters}
+        refreshCurrentInquiryList={refreshCurrentInquiryList}
         loadInquiries={loadInquiries}
         fetchSearchResults={fetchSearchResults}
         openInquiryEdit={openInquiryEdit}
