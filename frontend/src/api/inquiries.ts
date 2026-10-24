@@ -197,7 +197,7 @@ export async function requestInquiryReopen(
   inquiryNumber: number,
 ): Promise<void> {
   await apiRequest<void>(
-    `api/inquiries/${inquiryNumber}/reopen`,
+    `/api/inquiries/${inquiryNumber}/reopen`,
     {
       method: 'POST' ,
     },
@@ -211,7 +211,7 @@ export async function linkInvestigation(
   investigationNumber: number,
 ): Promise<void> {
   await apiRequest<void>(
-    'api/inquiries/bulk-link-investigation',
+    '/api/inquiries/bulk-link-investigation',
     {
       method: 'POST',
       headers: {
@@ -232,7 +232,7 @@ export async function createInvestigation(
   newInvestigationName: string,
 ): Promise<void> {
   await apiRequest<void>(
-    'api/inquiries/bulk-investigations',
+    '/api/inquiries/bulk-investigations',
     {
       method: 'POST',
       headers: {
@@ -240,7 +240,7 @@ export async function createInvestigation(
       },
       body: JSON.stringify({
         問い合わせ番号一覧: selectedNumbers,
-        問題調査番号: newInvestigationName.trim(),
+        問題調査の名称や仮説: newInvestigationName.trim(),
       }),
     },
     "新規の問題調査への関連付けに失敗しました"

@@ -18,37 +18,19 @@ import {
   linkInvestigation,
   createInvestigation,
 } from './api/inquiries'
+import {
+  login,
+  logout,
+} from './api/auth'
 import { ApiError } from './api/client'
 import type {
   Inquiry,
   LoginUser,
-  InquiryListResponse,
   InquiryDetail,
   ScreenMode,
   InquiryCreateForm,
   InquiryEditForm,
 } from './types'
-
-const API_BASE_URL = 'http://localhost:8000'
-
-
-function getErrorMessage(data: unknown, fallback: string): string {
-  if (
-    typeof data === 'object' &&
-    data !== null &&
-    'detail' in data
-  ) {
-    const detail = (data as { detail: unknown }).detail
-
-    if (typeof detail === 'string') {
-      return detail
-    }
-
-    return JSON.stringify(detail)
-  }
-
-  return fallback
-}
 
 function App() {
   const [職員番号, set職員番号] = useState('')
@@ -724,7 +706,7 @@ function App() {
       }
 
       setSelectedNumbers([])
-      setActionMessage('問い合わせを完了しました。')
+      setActionMessage('問い合わせを再開しました。')
     } catch (err) {
       setError(
         err instanceof Error
@@ -922,38 +904,26 @@ function App() {
 
     async function checkSession() {
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/inquiries?初期条件=1&page=1&page_size=50`,
-          { credentials: 'include' },
-        )
-
-        const data = await response.json().catch(() => null)
+        const result = await getInitialInquiries()
 
         if (cancelled) return
 
-        if (response.status === 401) {
-          setAuthenticated(false)
-          return
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(data, '問い合わせ一覧の取得に失敗しました。'),
-          )
-        }
-
-        const result = data as InquiryListResponse
         setInquiries(result.items)
         setTotal(result.total)
         setAuthenticated(true)
       } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'サーバーに接続できません。',
-          )
+        if (cancelled) return
+
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthenticated(false)
+          return
         }
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'サーバーに接続できません。',
+        )
       } finally {
         if (!cancelled) {
           setCheckingSession(false)
@@ -975,25 +945,7 @@ function App() {
     setLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          職員番号,
-          パスワード,
-        }),
-      })
-
-      const data = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, 'ログインに失敗しました。'),
-        )
-      }
+      const data = await login(職員番号, パスワード)
 
       setUser({
         職員番号: data.職員番号,
@@ -1027,18 +979,7 @@ function App() {
     setLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      const data = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, 'ログアウトに失敗しました。'),
-        )
-      }
+      await logout()
 
       setAuthenticated(false)
       setUser(null)
