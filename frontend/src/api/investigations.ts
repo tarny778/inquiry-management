@@ -87,3 +87,25 @@ export async function updateInvestigation(
     '問題調査の編集に失敗しました。',
   )
 }
+
+// 問題調査を断念する
+export async function abandonInvestigation(
+  investigationNumber: number,
+): Promise<void> {
+  await apiRequest<void>(
+    `/api/investigations/${investigationNumber}/abandon`,
+    { method: 'POST' },
+    '問題調査の断念に失敗しました。',
+  )
+}
+
+// 問題調査にリアクション要求する
+export async function requestReactionInvestigation(
+  investigationNumber: number,
+): Promise<void> {
+  await apiRequest<void>(
+    `/api/investigations/${investigationNumber}/request-reaction`,
+    { method: 'POST' },
+    '問題調査のリアクション要求に失敗しました。',
+  )
+}

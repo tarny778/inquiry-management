@@ -1,4 +1,22 @@
 import { apiRequest } from './client'
+// 認証を確認し、ユーザーを取得する
+export async function checkSession(
+  ): Promise<{
+  職員番号: string
+  氏名: string
+  所属: string
+}>{
+  return await apiRequest<{
+    職員番号: string
+    氏名: string
+    所属: string
+  }>(
+    '/api/auth/me',
+    {method: 'GET'},
+    '認証に失敗しました'
+  )
+}
+
 
 // ログインする
 export async function login(

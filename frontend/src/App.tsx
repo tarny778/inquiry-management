@@ -28,10 +28,13 @@ import {
     getSearchInvestigations,
     getInvestigationDetail,
     updateInvestigation,
+    abandonInvestigation,
+    requestReactionInvestigation,
   } from './api/investigations'
 import useInvestigationList  from './useInvestigationList'
 
 import {
+  checkSession,
   login,
   logout,
 } from './api/auth'
@@ -144,18 +147,6 @@ function App() {
   const [error, setError] = useState('')
   const [loginError, setLoginError] = useState('')
 
-  async function refreshCurrentInquiryList(): Promise<boolean> {
-    if (listDisplayMode === 'initial') {
-      return await loadInquiries(currentPage)
-    }
-
-    return await fetchSearchResults(
-      appliedFilters,
-      currentPage,
-    )
-  }
-
-
   // 以下は問題調査画面用のstate
   // 問い合わせ画面と問題調査画面の切り替え
   const [mainScreen, setMainScreen] =
@@ -178,7 +169,19 @@ function App() {
       '対応案策定予定日時': '',
       '進捗更新の次回更新予定日時': '',
     })
-  
+
+
+  async function refreshCurrentInquiryList(): Promise<boolean> {
+    if (listDisplayMode === 'initial') {
+      return await loadInquiries(currentPage)
+    }
+
+    return await fetchSearchResults(
+      appliedFilters,
+      currentPage,
+    )
+  }
+
   // 初期表示では、APIが職員の権限に応じて抽出した一覧を取得する。
   async function loadInquiries(pageNumber = 1) {
     try {
@@ -938,24 +941,33 @@ function App() {
 
 
 
-  // ページを開いたとき、既存セッションがあれば一覧を取得する。
+  // ページを開いたとき、既存セッションがあれば職員情報と一覧を取得する。
   useEffect(() => {
     let cancelled = false
 
-    async function checkSession() {
+    async function checkExistingSession() {
       try {
-        const result = await getInitialInquiries()
+        // セッションを確認し、ログイン職員情報を取得する。
+        const user = await checkSession()
+
+        if (cancelled) return
+
+        setUser(user)
+        setAuthenticated(true)
+
+        // セッション確認後に問い合わせ一覧を取得する。
+        const result = await getInitialInquiries(1)
 
         if (cancelled) return
 
         setInquiries(result.items)
         setTotal(result.total)
-        setAuthenticated(true)
       } catch (err) {
         if (cancelled) return
 
         if (err instanceof ApiError && err.status === 401) {
           setAuthenticated(false)
+          setUser(null)
           return
         }
 
@@ -971,7 +983,7 @@ function App() {
       }
     }
 
-    void checkSession()
+    void checkExistingSession()
 
     return () => {
       cancelled = true
@@ -979,35 +991,6 @@ function App() {
   }, [])
 
   // 以下問題調査関連のファンクション
-  // 検索ボタンを押した時の処理
-  async function handleSearchInvestigations() {
-    const filters = {
-      investigationNumber:
-        investigationList.investigationNumber.trim(),
-      inquiryNumber:
-        investigationList.inquiryNumber.trim(),
-      requesterStaffNumber:
-        investigationList.requesterStaffNumber.trim(),
-      handlerStaffNumber:
-        investigationList.handlerStaffNumber.trim(),
-      inquiryStatus:
-        investigationList.inquiryStatus,
-      investigationStatus:
-        investigationList.investigationStatus,
-      keyword:
-        investigationList.keyword.trim(),
-    }
-
-    investigationList.setAppliedFilters(filters)
-    setInvestigationLoading(true)
-
-    try {
-      await fetchInvestigationSearchResults(filters, 1)
-    } finally {
-      setInvestigationLoading(false)
-    }
-  }
-
   // 検索条件とページ番号に基づき、一覧を再読み込み
   async function fetchInvestigationSearchResults(
     filters: InvestigationFilters,
@@ -1044,6 +1027,36 @@ function App() {
     }
   }
 
+  // 検索ボタンを押した時に、検索条件をセットし、一覧読み込みを呼ぶ
+  async function handleSearchInvestigations() {
+    const filters = {
+      investigationNumber:
+        investigationList.investigationNumber.trim(),
+      inquiryNumber:
+        investigationList.inquiryNumber.trim(),
+      requesterStaffNumber:
+        investigationList.requesterStaffNumber.trim(),
+      handlerStaffNumber:
+        investigationList.handlerStaffNumber.trim(),
+      inquiryStatus:
+        investigationList.inquiryStatus,
+      investigationStatus:
+        investigationList.investigationStatus,
+      keyword:
+        investigationList.keyword.trim(),
+    }
+
+    investigationList.setAppliedFilters(filters)
+    setInvestigationLoading(true)
+
+    try {
+      await fetchInvestigationSearchResults(filters, 1)
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 検索条件をまっさらにするのみ
   function clearInvestigationSearch() {
     investigationList.clearSearchFilters()
     setInvestigations([])
@@ -1051,7 +1064,8 @@ function App() {
     setInvestigationCurrentPage(1)
   }
 
-  function handleApplyInitialInvestigationCondition() {
+  // 初期条件ボタンを押した時に、初期条件を検索条件にsetし、一覧取得を呼ぶ
+  async function handleApplyInitialInvestigationCondition() {
     if (!user) {
       return
     }
@@ -1102,12 +1116,7 @@ function App() {
     // 検索条件を確定して検索する
     investigationList.setAppliedFilters(filters)
 
-    void searchInitialInvestigations(filters)
-  }
-
-  async function searchInitialInvestigations(
-    filters: InvestigationFilters,
-  ) {
+    // 初期条件で1ページ目を検索する
     setInvestigationLoading(true)
 
     try {
@@ -1212,6 +1221,88 @@ function App() {
         error instanceof Error
           ? error.message
           : '問題調査の保存に失敗しました。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 問題調査を断念する
+  async function handleAbandonInvestigation(
+    investigationNumber: number,
+  ) {
+    if (investigationLoading) {
+      return
+    }
+
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      // 断念APIを呼び出す
+      await abandonInvestigation(investigationNumber)
+
+      // 断念後の詳細を再取得する
+      const detail = await getInvestigationDetail(
+        investigationNumber,
+      )
+
+      setSelectedInvestigation(detail)
+    } catch (err) {
+      // セッション切れ
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setInvestigationScreenMode('list')
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 問題調査にリアクション要求する
+  async function handleRequestReactionInvestigation(
+    investigationNumber: number,
+  ) {
+    if (investigationLoading) {
+      return
+    }
+
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      // リアクション要求APIを呼び出す
+      await requestReactionInvestigation(investigationNumber)
+
+      // 断念後の詳細を再取得する
+      const detail = await getInvestigationDetail(
+        investigationNumber,
+      )
+
+      setSelectedInvestigation(detail)
+    } catch (err) {
+      // セッション切れ
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setInvestigationScreenMode('list')
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
       )
     } finally {
       setInvestigationLoading(false)
@@ -1372,6 +1463,7 @@ function App() {
       return (
         <InvestigationDetailView
           investigation={selectedInvestigation}
+          user={user}
           loading={investigationLoading}
           onBack={async () => {
             await fetchInvestigationSearchResults(
@@ -1398,6 +1490,16 @@ function App() {
 
             setInvestigationScreenMode('edit')
           }}
+          onAbandon={() =>
+            handleAbandonInvestigation(
+              selectedInvestigation['問題調査番号'],
+            )
+          }
+          onRequestReaction={() =>
+            handleRequestReactionInvestigation(
+              selectedInvestigation['問題調査番号'],
+            )
+          }
         />
       )
     }

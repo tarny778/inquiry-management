@@ -105,6 +105,14 @@ def authenticate_session(request: Request) -> main.CurrentUser:
         所属=department,
     )
 
+@router.get("/me")
+def get_current_user(
+    request: Request,
+) -> main.CurrentUser:
+    """ログイン中の職員情報を取得する。"""
+
+    return authenticate_session(request)
+
 
 
 @router.post("/login")
