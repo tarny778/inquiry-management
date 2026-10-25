@@ -19,7 +19,8 @@ def search_investigations_api(
     問題調査の名称や仮説: str | None = None,
     問題調査状態: int | None = Query(default=None, ge=1, le=3),
     問い合わせ職員番号: str | None = None,
-    問い合わせ者氏名: str | None = None,
+    問い合わせ番号: int | None = Query(default=None, ge=1),
+    問い合わせ状態: str | None = None,
     対応担当者職員番号: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
@@ -46,8 +47,8 @@ def search_investigations_api(
         conditions.append('q."問題調査状態" = %s')
         params.append(問題調査状態)
 
-    # 問い合わせ者の職員番号で検索
-    if 問い合わせ職員番号:
+    # 問い合わせ番号で検索
+    if 問い合わせ番号 is not None:
         conditions.append(
             '''
             EXISTS (
@@ -56,14 +57,45 @@ def search_investigations_api(
                 JOIN "問い合わせ" i
                     ON i."問い合わせ番号" = ik."問い合わせ番号"
                 WHERE ik."問題調査番号" = q."問題調査番号"
-                  AND i."問い合わせ職員番号" = %s
+                AND i."問い合わせ番号" = %s
             )
             '''
         )
-        params.append(問い合わせ職員番号)
+        params.append(問い合わせ番号)
+    
+    # 問い合わせ者の職員番号・問い合わせ状態で検索
+    if 問い合わせ職員番号 or 問い合わせ状態 is not None:
+        inquiry_conditions = [
+            'ik."問題調査番号" = q."問題調査番号"',
+            'i."問い合わせ番号" = ik."問い合わせ番号"',
+        ]
+        inquiry_params = []
 
-    # 問い合わせ者の氏名で部分一致検索
-    if 問い合わせ者氏名 and 問い合わせ者氏名.strip():
+        if 問い合わせ職員番号:
+            inquiry_conditions.append(
+                'i."問い合わせ職員番号" = %s'
+            )
+            inquiry_params.append(問い合わせ職員番号)
+
+        if 問い合わせ状態 == "対応中":
+            inquiry_conditions.append(
+                '''
+                i."引き受け日時" IS NOT NULL
+                AND i."対応完了日時" IS NULL
+                '''
+            )
+        elif 問い合わせ状態 == "対応完了":
+            inquiry_conditions.append(
+                'i."対応完了日時" IS NOT NULL'
+            )
+        elif 問い合わせ状態 == "引き受け待ち":
+            inquiry_conditions.append(
+                '''
+                i."引き受け日時" IS NULL
+                AND i."対応完了日時" IS NULL
+                '''
+            )
+
         conditions.append(
             '''
             EXISTS (
@@ -71,14 +103,12 @@ def search_investigations_api(
                 FROM "問い合わせ問題調査" ik
                 JOIN "問い合わせ" i
                     ON i."問い合わせ番号" = ik."問い合わせ番号"
-                JOIN "職員" s
-                    ON s."職員番号" = i."問い合わせ職員番号"
-                WHERE ik."問題調査番号" = q."問題調査番号"
-                  AND s."氏名" LIKE %s
-            )
+                WHERE
             '''
+            + " AND ".join(inquiry_conditions)
+            + ")"
         )
-        params.append(f"%{問い合わせ者氏名.strip()}%")
+        params.extend(inquiry_params)
 
     # 対応担当者の職員番号で検索
     if 対応担当者職員番号:

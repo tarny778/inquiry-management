@@ -80,3 +80,73 @@ export type InquiryFilters = {
   receivedFrom: string
   receivedTo: string
 }
+
+export type Investigation = {
+  問題調査番号: number
+  問題調査の名称や仮説: string
+  問題調査状態: number
+  対応担当者職員氏名: string | null
+  関連問い合わせ件数: number
+  自分の問い合わせを含む: boolean
+}
+
+export type InvestigationListResponse = {
+  items: Investigation[]
+  page: number
+  page_size: number
+  total: number
+}
+
+export type InvestigationRelatedInquiry = {
+  "問い合わせ問題調査番号": number
+  "問い合わせ番号": number
+  "問い合わせ者氏名": string
+  "対応担当者氏名": string
+  "問い合わせ問題調査状態": number
+  "調査開始日時": string | null
+  "断念日時": string | null
+  "リアクション被要求日時": string | null
+  "リアクション日時": string | null
+  "リアクション内容": string | null
+  "NGでの移行先問題調査番号": number | null
+  "問い合わせ職員番号": string
+  "対応担当者職員番号": string | null
+}
+
+export type InvestigationDetail = {
+  "問題調査番号": number
+  "問題調査の名称や仮説": string
+  "問題の原因": string | null
+  "情シス側での対応": string | null
+  "問い合わせ者側で必要な対応": string | null
+  "問題調査状態": number
+  "調査開始日時": string | null
+  "対応案策定予定日時": string | null
+  "進捗更新の次回更新予定日時": string | null
+  "リアクション要求日時": string | null
+  "問題調査断念日時": string | null
+  "最新移行先の問題調査番号": number
+  "自分の問い合わせを含む": boolean
+  "関連する問い合わせ問題調査": InvestigationRelatedInquiry[]
+}
+
+// 問題調査一覧の検索条件
+export type InvestigationFilters = {
+  investigationNumber: string
+  inquiryNumber: string
+  requesterStaffNumber: string
+  handlerStaffNumber: string
+  inquiryStatus: string
+  investigationStatus: string
+  keyword: string
+}
+
+
+export type InvestigationEditForm = {
+  "問題調査の名称や仮説": string
+  "問題の原因": string
+  "情シス側での対応": string
+  "問い合わせ者側で必要な対応": string
+  "対応案策定予定日時": string
+  "進捗更新の次回更新予定日時": string
+}

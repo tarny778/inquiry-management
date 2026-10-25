@@ -1,10 +1,16 @@
 
 import { useEffect, useState } from 'react'
+import type { SubmitEvent } from 'react'
 import './App.css'
 import InquiryCreate  from './components/inquiries/InquiryCreate'
 import InquiryUpdate  from './components/inquiries/InquiryUpdate'
 import InquiryView  from './components/inquiries/InquiryView'
 import InquiryListPage  from './components/inquiries/InquiryListPage'
+import InvestigationSearch from './components/investigations/InvestigationSearch'
+import InvestigationTable from './components/investigations/investigationTable'
+import InvestigationDetailView from './components/investigations/InvestigationDetailView'
+import InvestigationUpdate  from './components/investigations/InvestigationUpdate'
+
 import { useInquiryList } from './useInquiryList'
 import {
   getInitialInquiries,
@@ -19,6 +25,13 @@ import {
   createInvestigation,
 } from './api/inquiries'
 import {
+    getSearchInvestigations,
+    getInvestigationDetail,
+    updateInvestigation,
+  } from './api/investigations'
+import useInvestigationList  from './useInvestigationList'
+
+import {
   login,
   logout,
 } from './api/auth'
@@ -30,6 +43,10 @@ import type {
   ScreenMode,
   InquiryCreateForm,
   InquiryEditForm,
+  Investigation,
+  InvestigationFilters,
+  InvestigationDetail,
+  InvestigationEditForm,
 } from './types'
 
 function App() {
@@ -138,6 +155,29 @@ function App() {
     )
   }
 
+
+  // 以下は問題調査画面用のstate
+  // 問い合わせ画面と問題調査画面の切り替え
+  const [mainScreen, setMainScreen] =
+    useState<'inquiry' | 'investigation'>('inquiry')
+  const [investigationScreenMode, setInvestigationScreenMode] =
+    useState<'list' | 'view' | 'edit'>('list')
+  const investigationList = useInvestigationList()
+  const [investigations, setInvestigations] = useState<Investigation[]>([])
+  const [investigationTotal, setInvestigationTotal] = useState(0)
+  const [investigationCurrentPage, setInvestigationCurrentPage] = useState(1)
+  const [investigationLoading,setInvestigationLoading] = useState(false)
+  const [selectedInvestigation, setSelectedInvestigation] =
+    useState<InvestigationDetail | null>(null)
+  const [investigationEditForm, setInvestigationEditForm] =
+    useState<InvestigationEditForm>({
+      '問題調査の名称や仮説': '',
+      '問題の原因': '',
+      '情シス側での対応': '',
+      '問い合わせ者側で必要な対応': '',
+      '対応案策定予定日時': '',
+      '進捗更新の次回更新予定日時': '',
+    })
   
   // 初期表示では、APIが職員の権限に応じて抽出した一覧を取得する。
   async function loadInquiries(pageNumber = 1) {
@@ -201,6 +241,7 @@ function App() {
     }
   }
 
+  
   async function handleSearch() {
     const filters = {
       keyword: keyword.trim(),
@@ -866,7 +907,6 @@ function App() {
       }
 
       // 検索条件をすべてクリア
-      // 検索条件をすべてクリア
       clearSearchFilters()
 
       setError('')
@@ -937,6 +977,246 @@ function App() {
       cancelled = true
     }
   }, [])
+
+  // 以下問題調査関連のファンクション
+  // 検索ボタンを押した時の処理
+  async function handleSearchInvestigations() {
+    const filters = {
+      investigationNumber:
+        investigationList.investigationNumber.trim(),
+      inquiryNumber:
+        investigationList.inquiryNumber.trim(),
+      requesterStaffNumber:
+        investigationList.requesterStaffNumber.trim(),
+      handlerStaffNumber:
+        investigationList.handlerStaffNumber.trim(),
+      inquiryStatus:
+        investigationList.inquiryStatus,
+      investigationStatus:
+        investigationList.investigationStatus,
+      keyword:
+        investigationList.keyword.trim(),
+    }
+
+    investigationList.setAppliedFilters(filters)
+    setInvestigationLoading(true)
+
+    try {
+      await fetchInvestigationSearchResults(filters, 1)
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 検索条件とページ番号に基づき、一覧を再読み込み
+  async function fetchInvestigationSearchResults(
+    filters: InvestigationFilters,
+    pageNumber = 1,
+  ) {
+    setError('')
+
+    try {
+      const result = await getSearchInvestigations(
+        filters,
+        pageNumber,
+      )
+
+      setInvestigations(result.items)
+      setInvestigationTotal(result.total)
+      setInvestigationCurrentPage(pageNumber)
+
+      return true
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setInvestigations([])
+        setInvestigationTotal(0)
+        return false
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+      return false
+    }
+  }
+
+  function clearInvestigationSearch() {
+    investigationList.clearSearchFilters()
+    setInvestigations([])
+    setInvestigationTotal(0)
+    setInvestigationCurrentPage(1)
+  }
+
+  function handleApplyInitialInvestigationCondition() {
+    if (!user) {
+      return
+    }
+
+    const isInformationSystems =
+      user.所属 === '情報システム課'
+
+    const msgShozoku = isInformationSystems
+      ? '対応担当者'
+      : '問い合わせ者'
+
+    const confirmed = window.confirm(
+      `初期条件での検索として、${msgShozoku}が操作者本人で、` +
+      '問い合わせ状態が「対応中」の問い合わせに関連する問題調査を検索しますか？',
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    const filters = {
+      investigationNumber: '',
+      inquiryNumber: '',
+      requesterStaffNumber: isInformationSystems
+        ? ''
+        : user.職員番号,
+      handlerStaffNumber: isInformationSystems
+        ? user.職員番号
+        : '',
+      inquiryStatus: '対応中',
+      investigationStatus: '',
+      keyword: '',
+    }
+
+    // 入力欄に初期条件を反映する
+    investigationList.setInvestigationNumber('')
+    investigationList.setInquiryNumber('')
+    investigationList.setRequesterStaffNumber(
+      filters.requesterStaffNumber,
+    )
+    investigationList.setHandlerStaffNumber(
+      filters.handlerStaffNumber,
+    )
+    investigationList.setInquiryStatus(filters.inquiryStatus)
+    investigationList.setInvestigationStatus('')
+    investigationList.setKeyword('')
+
+    // 検索条件を確定して検索する
+    investigationList.setAppliedFilters(filters)
+
+    void searchInitialInvestigations(filters)
+  }
+
+  async function searchInitialInvestigations(
+    filters: InvestigationFilters,
+  ) {
+    setInvestigationLoading(true)
+
+    try {
+      await fetchInvestigationSearchResults(filters, 1)
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 問題調査一覧のページを切り替える
+  async function handleInvestigationPageChange(
+    pageNumber: number,
+  ) {
+    const totalPages = Math.ceil(investigationTotal / 50)
+
+    if (
+      pageNumber < 1 ||
+      pageNumber > totalPages ||
+      investigationLoading
+    ) {
+      return
+    }
+
+    setInvestigationLoading(true)
+
+    try {
+      await fetchInvestigationSearchResults(
+        investigationList.appliedFilters,
+        pageNumber,
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 問題調査の詳細を取得する
+  async function handleSelectInvestigation(
+    investigationNumber: number,
+  ) {
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      const result = await getInvestigationDetail(
+        investigationNumber,
+      )
+
+      setSelectedInvestigation(result)
+      setInvestigationScreenMode('view')
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 問題調査の内容を更新する
+  const handleSaveInvestigation = async (
+    event: SubmitEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+
+    if (selectedInvestigation === null) {
+      setError('問題調査の詳細データがありません。')
+      return
+    }
+
+    try {
+      setInvestigationLoading(true)
+      setError('')
+
+      // ① 編集内容を API に送信する
+      await updateInvestigation(
+        selectedInvestigation.問題調査番号,
+        investigationEditForm,
+      )
+
+      // ② 保存後の最新の詳細情報を取得する
+      const updatedInvestigation = await getInvestigationDetail(
+        selectedInvestigation.問題調査番号,
+      )
+
+      // ③ 詳細情報を更新する
+      setSelectedInvestigation(updatedInvestigation)
+
+      // ④ 詳細画面に戻る
+      setInvestigationScreenMode('view')
+    } catch (error) {
+      console.error('問題調査の保存に失敗しました。', error)
+      setError(
+        error instanceof Error
+          ? error.message
+          : '問題調査の保存に失敗しました。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1072,8 +1352,135 @@ function App() {
       </div>
     )
   }
+  // 問題調査関連画面
+  if (mainScreen === 'investigation') {
+    // 詳細画面
+    if (investigationScreenMode === 'view') {
+      if (selectedInvestigation === null) {
+        return (
+          <div>
+            <p>問題調査の詳細データがありません。</p>
+            <button
+              type="button"
+              onClick={() => setInvestigationScreenMode('list')}
+            >
+              問題調査一覧へ戻る
+            </button>
+          </div>
+        )
+      }
+      return (
+        <InvestigationDetailView
+          investigation={selectedInvestigation}
+          loading={investigationLoading}
+          onBack={async () => {
+            await fetchInvestigationSearchResults(
+              investigationList.appliedFilters,
+              investigationCurrentPage,
+            )
+            setInvestigationScreenMode('list')
+          }}
+          onEdit={() => {
+            setInvestigationEditForm({
+              '問題調査の名称や仮説':
+                selectedInvestigation['問題調査の名称や仮説'],
+              '問題の原因':
+                selectedInvestigation['問題の原因'] ?? '',
+              '情シス側での対応':
+                selectedInvestigation['情シス側での対応'] ?? '',
+              '問い合わせ者側で必要な対応':
+                selectedInvestigation['問い合わせ者側で必要な対応'] ?? '',
+              '対応案策定予定日時':
+                selectedInvestigation['対応案策定予定日時'] ?? '',
+              '進捗更新の次回更新予定日時':
+                selectedInvestigation['進捗更新の次回更新予定日時'] ?? '',
+            })
+
+            setInvestigationScreenMode('edit')
+          }}
+        />
+      )
+    }
+
+    // 編集画面を表示する
+    if (investigationScreenMode === 'edit') {
+      if (selectedInvestigation === null) {
+        return (
+          <div>
+            <p>問題調査の詳細データがありません。</p>
+            <button
+              type="button"
+              onClick={() => setInvestigationScreenMode('list')}
+            >
+              問題調査一覧へ戻る
+            </button>
+          </div>
+        )
+      }
+      return(
+        <InvestigationUpdate
+          investigation={selectedInvestigation}
+          editForm={investigationEditForm}
+          setEditForm={setInvestigationEditForm}
+          onSubmit={handleSaveInvestigation}
+          onCancel={() => setInvestigationScreenMode('view')}
+          loading={investigationLoading}
+        />
+      )
+    }
+    // 一覧画面
+    return (
+      <div>
+        <h2>問題調査一覧</h2>
+        <button
+          type="button"
+          onClick={() => setMainScreen('inquiry')}
+        >
+          問い合わせ一覧へ
+        </button>
+        <InvestigationSearch
+          loading={investigationLoading}
+          investigationNumber={investigationList.investigationNumber}
+          setInvestigationNumber={investigationList.setInvestigationNumber}
+          inquiryNumber={investigationList.inquiryNumber}
+          setInquiryNumber={investigationList.setInquiryNumber}
+          requesterStaffNumber={investigationList.requesterStaffNumber}
+          setRequesterStaffNumber={investigationList.setRequesterStaffNumber}
+          handlerStaffNumber={investigationList.handlerStaffNumber}
+          setHandlerStaffNumber={investigationList.setHandlerStaffNumber}
+          inquiryStatus={investigationList.inquiryStatus}
+          setInquiryStatus={investigationList.setInquiryStatus}
+          investigationStatus={investigationList.investigationStatus}
+          setInvestigationStatus={investigationList.setInvestigationStatus}
+          keyword={investigationList.keyword}
+          setKeyword={investigationList.setKeyword}
+          handleSearch={handleSearchInvestigations}
+          clearSearch={clearInvestigationSearch}
+          onApplyInitialCondition={handleApplyInitialInvestigationCondition}
+        />
+        <InvestigationTable
+          loading={investigationLoading}
+          currentPage={investigationCurrentPage}
+          total={investigationTotal}
+          investigations={investigations}
+          onPreviousPage={() =>
+            void handleInvestigationPageChange(
+              investigationCurrentPage - 1,
+            )
+          }
+          onNextPage={() =>
+            void handleInvestigationPageChange(
+              investigationCurrentPage + 1,
+            )
+          }
+          onSelectInvestigation={handleSelectInvestigation}
+        />
+      </div>
+    )
+  }
+  // 問い合わせ関連画面
   // 新規作成画面
-  if (screenMode === 'new') {
+  if (screenMode === 'new' && mainScreen ==='inquiry') {
     return (
       <InquiryCreate
         userName={user?.氏名}
@@ -1188,6 +1595,7 @@ function App() {
       setExistingInvestigationNumber={setExistingInvestigationNumber}
       newInvestigationName={newInvestigationName}
       setNewInvestigationName={setNewInvestigationName}
+      onOpenInvestigations={() => setMainScreen('investigation')}
     />
   )
 }

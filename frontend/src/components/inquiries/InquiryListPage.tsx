@@ -84,6 +84,8 @@ type InquiryListPageProps = {
   setExistingInvestigationNumber: (value: string) => void
   newInvestigationName: string
   setNewInvestigationName: (value: string) => void
+
+  onOpenInvestigations: () => void
 }
 
 export default function InquiryListPage({
@@ -141,6 +143,7 @@ export default function InquiryListPage({
   setExistingInvestigationNumber,
   newInvestigationName,
   setNewInvestigationName,
+  onOpenInvestigations,
 }: InquiryListPageProps) {
   return (
     <div className="app">
@@ -182,6 +185,14 @@ export default function InquiryListPage({
               ＋ 新規登録
             </button>
           )}
+          <button
+            type="button"
+            onClick={onOpenInvestigations}
+            disabled={loading}
+          >
+            問題調査一覧へ
+          </button>
+
         </div>
 
         {error && (
