@@ -190,6 +190,7 @@ export default function InquiryUpdate({
 
             <div className="bulk-buttons">
               <button
+                className="button-secondary"
                 type="button"
                 onClick={onCancel}
                 disabled={loading}
@@ -197,7 +198,8 @@ export default function InquiryUpdate({
                 キャンセル
               </button>
 
-              <button type="submit" disabled={loading}>
+              <button
+  className="button-primary" type="submit" disabled={loading}>
                 {loading ? '更新中...' : '更新する'}
               </button>
             </div>
