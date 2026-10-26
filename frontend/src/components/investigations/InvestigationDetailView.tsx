@@ -58,14 +58,16 @@ export default function InvestigationDetailView({
           actions={
             <>
               <button
+                className="button-secondary"
                 type="button"
                 onClick={onBack}
                 disabled={loading}
               >
-                調査一覧へ戻る
+                ← 調査一覧へ戻る
               </button>
 
               <button
+                className="button-primary"
                 type="button"
                 onClick={onEdit}
                 disabled={loading || !canAbandon}
@@ -74,6 +76,7 @@ export default function InvestigationDetailView({
               </button>
 
               <button
+                className="button-secondary"
                 type="button"
                 onClick={onAbandon}
                 disabled={loading || !canAbandon}
@@ -82,6 +85,7 @@ export default function InvestigationDetailView({
               </button>
 
               <button
+                className="button-primary"
                 type="button"
                 onClick={onRequestReaction}
                 disabled={loading || !canAbandon}
