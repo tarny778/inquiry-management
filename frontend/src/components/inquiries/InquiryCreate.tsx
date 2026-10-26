@@ -41,11 +41,12 @@ export default function InquiryCreate({
           title="問い合わせ新規登録"
           actions={
             <button
+              className="button-secondary"
               type="button"
               onClick={onCancel}
               disabled={loading}
             >
-              一覧に戻る
+              ← 一覧に戻る
             </button>
           }
         />
@@ -203,6 +204,7 @@ export default function InquiryCreate({
 
           <div className="bulk-buttons">
             <button
+              className="button-secondary"
               type="button"
               onClick={onCancel}
               disabled={loading}
@@ -210,7 +212,8 @@ export default function InquiryCreate({
               キャンセル
             </button>
 
-            <button type="submit" disabled={loading}>
+            <button
+  className="button-primary" type="submit" disabled={loading}>
               {loading ? '登録中...' : '登録する'}
             </button>
           </div>
