@@ -52,7 +52,7 @@ export default function InvestigationUpdate({
                 onClick={onCancel}
                 disabled={loading}
               >
-                ← キャンセル
+                キャンセル
               </button>
             }
           />
