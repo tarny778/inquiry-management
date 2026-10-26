@@ -30,7 +30,7 @@ export default function InvestigationInfo({
           </tr>
           <tr>
             <th>原因・仮説</th>
-            <td>{investigation.原因・仮説 ?? '未設定'}</td>
+            <td>{investigation['原因・仮説'] ?? '未設定'}</td>
           </tr>
           <tr>
             <th>情シス側での対応</th>
