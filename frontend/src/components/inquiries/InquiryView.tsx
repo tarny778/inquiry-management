@@ -1,4 +1,6 @@
 
+import AppHeader from '../AppHeader'
+import PageHeader from '../PageHeader'
 import type { InquiryDetail, InquiryFilters, ScreenMode } from '../../types'
 
 type InquiryViewProps = {
@@ -47,74 +49,71 @@ export default function InquiryView({
   return (
     // ここから下は、今ある JSX を残す
     <div className="app">
-        <header className="app-header">
-        <h1>問い合わせ管理システム</h1>
-        <span className="app-department">情報システム課</span>
-
-        <div className="user-panel">
-            {user && (
-            <span>
-                {user.氏名}（{user.職員番号}）
-            </span>
-            )}
-
-            <button
-            type="button"
-            className="logout-button"
-            onClick={onLogout}
-            disabled={loading}
-            >
-            ログアウト
-            </button>
-        </div>
-        </header>
+        <AppHeader
+            user={user}
+            onLogout={onLogout}
+            loading={loading}
+        />
 
         <main className="main">
-        <div className="list-header">
-            <h2>問い合わせ詳細</h2>
-            <button
-            type="button"
-            onClick={async () => {
-                await refreshCurrentInquiryList()
-                setSelectedInquiry(null)
-                setScreenMode('list')
-            }}
-            disabled={loading}
-            >
-            一覧に戻る
-            </button>
-            <button
-            type="button"
-            onClick={openInquiryEdit}
-            disabled={loading || selectedInquiry.状態 === '対応完了'}
-            >
-            編集
-            </button>
-            <button
-            type="button"
-            onClick={() =>
-                handleAcceptInquiry(selectedInquiry.問い合わせ番号)}
-            disabled={loading || selectedInquiry.状態 !== '引き受け待ち'}
-            >
-            {loading ? '処理中...' : '引き受け'}
-            </button>
-            <button
-            type="button"
-            onClick={() =>
-                handleCompleteInquiry(selectedInquiry.問い合わせ番号)}
-            disabled={loading || selectedInquiry.状態 !== '対応中'}
-            >
-            {loading ? '処理中...' : '対応完了'}
-            </button>
-            <button
-            type="button"
-            onClick={() =>
-                handleReopenInquiry(selectedInquiry.問い合わせ番号)}
-            disabled={loading || selectedInquiry.状態 !== '対応完了'}
-            >
-            {loading ? '処理中...' : '再開'}
-            </button>
-        </div>
+        
+        <PageHeader
+            section="問い合わせ"
+            title="問い合わせ詳細"
+            actions={
+                <>
+                <button
+                    type="button"
+                    onClick={async () => {
+                    await refreshCurrentInquiryList()
+                    setSelectedInquiry(null)
+                    setScreenMode('list')
+                    }}
+                    disabled={loading}
+                >
+                    一覧に戻る
+                </button>
+
+                <button
+                    type="button"
+                    onClick={openInquiryEdit}
+                    disabled={loading || selectedInquiry.状態 === '対応完了'}
+                >
+                    編集
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() =>
+                    handleAcceptInquiry(selectedInquiry.問い合わせ番号)
+                    }
+                    disabled={loading || selectedInquiry.状態 !== '引き受け待ち'}
+                >
+                    {loading ? '処理中...' : '引き受け'}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() =>
+                    handleCompleteInquiry(selectedInquiry.問い合わせ番号)
+                    }
+                    disabled={loading || selectedInquiry.状態 !== '対応中'}
+                >
+                    {loading ? '処理中...' : '対応完了'}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() =>
+                    handleReopenInquiry(selectedInquiry.問い合わせ番号)
+                    }
+                    disabled={loading || selectedInquiry.状態 !== '対応完了'}
+                >
+                    {loading ? '処理中...' : '再開'}
+                </button>
+                </>
+            }
+        />
 
         {error && (
             <p className="error-message" role="alert">

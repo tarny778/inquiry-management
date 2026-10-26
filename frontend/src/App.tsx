@@ -2,10 +2,15 @@
 import { useEffect, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import './App.css'
+
+import AppHeader from './components/AppHeader'
+import PageHeader from './components/PageHeader'
+
 import InquiryCreate  from './components/inquiries/InquiryCreate'
 import InquiryUpdate  from './components/inquiries/InquiryUpdate'
 import InquiryView  from './components/inquiries/InquiryView'
 import InquiryListPage  from './components/inquiries/InquiryListPage'
+
 import InvestigationSearch from './components/investigations/InvestigationSearch'
 import InvestigationTable from './components/investigations/investigationTable'
 import InvestigationDetailView from './components/investigations/InvestigationDetailView'
@@ -1522,10 +1527,7 @@ function App() {
   if (!authenticated) {
     return (
       <div className="login-page">
-        <header className="header">
-          <h1>問い合わせ管理システム</h1>
-          <p>情報システム課</p>
-        </header>
+        <AppHeader />
 
         <main className="login-card">
           <h2>ログイン</h2>
@@ -1598,6 +1600,7 @@ function App() {
           investigation={selectedInvestigation}
           user={user}
           loading={investigationLoading}
+          onLogout={handleLogout}
           onBack={async () => {
             await fetchInvestigationSearchResults(
               investigationList.appliedFilters,
@@ -1669,56 +1672,73 @@ function App() {
           onSubmit={handleSaveInvestigation}
           onCancel={() => setInvestigationScreenMode('view')}
           loading={investigationLoading}
+          user={user}
+          onLogout={handleLogout}
         />
       )
     }
     // 一覧画面
     return (
-      <div>
-        <h2>調査一覧</h2>
-        <button
-          type="button"
-          onClick={() => setMainScreen('inquiry')}
-        >
-          問い合わせ一覧へ
-        </button>
-        <InvestigationSearch
-          loading={investigationLoading}
-          investigationNumber={investigationList.investigationNumber}
-          setInvestigationNumber={investigationList.setInvestigationNumber}
-          inquiryNumber={investigationList.inquiryNumber}
-          setInquiryNumber={investigationList.setInquiryNumber}
-          requesterStaffNumber={investigationList.requesterStaffNumber}
-          setRequesterStaffNumber={investigationList.setRequesterStaffNumber}
-          handlerStaffNumber={investigationList.handlerStaffNumber}
-          setHandlerStaffNumber={investigationList.setHandlerStaffNumber}
-          inquiryStatus={investigationList.inquiryStatus}
-          setInquiryStatus={investigationList.setInquiryStatus}
-          investigationStatus={investigationList.investigationStatus}
-          setInvestigationStatus={investigationList.setInvestigationStatus}
-          keyword={investigationList.keyword}
-          setKeyword={investigationList.setKeyword}
-          handleSearch={handleSearchInvestigations}
-          clearSearch={clearInvestigationSearch}
-          onApplyInitialCondition={handleApplyInitialInvestigationCondition}
+      <div className="app">
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading}
         />
-        <InvestigationTable
-          loading={investigationLoading}
-          currentPage={investigationCurrentPage}
-          total={investigationTotal}
-          investigations={investigations}
-          onPreviousPage={() =>
-            void handleInvestigationPageChange(
-              investigationCurrentPage - 1,
-            )
-          }
-          onNextPage={() =>
-            void handleInvestigationPageChange(
-              investigationCurrentPage + 1,
-            )
-          }
-          onSelectInvestigation={handleSelectInvestigation}
-        />
+
+        <main className="main">
+          <PageHeader
+            section="問題調査"
+            title="調査一覧"
+            actions={
+              <button
+                type="button"
+                onClick={() => setMainScreen('inquiry')}
+                disabled={investigationLoading}
+              >
+                問い合わせ一覧へ
+              </button>
+            }
+          />
+
+          <InvestigationSearch
+            loading={investigationLoading}
+            investigationNumber={investigationList.investigationNumber}
+            setInvestigationNumber={investigationList.setInvestigationNumber}
+            inquiryNumber={investigationList.inquiryNumber}
+            setInquiryNumber={investigationList.setInquiryNumber}
+            requesterStaffNumber={investigationList.requesterStaffNumber}
+            setRequesterStaffNumber={investigationList.setRequesterStaffNumber}
+            handlerStaffNumber={investigationList.handlerStaffNumber}
+            setHandlerStaffNumber={investigationList.setHandlerStaffNumber}
+            inquiryStatus={investigationList.inquiryStatus}
+            setInquiryStatus={investigationList.setInquiryStatus}
+            investigationStatus={investigationList.investigationStatus}
+            setInvestigationStatus={investigationList.setInvestigationStatus}
+            keyword={investigationList.keyword}
+            setKeyword={investigationList.setKeyword}
+            handleSearch={handleSearchInvestigations}
+            clearSearch={clearInvestigationSearch}
+            onApplyInitialCondition={handleApplyInitialInvestigationCondition}
+          />
+          <InvestigationTable
+            loading={investigationLoading}
+            currentPage={investigationCurrentPage}
+            total={investigationTotal}
+            investigations={investigations}
+            onPreviousPage={() =>
+              void handleInvestigationPageChange(
+                investigationCurrentPage - 1,
+              )
+            }
+            onNextPage={() =>
+              void handleInvestigationPageChange(
+                investigationCurrentPage + 1,
+              )
+            }
+            onSelectInvestigation={handleSelectInvestigation}
+          />
+        </main>
       </div>
     )
   }
@@ -1727,8 +1747,7 @@ function App() {
   if (screenMode === 'new' && mainScreen ==='inquiry') {
     return (
       <InquiryCreate
-        userName={user?.氏名}
-        userNumber={user?.職員番号}
+        user={user}
         createForm={createForm}
         setCreateForm={setCreateForm}
         loading={loading}
@@ -1744,8 +1763,7 @@ function App() {
   if (screenMode === 'edit' && selectedInquiry !== null) {
     return (
       <InquiryUpdate
-        userName={user?.氏名}
-        userNumber={user?.職員番号}
+        user={user}
         editForm={editForm}
         setEditForm={setEditForm}
         loading={loading}

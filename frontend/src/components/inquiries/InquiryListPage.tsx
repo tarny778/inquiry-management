@@ -1,9 +1,11 @@
-import InquirySearch  from './InquirySearch'
-
 import type {
   InquiryFilters,
   Inquiry,
 } from '../../types'
+
+import AppHeader from '../AppHeader'
+import PageHeader from '../PageHeader'
+import InquirySearch  from './InquirySearch'
 import InquiryTable from './InquiryTable'
 import InquiryBulkAction from './InquiryBulkAction'
 import InvestigationDailog from './InvestigationDialog'
@@ -147,53 +149,41 @@ export default function InquiryListPage({
 }: InquiryListPageProps) {
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>問い合わせ管理システム</h1>
-        <span className="app-department">情報システム課</span>
-
-        <div className="user-panel">
-          {user && (
-            <span>
-              {user.氏名}（{user.職員番号}）
-            </span>
-          )}
-          <button
-            type="button"
-            className="logout-button"
-            onClick={handleLogout}
-            disabled={loading}
-          >
-            ログアウト
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        user={user}
+        onLogout={handleLogout}
+        loading={loading}
+      />
 
       <main className="main">
-        <div className="list-header">
-          <h2>問い合わせ一覧</h2>
+        <PageHeader
+          section="問い合わせ"
+          title="問い合わせ一覧"
+          actions={
+            <>
+              {user?.所属 === '情報システム課' && (
+                <button
+                  type="button"
+                  onClick={openNewInquiry}
+                  disabled={loading}
+                >
+                  ＋ 新規登録
+                </button>
+              )}
 
-          <span className="list-description">
-            問い合わせを検索・確認できます。
-          </span>
-
-          {user?.所属 === '情報システム課' && (
-            <button
-              type="button"
-              onClick={openNewInquiry}
-              disabled={loading}
-            >
-              ＋ 新規登録
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onOpenInvestigations}
-            disabled={loading}
-          >
-            調査一覧へ
-          </button>
-
-        </div>
+              <button
+                type="button"
+                onClick={onOpenInvestigations}
+                disabled={loading}
+              >
+                調査一覧へ
+              </button>
+            </>
+          }
+        />
+        <p className="list-description">
+          問い合わせを検索・確認できます。
+        </p>
 
         {error && (
           <div className="modal-overlay">

@@ -1,9 +1,13 @@
+import AppHeader from '../AppHeader'
+import PageHeader from '../PageHeader'
 import type { FormEvent } from 'react'
 import type { InquiryEditForm } from '../../types'
 
 type InquiryUpdateProps = {
-  userName: string | undefined
-  userNumber: string | undefined
+  user: {
+    氏名: string
+    職員番号: string
+  } | null
   editForm: InquiryEditForm
   setEditForm: (form: InquiryEditForm) => void
   loading: boolean
@@ -14,8 +18,7 @@ type InquiryUpdateProps = {
 }
 
 export default function InquiryUpdate({
-  userName,
-  userNumber,
+  user,
   editForm,
   setEditForm,
   loading,
@@ -26,31 +29,17 @@ export default function InquiryUpdate({
 }: InquiryUpdateProps) {
     return (
       <div className="app">
-        <header className="app-header">
-            <h1>問い合わせ管理システム</h1>
-            <span className="app-department">情報システム課</span>
-
-            <div className="user-panel">
-            {userName && (
-                <span>
-                {userName}（{userNumber}）
-                </span>
-            )}
-            <button
-                type="button"
-                className="logout-button"
-                onClick={onLogout}
-                disabled={loading}
-            >
-                ログアウト
-            </button>
-            </div>
-        </header>
+        <AppHeader
+          user={user}
+          onLogout={onLogout}
+          loading={loading}
+        />
 
         <main className="main">
-          <div className="list-header">
-            <h2>問い合わせ編集</h2>
-          </div>
+          <PageHeader
+            section="問い合わせ"
+            title="問い合わせ編集"
+          />
             {error && (
             <p className="error-message" role="alert">
                 {error}

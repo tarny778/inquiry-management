@@ -1,5 +1,8 @@
 
 import type { InvestigationDetail,LoginUser } from '../../types'
+
+import AppHeader from '../AppHeader'
+import PageHeader from '../PageHeader'
 import InvestigationInfo from './InvestigationInfo'
 import InvestigationRelatedInquiries from './InvestigationRelatedInquiries'
 
@@ -7,6 +10,7 @@ type InvestigationDetailViewProps = {
   investigation: InvestigationDetail
   user: LoginUser | null
   loading: boolean
+  onLogout: () => void
   onBack: () => Promise<void>
   onEdit: () => void
   onAbandon:() => Promise<void>
@@ -20,6 +24,7 @@ export default function InvestigationDetailView({
   investigation,
   user,
   loading,
+  onLogout,
   onBack,
   onEdit,
   onAbandon,
@@ -38,56 +43,71 @@ export default function InvestigationDetailView({
         item['対応担当者職員番号'] === user['職員番号'],
     )
   return (
-    <div>
-      <h2>調査詳細</h2>
-
-      <button
-        type="button"
-        onClick={onBack}
-        disabled={loading}
-      >
-        調査一覧へ戻る
-      </button>
-
-      <button
-        type="button"
-        onClick={onEdit}
-        disabled={loading || !canAbandon}
-      >
-        編集
-      </button>
-
-      <button
-        type="button"
-        onClick={onAbandon}
-        disabled={loading || !canAbandon}
-      >
-        断念
-      </button>
-
-      <button
-        type="button"
-        onClick={onRequestReaction}
-        disabled={loading || !canAbandon}
-      >
-        リアクション要求
-      </button>
-
-      <InvestigationInfo
-        investigation={investigation}
-      />
-
-      <InvestigationRelatedInquiries
-        relatedInquiries={
-          investigation.関連する問い合わせ調査
-        }
+    <div className="app">
+      <AppHeader
         user={user}
-        investigationState={investigation.調査状態}
+        onLogout={onLogout}
         loading={loading}
-        onAbandonRelated={onAbandonRelated}
-        onAnswerOk={onAnswerRelatedInquiryOk}
-        onAnswerNg={onAnswerRelatedInquiryNg}
       />
+
+      <main className="main">
+        
+        <PageHeader
+          section="問題調査"
+          title="調査詳細"
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={onBack}
+                disabled={loading}
+              >
+                調査一覧へ戻る
+              </button>
+
+              <button
+                type="button"
+                onClick={onEdit}
+                disabled={loading || !canAbandon}
+              >
+                編集
+              </button>
+
+              <button
+                type="button"
+                onClick={onAbandon}
+                disabled={loading || !canAbandon}
+              >
+                断念
+              </button>
+
+              <button
+                type="button"
+                onClick={onRequestReaction}
+                disabled={loading || !canAbandon}
+              >
+                リアクション要求
+              </button>
+            </>
+          }
+        />
+
+        <InvestigationInfo
+          investigation={investigation}
+        />
+
+        <InvestigationRelatedInquiries
+          relatedInquiries={
+            investigation.関連する問い合わせ調査
+          }
+          user={user}
+          investigationState={investigation.調査状態}
+          loading={loading}
+          onAbandonRelated={onAbandonRelated}
+          onAnswerOk={onAnswerRelatedInquiryOk}
+          onAnswerNg={onAnswerRelatedInquiryNg}
+        />
+      </main>
     </div>
   )
 }

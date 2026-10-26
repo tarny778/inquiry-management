@@ -1,9 +1,13 @@
 
+import AppHeader from '../AppHeader'
+import PageHeader from '../PageHeader'
 import type { InquiryCreateForm } from '../../types'
 
 type InquiryCreateProps = {
-  userName: string | undefined
-  userNumber: string | undefined
+  user: {
+    氏名: string
+    職員番号: string
+  } | null
   createForm: InquiryCreateForm
   setCreateForm: (form: InquiryCreateForm) => void
   loading: boolean
@@ -14,8 +18,7 @@ type InquiryCreateProps = {
 }
 
 export default function InquiryCreate({
-  userName,
-  userNumber,
+  user,
   createForm,
   setCreateForm,
   loading,
@@ -26,38 +29,26 @@ export default function InquiryCreate({
 }: InquiryCreateProps) {
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>問い合わせ管理システム</h1>
-        <span className="app-department">情報システム課</span>
-
-        <div className="user-panel">
-          {userName && (
-            <span>
-              {userName}（{userNumber}）
-            </span>
-          )}
-          <button
-            type="button"
-            className="logout-button"
-            onClick={onLogout}
-            disabled={loading}
-          >
-            ログアウト
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        user={user}
+        onLogout={onLogout}
+        loading={loading}
+      />
 
       <main className="main">
-        <div className="list-header">
-          <h2>問い合わせ新規登録</h2>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-          >
-            一覧に戻る
-          </button>
-        </div>
+        <PageHeader
+          section="問い合わせ"
+          title="問い合わせ新規登録"
+          actions={
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              一覧に戻る
+            </button>
+          }
+        />
 
         {error && (
           <p className="error-message" role="alert">
