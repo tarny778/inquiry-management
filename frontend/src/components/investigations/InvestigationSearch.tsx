@@ -67,7 +67,7 @@ export default function InvestigationSearch({
         </label>
 
         <label>
-            問題調査番号
+            調査番号
             <input
             type="number"
             min="1"
@@ -75,12 +75,12 @@ export default function InvestigationSearch({
             onChange={(event) =>
                 setInvestigationNumber(event.target.value)
             }
-            placeholder="問題調査番号"
+            placeholder="調査番号"
             />
         </label>
 
         <label>
-            問題調査状態
+            調査状態
             <select
             value={investigationStatus}
             onChange={(event) =>
