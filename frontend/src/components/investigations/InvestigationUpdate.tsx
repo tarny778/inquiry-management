@@ -47,11 +47,12 @@ export default function InvestigationUpdate({
             title="調査編集"
             actions={
               <button
+                className="button-secondary"
                 type="button"
                 onClick={onCancel}
                 disabled={loading}
               >
-                キャンセル
+                ← キャンセル
               </button>
             }
           />
@@ -165,6 +166,7 @@ export default function InvestigationUpdate({
 
             <div className="form-actions">
               <button
+                className="button-primary"
                 type="submit"
                 disabled={loading}
               >
