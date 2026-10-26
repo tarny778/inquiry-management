@@ -50,7 +50,7 @@ def _set_test_user(monkeypatch, staff_number="J0001"):
 
 @pytest.fixture
 def investigation_search_test_data():
-    """問題調査一覧APIのテストデータを作成し、終了後に削除する。"""
+    """調査一覧APIのテストデータを作成し、終了後に削除する。"""
 
     inquiry_numbers = []
     investigation_numbers = []
@@ -59,9 +59,9 @@ def investigation_search_test_data():
     try:
         # 1. 問い合わせを3件登録する
         for title in [
-            "問題調査一覧APIテスト-A",
-            "問題調査一覧APIテスト-B",
-            "問題調査一覧APIテスト-C",
+            "調査一覧APIテスト-A",
+            "調査一覧APIテスト-B",
+            "調査一覧APIテスト-C",
         ]:
             response = client.post(
                 "/api/inquiries",
@@ -72,7 +72,7 @@ def investigation_search_test_data():
                     "件名": title,
                     "緊急度": 2,
                     "受付時の処理": 2,
-                    "問い合わせ詳細": "問題調査一覧APIの自動テスト用",
+                    "問い合わせ詳細": "調査一覧APIの自動テスト用",
                     "受信日時": None,
                 },
             )
@@ -109,42 +109,42 @@ def investigation_search_test_data():
                     ("J0001", inquiry_numbers[1], inquiry_numbers[2]),
                 )
 
-                # 2. 問題調査を2件登録する
+                # 2. 調査を2件登録する
                 cur.execute(
                     '''
-                    INSERT INTO "問題調査" (
-                        "問題調査の名称や仮説"
+                    INSERT INTO "調査" (
+                        "調査の名称"
                     )
                     VALUES (%s)
-                    RETURNING "問題調査番号"
+                    RETURNING "調査番号"
                     ''',
-                    ("問題調査一覧APIテスト-複数問い合わせ",),
+                    ("調査一覧APIテスト-複数問い合わせ",),
                 )
                 investigation_numbers.append(cur.fetchone()[0])
 
                 cur.execute(
                     '''
-                    INSERT INTO "問題調査" (
-                        "問題調査の名称や仮説"
+                    INSERT INTO "調査" (
+                        "調査の名称"
                     )
                     VALUES (%s)
-                    RETURNING "問題調査番号"
+                    RETURNING "調査番号"
                     ''',
-                    ("問題調査一覧APIテスト-単一問い合わせ",),
+                    ("調査一覧APIテスト-単一問い合わせ",),
                 )
                 investigation_numbers.append(cur.fetchone()[0])
 
-                # 3. 問題調査と問い合わせを関連付ける
-                # 1件目の問題調査に問い合わせA・Bを関連付ける
+                # 3. 調査と問い合わせを関連付ける
+                # 1件目の調査に問い合わせA・Bを関連付ける
                 for inquiry_number in inquiry_numbers[:2]:
                     cur.execute(
                         '''
-                        INSERT INTO "問い合わせ問題調査" (
-                            "問題調査番号",
+                        INSERT INTO "問い合わせ調査" (
+                            "調査番号",
                             "問い合わせ番号"
                         )
                         VALUES (%s, %s)
-                        RETURNING "問い合わせ問題調査番号"
+                        RETURNING "問い合わせ調査番号"
                         ''',
                         (
                             investigation_numbers[0],
@@ -153,15 +153,15 @@ def investigation_search_test_data():
                     )
                     link_numbers.append(cur.fetchone()[0])
 
-                # 2件目の問題調査に問い合わせCを関連付ける
+                # 2件目の調査に問い合わせCを関連付ける
                 cur.execute(
                     '''
-                    INSERT INTO "問い合わせ問題調査" (
-                        "問題調査番号",
+                    INSERT INTO "問い合わせ調査" (
+                        "調査番号",
                         "問い合わせ番号"
                     )
                     VALUES (%s, %s)
-                    RETURNING "問い合わせ問題調査番号"
+                    RETURNING "問い合わせ調査番号"
                     ''',
                     (
                         investigation_numbers[1],
@@ -182,8 +182,8 @@ def investigation_search_test_data():
                 if link_numbers:
                     cur.execute(
                         '''
-                        DELETE FROM "問い合わせ問題調査"
-                        WHERE "問い合わせ問題調査番号" = ANY(%s)
+                        DELETE FROM "問い合わせ調査"
+                        WHERE "問い合わせ調査番号" = ANY(%s)
                         ''',
                         (link_numbers,),
                     )
@@ -191,8 +191,8 @@ def investigation_search_test_data():
                 if investigation_numbers:
                     cur.execute(
                         '''
-                        DELETE FROM "問題調査"
-                        WHERE "問題調査番号" = ANY(%s)
+                        DELETE FROM "調査"
+                        WHERE "調査番号" = ANY(%s)
                         ''',
                         (investigation_numbers,),
                     )
@@ -233,32 +233,32 @@ def ok_ng_test_data():
         assert response.status_code == 200, response.text
         inquiry_number = response.json()["問い合わせ番号"]
 
-        # 2. リアクション要求済みの問題調査を登録
+        # 2. リアクション要求済みの調査を登録
         with psycopg.connect("dbname=inquiry_management_test") as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO "問題調査" (
-                        "問題調査の名称や仮説",
-                        "問題調査状態"
+                    INSERT INTO "調査" (
+                        "調査の名称",
+                        "調査状態"
                     )
                     VALUES (%s, 2)
-                    RETURNING "問題調査番号"
+                    RETURNING "調査番号"
                     """,
-                    ("OK・NG回答APIテスト用の問題調査",),
+                    ("OK・NG回答APIテスト用の調査",),
                 )
                 investigation_number = cur.fetchone()[0]
 
                 # 3. リアクション待ちの関連レコードを登録
                 cur.execute(
                     """
-                    INSERT INTO "問い合わせ問題調査" (
-                        "問題調査番号",
+                    INSERT INTO "問い合わせ調査" (
+                        "調査番号",
                         "問い合わせ番号",
-                        "問い合わせ問題調査状態"
+                        "問い合わせ調査状態"
                     )
                     VALUES (%s, %s, 3)
-                    RETURNING "問い合わせ問題調査番号"
+                    RETURNING "問い合わせ調査番号"
                     """,
                     (investigation_number, inquiry_number),
                 )
@@ -272,7 +272,7 @@ def ok_ng_test_data():
         }
 
     finally:
-        # 4. テストで作成された問題調査番号を収集して削除
+        # 4. テストで作成された調査番号を収集して削除
         if inquiry_number is not None:
             with psycopg.connect(
                 "dbname=inquiry_management_test"
@@ -280,8 +280,8 @@ def ok_ng_test_data():
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT DISTINCT "問題調査番号"
-                        FROM "問い合わせ問題調査"
+                        SELECT DISTINCT "調査番号"
+                        FROM "問い合わせ調査"
                         WHERE "問い合わせ番号" = %s
                         """,
                         (inquiry_number,),
@@ -306,9 +306,9 @@ def ok_ng_test_data():
                     if investigation_numbers:
                         cur.execute(
                             """
-                            UPDATE "問題調査"
-                            SET "最新移行先の問題調査番号" = NULL
-                            WHERE "問題調査番号" = ANY(%s)
+                            UPDATE "調査"
+                            SET "最新移行先の調査番号" = NULL
+                            WHERE "調査番号" = ANY(%s)
                             """,
                             (investigation_numbers,),
                         )
@@ -316,7 +316,7 @@ def ok_ng_test_data():
                     # 問い合わせに紐づく関連レコードをすべて削除
                     cur.execute(
                         """
-                        DELETE FROM "問い合わせ問題調査"
+                        DELETE FROM "問い合わせ調査"
                         WHERE "問い合わせ番号" = %s
                         """,
                         (inquiry_number,),
@@ -326,8 +326,8 @@ def ok_ng_test_data():
                     if investigation_numbers:
                         cur.execute(
                             """
-                            DELETE FROM "問題調査"
-                            WHERE "問題調査番号" = ANY(%s)
+                            DELETE FROM "調査"
+                            WHERE "調査番号" = ANY(%s)
                             """,
                             (investigation_numbers,),
                         )
@@ -340,11 +340,11 @@ def ok_ng_test_data():
                         (inquiry_number,),
                     )
 
-#問題調査の検索一覧取得のテスト
+#調査の検索一覧取得のテスト
 def test_search_investigations_response(
     investigation_search_test_data,
 ):
-    """問題調査一覧APIが必要な情報を返すことを確認する。"""
+    """調査一覧APIが必要な情報を返すことを確認する。"""
 
     investigation_number = (
         investigation_search_test_data["investigation_numbers"][0]
@@ -352,7 +352,7 @@ def test_search_investigations_response(
 
     response = client.get(
         "/api/investigations",
-        params={"問題調査番号": investigation_number},
+        params={"調査番号": investigation_number},
     )
 
     assert response.status_code == 200, response.text
@@ -364,11 +364,11 @@ def test_search_investigations_response(
 
     item = data["items"][0]
 
-    assert item["問題調査番号"] == investigation_number
-    assert item["問題調査の名称や仮説"] == (
-        "問題調査一覧APIテスト-複数問い合わせ"
+    assert item["調査番号"] == investigation_number
+    assert item["調査の名称"] == (
+        "調査一覧APIテスト-複数問い合わせ"
     )
-    assert item["問題調査状態"] == 1
+    assert item["調査状態"] == 1
     assert item["対応担当者職員氏名"] is not None
     assert item["関連問い合わせ件数"] == 2
     assert item["自分の問い合わせを含む"] is True
@@ -385,7 +385,7 @@ def test_search_investigations_not_own_inquiry(
 
     response = client.get(
         "/api/investigations",
-        params={"問題調査番号": investigation_number},
+        params={"調査番号": investigation_number},
     )
 
     assert response.status_code == 200, response.text
@@ -399,7 +399,7 @@ def test_search_investigations_not_own_inquiry(
 def test_search_investigations_by_requester_number(
     investigation_search_test_data,
 ):
-    """問い合わせ者の職員番号で問題調査を絞り込めることを確認する。"""
+    """問い合わせ者の職員番号で調査を絞り込めることを確認する。"""
 
     response = client.get(
         "/api/investigations",
@@ -409,7 +409,7 @@ def test_search_investigations_by_requester_number(
     assert response.status_code == 200, response.text
 
     returned_numbers = {
-        item["問題調査番号"]
+        item["調査番号"]
         for item in response.json()["items"]
     }
 
@@ -421,7 +421,7 @@ def test_search_investigations_by_requester_number(
 def test_search_investigations_by_handler_number(
     investigation_search_test_data,
 ):
-    """対応担当者の職員番号で問題調査を絞り込めることを確認する。"""
+    """対応担当者の職員番号で調査を絞り込めることを確認する。"""
 
     response = client.get(
         "/api/investigations",
@@ -431,7 +431,7 @@ def test_search_investigations_by_handler_number(
     assert response.status_code == 200, response.text
 
     returned_numbers = {
-        item["問題調査番号"]
+        item["調査番号"]
         for item in response.json()["items"]
     }
 
@@ -442,11 +442,11 @@ def test_search_investigations_by_handler_number(
 def test_search_investigations_by_name(
     investigation_search_test_data,
 ):
-    """問題調査の名称や仮説で部分一致検索できることを確認する。"""
+    """調査の名称で部分一致検索できることを確認する。"""
 
     response = client.get(
         "/api/investigations",
-        params={"問題調査の名称や仮説": "複数問い合わせ"},
+        params={"調査の名称": "複数問い合わせ"},
     )
 
     assert response.status_code == 200, response.text
@@ -454,7 +454,7 @@ def test_search_investigations_by_name(
     data = response.json()
 
     assert data["total"] == 1
-    assert data["items"][0]["問題調査番号"] == (
+    assert data["items"][0]["調査番号"] == (
         investigation_search_test_data["investigation_numbers"][0]
     )
 
@@ -462,11 +462,11 @@ def test_search_investigations_by_name(
 def test_search_investigations_by_status(
     investigation_search_test_data,
 ):
-    """問題調査状態で検索できることを確認する。"""
+    """調査状態で検索できることを確認する。"""
 
     response = client.get(
         "/api/investigations",
-        params={"問題調査状態": 1},
+        params={"調査状態": 1},
     )
 
     assert response.status_code == 200, response.text
@@ -476,7 +476,7 @@ def test_search_investigations_by_status(
     assert data["total"] >= 2
 
     assert all(
-        item["問題調査状態"] == 1
+        item["調査状態"] == 1
         for item in data["items"]
     )
 
@@ -494,7 +494,7 @@ def test_search_investigations_by_requester_name(
     assert response.status_code == 200, response.text
 
     returned_numbers = {
-        item["問題調査番号"]
+        item["調査番号"]
         for item in response.json()["items"]
     }
 
@@ -531,7 +531,7 @@ def test_search_investigations_with_multiple_conditions(
     response = client.get(
         "/api/investigations",
         params={
-            "問題調査状態": 1,
+            "調査状態": 1,
             "対応担当者職員番号": "J0001",
         },
     )
@@ -541,7 +541,7 @@ def test_search_investigations_with_multiple_conditions(
     data = response.json()
 
     returned_numbers = {
-        item["問題調査番号"]
+        item["調査番号"]
         for item in data["items"]
     }
 
@@ -552,7 +552,7 @@ def test_search_investigations_with_multiple_conditions(
     assert expected_numbers.issubset(returned_numbers)
 
     assert all(
-        item["問題調査状態"] == 1
+        item["調査状態"] == 1
         for item in data["items"]
     )
 
@@ -560,7 +560,7 @@ def test_search_investigations_with_multiple_conditions(
 def test_search_investigations_second_page(
     investigation_search_test_data,
 ):
-    """2ページ目で1ページ目とは異なる問題調査を取得できることを確認する。"""
+    """2ページ目で1ページ目とは異なる調査を取得できることを確認する。"""
 
     first_response = client.get(
         "/api/investigations",
@@ -583,8 +583,8 @@ def test_search_investigations_second_page(
     assert len(second_data["items"]) == 1
 
     assert (
-        first_data["items"][0]["問題調査番号"]
-        != second_data["items"][0]["問題調査番号"]
+        first_data["items"][0]["調査番号"]
+        != second_data["items"][0]["調査番号"]
     )
 
 
@@ -617,11 +617,11 @@ def test_search_investigations_rejects_page_size_over_limit(
 def test_search_investigations_rejects_invalid_status(
     investigation_search_test_data,
 ):
-    """定義されていない問題調査状態4が拒否されることを確認する。"""
+    """定義されていない調査状態4が拒否されることを確認する。"""
 
     response = client.get(
         "/api/investigations",
-        params={"問題調査状態": 4},
+        params={"調査状態": 4},
     )
 
     assert response.status_code == 422
@@ -629,11 +629,11 @@ def test_search_investigations_rejects_invalid_status(
 
 
 # =========================================================
-# 問題調査詳細取得APIのテスト
+# 調査詳細取得APIのテスト
 # =========================================================
 
 
-# 正常に問題調査の詳細と関連一覧を取得できる
+# 正常に調査の詳細と関連一覧を取得できる
 def test_get_investigation_response(investigation_search_test_data):
     investigation_number = (
         investigation_search_test_data["investigation_numbers"][0]
@@ -647,27 +647,27 @@ def test_get_investigation_response(investigation_search_test_data):
 
     data = response.json()
 
-    # 問題調査そのものの情報
-    assert data["問題調査番号"] == investigation_number
-    assert "問題調査の名称や仮説" in data
-    assert "問題の原因" in data
+    # 調査そのものの情報
+    assert data["調査番号"] == investigation_number
+    assert "調査の名称" in data
+    assert "原因・仮説" in data
     assert "情シス側での対応" in data
     assert "問い合わせ者側で必要な対応" in data
-    assert "問題調査状態" in data
+    assert "調査状態" in data
     assert "調査開始日時" in data
     assert "対応案策定予定日時" in data
     assert "進捗更新の次回更新予定日時" in data
     assert "リアクション要求日時" in data
-    assert "問題調査断念日時" in data
-    assert "最新移行先の問題調査番号" in data
+    assert "調査断念日時" in data
+    assert "最新移行先の調査番号" in data
 
     # 関連一覧と操作者自身の問い合わせの有無
-    assert "関連する問い合わせ問題調査" in data
-    assert isinstance(data["関連する問い合わせ問題調査"], list)
+    assert "関連する問い合わせ調査" in data
+    assert isinstance(data["関連する問い合わせ調査"], list)
     assert data["自分の問い合わせを含む"] is True
 
 
-# 関連する問い合わせ問題調査が複数件返る
+# 関連する問い合わせ調査が複数件返る
 def test_get_investigation_with_multiple_related_inquiries(
     investigation_search_test_data,
 ):
@@ -681,14 +681,14 @@ def test_get_investigation_with_multiple_related_inquiries(
 
     assert response.status_code == 200
 
-    related = response.json()["関連する問い合わせ問題調査"]
+    related = response.json()["関連する問い合わせ調査"]
 
-    # フィクスチャでは、この問題調査に2件を関連付けている
+    # フィクスチャでは、この調査に2件を関連付けている
     assert len(related) == 2
 
-    # それぞれの問い合わせ問題調査の情報が返る
+    # それぞれの問い合わせ調査の情報が返る
     assert len({
-        item["問い合わせ問題調査番号"]
+        item["問い合わせ調査番号"]
         for item in related
     }) == 2
 
@@ -700,30 +700,30 @@ def test_get_investigation_with_multiple_related_inquiries(
     for item in related:
         assert "問い合わせ者氏名" in item
         assert "対応担当者氏名" in item
-        assert "問い合わせ問題調査状態" in item
+        assert "問い合わせ調査状態" in item
         assert "リアクション内容" in item
-        assert "NGでの移行先問題調査番号" in item
+        assert "NGでの移行先調査番号" in item
 
 
-# 存在しない問題調査番号では404を返す
+# 存在しない調査番号では404を返す
 def test_get_investigation_not_found():
     response = client.get("/api/investigations/999999999")
 
     assert response.status_code == 404
 
 
-# 関連する問い合わせ問題調査がなくても詳細を取得できる
+# 関連する問い合わせ調査がなくても詳細を取得できる
 def test_get_investigation_without_related_inquiries():
-    # 関連レコードを持たない問題調査をテスト用に作成
+    # 関連レコードを持たない調査をテスト用に作成
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説"
+                INSERT INTO "調査" (
+                    "調査の名称"
                 )
                 VALUES (%s)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 ''',
                 ("詳細取得APIテスト-関連なし",),
             )
@@ -739,29 +739,29 @@ def test_get_investigation_without_related_inquiries():
 
         data = response.json()
 
-        assert data["問題調査番号"] == investigation_number
-        assert data["関連する問い合わせ問題調査"] == []
+        assert data["調査番号"] == investigation_number
+        assert data["関連する問い合わせ調査"] == []
         assert data["自分の問い合わせを含む"] is False
 
     finally:
-        # このテストで作成した問題調査を削除
+        # このテストで作成した調査を削除
         with psycopg.connect("dbname=inquiry_management_test") as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     ''',
                     (investigation_number,),
                 )
 
 
-# 問題調査の編集テスト
+# 調査の編集テスト
 def test_update_investigation_success(
     investigation_search_test_data,
     monkeypatch,
 ):
-    """関連問い合わせの対応担当者は問題調査を編集できる。"""
+    """関連問い合わせの対応担当者は調査を編集できる。"""
     _set_test_user(monkeypatch, "J0001")
 
     investigation_number = (
@@ -771,17 +771,17 @@ def test_update_investigation_success(
     response = client.patch(
         f"/api/investigations/{investigation_number}",
         json={
-            "問題調査の名称や仮説": "編集後の問題調査名",
-            "問題の原因": "編集後の原因",
+            "調査の名称": "編集後の調査名",
+            "原因・仮説": "編集後の原因",
         },
     )
 
     assert response.status_code == 200, response.text
 
     result = response.json()
-    assert result["問題調査番号"] == investigation_number
-    assert result["問題調査の名称や仮説"] == "編集後の問題調査名"
-    assert result["問題の原因"] == "編集後の原因"
+    assert result["調査番号"] == investigation_number
+    assert result["調査の名称"] == "編集後の調査名"
+    assert result["原因・仮説"] == "編集後の原因"
 
 
 def test_update_investigation_forbidden_for_other_handler(
@@ -798,30 +798,30 @@ def test_update_investigation_forbidden_for_other_handler(
     response = client.patch(
         f"/api/investigations/{investigation_number}",
         json={
-            "問題調査の名称や仮説": "変更してはいけない名称",
+            "調査の名称": "変更してはいけない名称",
         },
     )
 
     assert response.status_code == 403
 
 
-# 関連する問い合わせがない問題調査は編集できない
+# 関連する問い合わせがない調査は編集できない
 def test_update_investigation_without_related_inquiries(
     monkeypatch,
 ):
-    """関連する問い合わせがない問題調査は編集できない。"""
+    """関連する問い合わせがない調査は編集できない。"""
     _set_test_user(monkeypatch, "J0001")
 
-    # 関連レコードを持たない問題調査を作成
+    # 関連レコードを持たない調査を作成
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説"
+                INSERT INTO "調査" (
+                    "調査の名称"
                 )
                 VALUES (%s)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 ''',
                 ("編集権限テスト-関連なし",),
             )
@@ -831,7 +831,7 @@ def test_update_investigation_without_related_inquiries(
         response = client.patch(
             f"/api/investigations/{investigation_number}",
             json={
-                "問題調査の名称や仮説": "変更してはいけない名称",
+                "調査の名称": "変更してはいけない名称",
             },
         )
 
@@ -842,50 +842,50 @@ def test_update_investigation_without_related_inquiries(
             with conn.cursor() as cur:
                 cur.execute(
                     '''
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     ''',
                     (investigation_number,),
                 )
 
 
-# 存在しない問題調査番号の編集は404を返す
+# 存在しない調査番号の編集は404を返す
 def test_update_investigation_not_found(monkeypatch):
-    """存在しない問題調査は編集できない。"""
+    """存在しない調査は編集できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     response = client.patch(
         "/api/investigations/999999999",
         json={
-            "問題調査の名称や仮説": "存在しない問題調査",
+            "調査の名称": "存在しない調査",
         },
     )
 
     assert response.status_code == 404
 
 
-# 調査中ではない問題調査は編集できない
+# 調査中ではない調査は編集できない
 @pytest.mark.parametrize("state", [2, 3])
 def test_update_investigation_not_editable_state(
     investigation_search_test_data,
     monkeypatch,
     state,
 ):
-    """状態が2または3の問題調査は編集できない。"""
+    """状態が2または3の調査は編集できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     investigation_number = (
         investigation_search_test_data["investigation_numbers"][0]
     )
 
-    # テスト対象の問題調査を指定した状態に変更
+    # テスト対象の調査を指定した状態に変更
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問題調査"
-                SET "問題調査状態" = %s
-                WHERE "問題調査番号" = %s
+                UPDATE "調査"
+                SET "調査状態" = %s
+                WHERE "調査番号" = %s
                 ''',
                 (state, investigation_number),
             )
@@ -893,14 +893,14 @@ def test_update_investigation_not_editable_state(
     response = client.patch(
         f"/api/investigations/{investigation_number}",
         json={
-            "問題調査の名称や仮説": "変更してはいけない名称",
+            "調査の名称": "変更してはいけない名称",
         },
     )
 
     assert response.status_code == 409
 
 
-# 問題調査編集APIの入力値検証テスト
+# 調査編集APIの入力値検証テスト
 
 def test_update_investigation_empty_body_returns_422(
     investigation_search_test_data,
@@ -934,7 +934,7 @@ def test_update_investigation_null_name_returns_422(
 
     response = client.patch(
         f"/api/investigations/{investigation_number}",
-        json={"問題調査の名称や仮説": None},
+        json={"調査の名称": None},
     )
 
     assert response.status_code == 422
@@ -954,8 +954,8 @@ def test_update_investigation_extra_field_returns_422(
     response = client.patch(
         f"/api/investigations/{investigation_number}",
         json={
-            "問題調査の名称や仮説": "入力検証テスト",
-            "問題調査状態": 3,
+            "調査の名称": "入力検証テスト",
+            "調査状態": 3,
         },
     )
 
@@ -975,7 +975,7 @@ def test_update_investigation_name_over_max_length_returns_422(
 
     response = client.patch(
         f"/api/investigations/{investigation_number}",
-        json={"問題調査の名称や仮説": "あ" * 31},
+        json={"調査の名称": "あ" * 31},
     )
 
     assert response.status_code == 422
@@ -1016,12 +1016,12 @@ def test_update_investigation_preserves_omitted_fields(
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問題調査"
+                UPDATE "調査"
                 SET
-                    "問題調査の名称や仮説" = %s,
-                    "問題の原因" = %s,
+                    "調査の名称" = %s,
+                    "原因・仮説" = %s,
                     "情シス側での対応" = %s
-                WHERE "問題調査番号" = %s
+                WHERE "調査番号" = %s
                 ''',
                 (
                     "更新前の名称",
@@ -1034,15 +1034,15 @@ def test_update_investigation_preserves_omitted_fields(
     # 原因だけを更新
     response = client.patch(
         f"/api/investigations/{investigation_number}",
-        json={"問題の原因": "更新後の原因"},
+        json={"原因・仮説": "更新後の原因"},
     )
 
     assert response.status_code == 200, response.text
 
     result = response.json()
 
-    assert result["問題調査の名称や仮説"] == "更新前の名称"
-    assert result["問題の原因"] == "更新後の原因"
+    assert result["調査の名称"] == "更新前の名称"
+    assert result["原因・仮説"] == "更新後の原因"
     assert result["情シス側での対応"] == "更新前の対応"
 
 
@@ -1074,19 +1074,19 @@ def test_update_investigation_forbidden_when_handlers_differ(
 
     response = client.patch(
         f"/api/investigations/{investigation_number}",
-        json={"問題調査の名称や仮説": "変更してはいけない名称"},
+        json={"調査の名称": "変更してはいけない名称"},
     )
 
     assert response.status_code == 403
 
 
-# 問題調査の断念APIテスト
+# 調査の断念APIテスト
 
 def test_abandon_investigation_success(
     investigation_search_test_data,
     monkeypatch,
 ):
-    """関連レコードをすべて状態2にして、問題調査を断念できる。"""
+    """関連レコードをすべて状態2にして、調査を断念できる。"""
     _set_test_user(monkeypatch, "J0001")
 
     investigation_number = (
@@ -1100,18 +1100,18 @@ def test_abandon_investigation_success(
     assert response.status_code == 200, response.text
 
     result = response.json()
-    assert result["問題調査番号"] == investigation_number
-    assert result["問題調査状態"] == 3
-    assert result["問題調査断念日時"] is not None
+    assert result["調査番号"] == investigation_number
+    assert result["調査状態"] == 3
+    assert result["調査断念日時"] is not None
 
-    # 問題調査本体の状態を確認
+    # 調査本体の状態を確認
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                SELECT "問題調査状態", "問題調査断念日時"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態", "調査断念日時"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_number,),
             )
@@ -1120,13 +1120,13 @@ def test_abandon_investigation_success(
             assert investigation_row[0] == 3
             assert investigation_row[1] is not None
 
-            # 関連する問い合わせ問題調査がすべて状態2であることを確認
+            # 関連する問い合わせ調査がすべて状態2であることを確認
             cur.execute(
                 '''
                 SELECT COUNT(*)
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
-                  AND "問い合わせ問題調査状態" <> 2
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
+                  AND "問い合わせ調査状態" <> 2
                 ''',
                 (investigation_number,),
             )
@@ -1156,18 +1156,18 @@ def test_abandon_investigation_forbidden_for_other_handler(
 def test_abandon_investigation_without_related_inquiries(
     monkeypatch,
 ):
-    """関連する問い合わせがない問題調査は断念できない。"""
+    """関連する問い合わせがない調査は断念できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説"
+                INSERT INTO "調査" (
+                    "調査の名称"
                 )
                 VALUES (%s)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 ''',
                 ("断念APIテスト-関連なし",),
             )
@@ -1185,15 +1185,15 @@ def test_abandon_investigation_without_related_inquiries(
             with conn.cursor() as cur:
                 cur.execute(
                     '''
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     ''',
                     (investigation_number,),
                 )
 
 
 def test_abandon_investigation_not_found(monkeypatch):
-    """存在しない問題調査は断念できない。"""
+    """存在しない調査は断念できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     response = client.post(
@@ -1209,7 +1209,7 @@ def test_abandon_investigation_invalid_state(
     monkeypatch,
     state,
 ):
-    """問題調査の状態が2または3なら断念できない。"""
+    """調査の状態が2または3なら断念できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     investigation_number = (
@@ -1220,9 +1220,9 @@ def test_abandon_investigation_invalid_state(
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問題調査"
-                SET "問題調査状態" = %s
-                WHERE "問題調査番号" = %s
+                UPDATE "調査"
+                SET "調査状態" = %s
+                WHERE "調査番号" = %s
                 ''',
                 (state, investigation_number),
             )
@@ -1240,7 +1240,7 @@ def test_abandon_investigation_detects_inconsistent_related_state(
 ):
     """
     関連レコードに状態3があれば整合性エラーを返し、
-    問題調査本体と関連レコードの更新をロールバックする。
+    調査本体と関連レコードの更新をロールバックする。
     """
     _set_test_user(monkeypatch, "J0001")
 
@@ -1257,9 +1257,9 @@ def test_abandon_investigation_detects_inconsistent_related_state(
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 3
-                WHERE "問題調査番号" = %s
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 3
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = %s
                 ''',
                 (investigation_number, inquiry_number),
@@ -1273,14 +1273,14 @@ def test_abandon_investigation_detects_inconsistent_related_state(
     assert response.status_code == 500
     assert "データ整合性エラー" in response.json()["detail"]
 
-    # 問題調査本体が状態1のまま、断念日時も未設定であることを確認
+    # 調査本体が状態1のまま、断念日時も未設定であることを確認
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                SELECT "問題調査状態", "問題調査断念日時"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態", "調査断念日時"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_number,),
             )
@@ -1292,9 +1292,9 @@ def test_abandon_investigation_detects_inconsistent_related_state(
             # 関連レコードも、API実行前の状態に戻っていることを確認
             cur.execute(
                 '''
-                SELECT "問い合わせ番号", "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "問い合わせ番号", "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                 ORDER BY "問い合わせ番号"
                 ''',
                 (investigation_number,),
@@ -1316,7 +1316,7 @@ def test_abandon_investigation_detects_inconsistent_related_state(
             assert states_by_inquiry[other_inquiry_number] == 1
 
 
-# 問題調査のリアクション要求APIテスト
+# 調査のリアクション要求APIテスト
 
 def test_request_reaction_investigation_success(
     investigation_search_test_data,
@@ -1337,9 +1337,9 @@ def test_request_reaction_investigation_success(
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 2
-                WHERE "問題調査番号" = %s
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 2
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = %s
                 ''',
                 (investigation_number, inquiry_numbers[0]),
@@ -1353,18 +1353,18 @@ def test_request_reaction_investigation_success(
     assert response.status_code == 200, response.text
 
     result = response.json()
-    assert result["問題調査番号"] == investigation_number
-    assert result["問題調査状態"] == 2
+    assert result["調査番号"] == investigation_number
+    assert result["調査状態"] == 2
     assert result["リアクション要求日時"] is not None
 
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
-            # 問題調査本体が状態2になったことを確認
+            # 調査本体が状態2になったことを確認
             cur.execute(
                 '''
-                SELECT "問題調査状態", "リアクション要求日時"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態", "リアクション要求日時"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_number,),
             )
@@ -1376,9 +1376,9 @@ def test_request_reaction_investigation_success(
             # 状態1だったレコードは3、状態2だったレコードは2のまま
             cur.execute(
                 '''
-                SELECT "問い合わせ番号", "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "問い合わせ番号", "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_number,),
             )
@@ -1393,9 +1393,9 @@ def test_request_reaction_investigation_success(
             cur.execute(
                 '''
                 SELECT COUNT(*)
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
-                  AND "問い合わせ問題調査状態" NOT IN (2, 3)
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
+                  AND "問い合わせ調査状態" NOT IN (2, 3)
                 ''',
                 (investigation_number,),
             )
@@ -1423,18 +1423,18 @@ def test_request_reaction_investigation_forbidden_for_other_handler(
 def test_request_reaction_investigation_without_related_inquiries(
     monkeypatch,
 ):
-    """関連する問い合わせがない問題調査は要求できない。"""
+    """関連する問い合わせがない調査は要求できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説"
+                INSERT INTO "調査" (
+                    "調査の名称"
                 )
                 VALUES (%s)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 ''',
                 ("要求APIテスト-関連なし",),
             )
@@ -1452,15 +1452,15 @@ def test_request_reaction_investigation_without_related_inquiries(
             with conn.cursor() as cur:
                 cur.execute(
                     '''
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     ''',
                     (investigation_number,),
                 )
 
 
 def test_request_reaction_investigation_not_found(monkeypatch):
-    """存在しない問題調査は要求できない。"""
+    """存在しない調査は要求できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     response = client.post(
@@ -1476,7 +1476,7 @@ def test_request_reaction_investigation_invalid_state(
     monkeypatch,
     state,
 ):
-    """問題調査本体が状態1以外なら要求できない。"""
+    """調査本体が状態1以外なら要求できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     investigation_number = (
@@ -1487,9 +1487,9 @@ def test_request_reaction_investigation_invalid_state(
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問題調査"
-                SET "問題調査状態" = %s
-                WHERE "問題調査番号" = %s
+                UPDATE "調査"
+                SET "調査状態" = %s
+                WHERE "調査番号" = %s
                 ''',
                 (state, investigation_number),
             )
@@ -1508,7 +1508,7 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
     related_state,
 ):
     """
-    問題調査が状態1なのに、関連レコードが状態1・2以外なら
+    調査が状態1なのに、関連レコードが状態1・2以外なら
     整合性エラーを返し、更新を行わない。
     """
     _set_test_user(monkeypatch, "J0001")
@@ -1525,9 +1525,9 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = %s
-                WHERE "問題調査番号" = %s
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = %s
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = %s
                 ''',
                 (related_state, investigation_number, inquiry_number),
@@ -1541,14 +1541,14 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
     assert response.status_code == 500
     assert "データ整合性エラー" in response.json()["detail"]
 
-    # 問題調査本体は更新されていないことを確認
+    # 調査本体は更新されていないことを確認
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                SELECT "問題調査状態", "リアクション要求日時"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態", "リアクション要求日時"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_number,),
             )
@@ -1560,9 +1560,9 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
             # 異常な関連レコードの状態もそのまま保持されている
             cur.execute(
                 '''
-                SELECT "問い合わせ番号", "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "問い合わせ番号", "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_number,),
             )
@@ -1581,17 +1581,17 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
             assert states_by_inquiry[other_inquiry_number] == 1
 
 
-# 問い合わせ問題調査の個別断念APIのテスト
+# 問い合わせ調査の個別断念APIのテスト
 
 def _get_relation_id(investigation_number, inquiry_number):
-    """問題調査番号と問い合わせ番号から関連レコード番号を取得する。"""
+    """調査番号と問い合わせ番号から関連レコード番号を取得する。"""
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "問い合わせ調査番号"
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = %s
                 """,
                 (investigation_number, inquiry_number),
@@ -1628,18 +1628,18 @@ def test_abandon_inquiry_problem_investigation_success(
     assert response.status_code == 200, response.text
 
     result = response.json()
-    assert result["問い合わせ問題調査番号"] == relation_id
+    assert result["問い合わせ調査番号"] == relation_id
     assert result["問い合わせ番号"] == inquiry_number
-    assert result["問題調査番号"] == investigation_number
-    assert result["問い合わせ問題調査状態"] == 2
+    assert result["調査番号"] == investigation_number
+    assert result["問い合わせ調査状態"] == 2
 
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1647,9 +1647,9 @@ def test_abandon_inquiry_problem_investigation_success(
 
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (other_relation_id,),
             )
@@ -1657,9 +1657,9 @@ def test_abandon_inquiry_problem_investigation_success(
 
             cur.execute(
                 """
-                SELECT "問題調査状態"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 """,
                 (investigation_number,),
             )
@@ -1705,9 +1705,9 @@ def test_abandon_inquiry_problem_investigation_other_handler_returns_403(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1718,7 +1718,7 @@ def test_abandon_inquiry_problem_investigation_parent_not_in_progress_returns_40
     investigation_search_test_data,
     monkeypatch,
 ):
-    """親の問題調査が調査中でなければ個別断念できない。"""
+    """親の調査が調査中でなければ個別断念できない。"""
     _set_test_user(monkeypatch, "J0001")
 
     data = investigation_search_test_data
@@ -1732,9 +1732,9 @@ def test_abandon_inquiry_problem_investigation_parent_not_in_progress_returns_40
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE "問題調査"
-                SET "問題調査状態" = 2
-                WHERE "問題調査番号" = %s
+                UPDATE "調査"
+                SET "調査状態" = 2
+                WHERE "調査番号" = %s
                 """,
                 (investigation_number,),
             )
@@ -1749,9 +1749,9 @@ def test_abandon_inquiry_problem_investigation_parent_not_in_progress_returns_40
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1776,9 +1776,9 @@ def test_abandon_inquiry_problem_investigation_relation_not_in_progress_returns_
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 3
-                WHERE "問い合わせ問題調査番号" = %s
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 3
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1793,9 +1793,9 @@ def test_abandon_inquiry_problem_investigation_relation_not_in_progress_returns_
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1814,7 +1814,7 @@ def test_abandon_inquiry_problem_investigation_not_found_returns_404(
 
     assert response.status_code == 404
 
-# 問い合わせ問題調査のOK回答APIテスト
+# 問い合わせ調査のOK回答APIテスト
 def test_ok_investigation_relation_success(
     monkeypatch,
     ok_ng_test_data,
@@ -1832,17 +1832,17 @@ def test_ok_investigation_relation_success(
     assert response.status_code == 200, response.text
 
     result = response.json()
-    assert result["問い合わせ問題調査番号"] == relation_id
+    assert result["問い合わせ調査番号"] == relation_id
     assert result["問い合わせ番号"] == inquiry_number
-    assert result["問い合わせ問題調査状態"] == 4
+    assert result["問い合わせ調査状態"] == 4
 
     with psycopg.connect("dbname=inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1881,9 +1881,9 @@ def test_ok_investigation_relation_invalid_state(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 1
-                WHERE "問い合わせ問題調査番号" = %s
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 1
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1907,14 +1907,14 @@ def test_ok_investigation_relation_not_found(monkeypatch):
     assert response.status_code == 404
 
 # =========================================================
-# 問い合わせ問題調査のNG回答APIテスト
+# 問い合わせ調査のNG回答APIテスト
 # =========================================================
 
 def test_ng_investigation_relation_reuses_latest_destination(
     monkeypatch,
     ok_ng_test_data,
 ):
-    """最新移行先が調査中なら、その問題調査を再利用する。"""
+    """最新移行先が調査中なら、その調査を再利用する。"""
     _set_test_user(monkeypatch, "T0001")
 
     inquiry_number = ok_ng_test_data["inquiry_number"]
@@ -1924,9 +1924,9 @@ def test_ng_investigation_relation_reuses_latest_destination(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (old_relation_id,),
             )
@@ -1934,13 +1934,13 @@ def test_ng_investigation_relation_reuses_latest_destination(
 
             cur.execute(
                 """
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説",
-                    "問題調査状態",
+                INSERT INTO "調査" (
+                    "調査の名称",
+                    "調査状態",
                     "調査開始日時"
                 )
                 VALUES (%s, 1, CURRENT_TIMESTAMP)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 """,
                 ("再利用先テスト",),
             )
@@ -1951,9 +1951,9 @@ def test_ng_investigation_relation_reuses_latest_destination(
 
             cur.execute(
                 """
-                UPDATE "問題調査"
-                SET "最新移行先の問題調査番号" = %s
-                WHERE "問題調査番号" = %s
+                UPDATE "調査"
+                SET "最新移行先の調査番号" = %s
+                WHERE "調査番号" = %s
                 """,
                 (destination_id, old_investigation_id),
             )
@@ -1965,20 +1965,20 @@ def test_ng_investigation_relation_reuses_latest_destination(
     assert response.status_code == 200, response.text
     result = response.json()
 
-    assert result["問い合わせ問題調査状態"] == 5
+    assert result["問い合わせ調査状態"] == 5
     assert result["リアクション内容"] == 2
-    assert result["NGでの移行先問題調査番号"] == destination_id
-    assert result["新しい問題調査番号"] == destination_id
-    assert result["新しい問い合わせ問題調査状態"] == 1
+    assert result["NGでの移行先調査番号"] == destination_id
+    assert result["新しい調査番号"] == destination_id
+    assert result["新しい問い合わせ調査状態"] == 1
 
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT COUNT(*)
-                FROM "問い合わせ問題調査"
+                FROM "問い合わせ調査"
                 WHERE "問い合わせ番号" = %s
-                  AND "問題調査番号" = %s
+                  AND "調査番号" = %s
                 """,
                 (inquiry_number, destination_id),
             )
@@ -1989,7 +1989,7 @@ def test_ng_investigation_relation_creates_new_destination(
     monkeypatch,
     ok_ng_test_data,
 ):
-    """最新移行先がなければ、新しい問題調査を作成する。"""
+    """最新移行先がなければ、新しい調査を作成する。"""
     _set_test_user(monkeypatch, "T0001")
 
     inquiry_number = ok_ng_test_data["inquiry_number"]
@@ -1999,9 +1999,9 @@ def test_ng_investigation_relation_creates_new_destination(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (old_relation_id,),
             )
@@ -2014,24 +2014,24 @@ def test_ng_investigation_relation_creates_new_destination(
     assert response.status_code == 200, response.text
     result = response.json()
 
-    new_investigation_id = result["新しい問題調査番号"]
+    new_investigation_id = result["新しい調査番号"]
     ok_ng_test_data["extra_investigation_numbers"].append(
         new_investigation_id
     )
 
     assert new_investigation_id != old_investigation_id
-    assert result["問い合わせ問題調査状態"] == 5
+    assert result["問い合わせ調査状態"] == 5
     assert result["リアクション内容"] == 2
-    assert result["NGでの移行先問題調査番号"] == new_investigation_id
-    assert result["新しい問い合わせ問題調査状態"] == 1
+    assert result["NGでの移行先調査番号"] == new_investigation_id
+    assert result["新しい問い合わせ調査状態"] == 1
 
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "最新移行先の問題調査番号"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "最新移行先の調査番号"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 """,
                 (old_investigation_id,),
             )
@@ -2040,10 +2040,10 @@ def test_ng_investigation_relation_creates_new_destination(
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
-                (result["新しい問い合わせ問題調査番号"],),
+                (result["新しい問い合わせ調査番号"],),
             )
             assert cur.fetchone()[0] == inquiry_number
 
@@ -2077,9 +2077,9 @@ def test_ng_investigation_relation_invalid_state(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 1
-                WHERE "問い合わせ問題調査番号" = %s
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 1
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
