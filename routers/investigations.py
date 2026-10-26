@@ -358,7 +358,7 @@ def update_investigation_api(
     操作者職員番号 = current_user.職員番号
 
     # スキーマで許可された、実際に送信された項目だけを取得
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = body.model_dump(exclude_unset=True, by_alias=True)
 
     # 空のPATCHリクエストは拒否
     if not update_data:
