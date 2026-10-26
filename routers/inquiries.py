@@ -441,9 +441,9 @@ def complete_inquiry_api(
                 """
                 SELECT EXISTS (
                     SELECT 1
-                    FROM "問い合わせ問題調査"
+                    FROM "問い合わせ調査"
                     WHERE "問い合わせ番号" = %s
-                      AND "問い合わせ問題調査状態" IN (1, 3)
+                      AND "問い合わせ調査状態" IN (1, 3)
                 )
                 """,
                 (inquiry_number,),
@@ -455,7 +455,7 @@ def complete_inquiry_api(
                     status_code=409,
                     detail=(
                         "調査中またはリアクション待ちの"
-                        "問い合わせ問題調査が残っているため、"
+                        "問い合わせ調査が残っているため、"
                         "対応完了できません。"
                     ),
                 )
@@ -564,9 +564,9 @@ def complete_inquiries_bulk_api(
             cur.execute(
                 """
                 SELECT DISTINCT "問い合わせ番号"
-                FROM "問い合わせ問題調査"
+                FROM "問い合わせ調査"
                 WHERE "問い合わせ番号" = ANY(%s)
-                  AND "問い合わせ問題調査状態" IN (1, 3)
+                  AND "問い合わせ調査状態" IN (1, 3)
                 ORDER BY "問い合わせ番号"
                 """,
                 (inquiry_numbers,),
@@ -581,7 +581,7 @@ def complete_inquiries_bulk_api(
                     detail={
                         "message": (
                             "調査中またはリアクション待ちの"
-                            "問い合わせ問題調査が残っています。"
+                            "問い合わせ調査が残っています。"
                         ),
                         "問い合わせ番号一覧": unfinished_numbers,
                     },
@@ -728,39 +728,39 @@ def create_investigation_api(
             if accepted_at is None or completed_at is not None:
                 raise HTTPException(
                     status_code=409,
-                    detail="対応中の問い合わせだけ問題調査を作成できます。",
+                    detail="対応中の問い合わせだけ調査を作成できます。",
                 )
 
             # 5. 対応担当者本人であることを確認
             if handler != current_user.職員番号:
                 raise HTTPException(
                     status_code=403,
-                    detail="対応担当者本人だけが問題調査を作成できます。",
+                    detail="対応担当者本人だけが調査を作成できます。",
                 )
 
-            # 6. 問題調査を新規作成
+            # 6. 調査を新規作成
             cur.execute(
                 """
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説"
+                INSERT INTO "調査" (
+                    "調査の名称"
                 )
                 VALUES (%s)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 """,
-                (request.問題調査の名称や仮説,),
+                (request.調査の名称,),
             )
 
             investigation_number = cur.fetchone()[0]
 
-            # 7. 問い合わせと問題調査を関連付ける
+            # 7. 問い合わせと調査を関連付ける
             cur.execute(
                 """
-                INSERT INTO "問い合わせ問題調査" (
-                    "問題調査番号",
+                INSERT INTO "問い合わせ調査" (
+                    "調査番号",
                     "問い合わせ番号"
                 )
                 VALUES (%s, %s)
-                RETURNING "問い合わせ問題調査番号"
+                RETURNING "問い合わせ調査番号"
                 """,
                 (
                     investigation_number,
@@ -772,11 +772,11 @@ def create_investigation_api(
 
     # 8. 作成結果を返す
     return {
-        "message": "問題調査を作成し、問い合わせに関連付けました。",
+        "message": "調査を作成し、問い合わせに関連付けました。",
         "問い合わせ番号": inquiry_number,
-        "問題調査番号": investigation_number,
-        "問い合わせ問題調査番号": inquiry_investigation_number,
-        "問題調査の名称や仮説": request.問題調査の名称や仮説,
+        "調査番号": investigation_number,
+        "問い合わせ調査番号": inquiry_investigation_number,
+        "調査の名称": request.調査の名称,
     }
 
 # 既存調査へ個別関連付け
@@ -791,12 +791,12 @@ def link_existing_investigation_api(
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
-            # 1. 問題調査を先にロックし、状態を確認する
+            # 1. 調査を先にロックし、状態を確認する
             cur.execute(
                 """
-                SELECT "問題調査状態"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 FOR UPDATE
                 """,
                 (investigation_number,),
@@ -806,13 +806,13 @@ def link_existing_investigation_api(
             if investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が見つかりません。",
+                    detail="指定された調査が見つかりません。",
                 )
 
             if investigation[0] != 1:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけ関連付けできます。",
+                    detail="調査中の調査だけ関連付けできます。",
                 )
 
             
@@ -820,8 +820,8 @@ def link_existing_investigation_api(
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                 """,
                 (investigation_number,),
             )
@@ -832,7 +832,7 @@ def link_existing_investigation_api(
             if not existing_numbers:
                 raise HTTPException(
                     status_code=409,
-                    detail="既存の関連付けがない問題調査には追加できません。",
+                    detail="既存の関連付けがない調査には追加できません。",
                 )
 
             # 3. 今回の対象と既存の関連付け対象をまとめて番号順にロック
@@ -843,8 +843,8 @@ def link_existing_investigation_api(
                 ),
                 existing_numbers AS (
                     SELECT "問い合わせ番号"
-                    FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
+                    FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
                 ),
                 lock_targets AS (
                     SELECT "問い合わせ番号"
@@ -919,9 +919,9 @@ def link_existing_investigation_api(
             cur.execute(
                 """
                 SELECT 1
-                FROM "問い合わせ問題調査"
+                FROM "問い合わせ調査"
                 WHERE "問い合わせ番号" = %s
-                  AND "問題調査番号" = %s
+                  AND "調査番号" = %s
                 """,
                 (inquiry_number, investigation_number),
             )
@@ -935,12 +935,12 @@ def link_existing_investigation_api(
             # 7. 関連レコードだけを追加する
             cur.execute(
                 """
-                INSERT INTO "問い合わせ問題調査" (
-                    "問題調査番号",
+                INSERT INTO "問い合わせ調査" (
+                    "調査番号",
                     "問い合わせ番号"
                 )
                 VALUES (%s, %s)
-                RETURNING "問い合わせ問題調査番号"
+                RETURNING "問い合わせ調査番号"
                 """,
                 (investigation_number, inquiry_number),
             )
@@ -948,10 +948,10 @@ def link_existing_investigation_api(
             relation_number = cur.fetchone()[0]
 
     return {
-        "message": "既存の問題調査を問い合わせに関連付けました。",
+        "message": "既存の調査を問い合わせに関連付けました。",
         "問い合わせ番号": inquiry_number,
-        "問題調査番号": investigation_number,
-        "問い合わせ問題調査番号": relation_number,
+        "調査番号": investigation_number,
+        "問い合わせ調査番号": relation_number,
     }
 
 
@@ -1017,16 +1017,16 @@ def bulk_create_investigation_api(
                         ),
                     )
 
-            # 5. 新しい問題調査を1件作成
+            # 5. 新しい調査を1件作成
             cur.execute(
                 """
-                INSERT INTO "問題調査" (
-                    "問題調査の名称や仮説"
+                INSERT INTO "調査" (
+                    "調査の名称"
                 )
                 VALUES (%s)
-                RETURNING "問題調査番号"
+                RETURNING "調査番号"
                 """,
-                (request.問題調査の名称や仮説,),
+                (request.調査の名称,),
             )
 
             investigation_number = cur.fetchone()[0]
@@ -1037,12 +1037,12 @@ def bulk_create_investigation_api(
             for inquiry_number in inquiry_numbers:
                 cur.execute(
                     """
-                    INSERT INTO "問い合わせ問題調査" (
-                        "問題調査番号",
+                    INSERT INTO "問い合わせ調査" (
+                        "調査番号",
                         "問い合わせ番号"
                     )
                     VALUES (%s, %s)
-                    RETURNING "問い合わせ問題調査番号"
+                    RETURNING "問い合わせ調査番号"
                     """,
                     (investigation_number, inquiry_number),
                 )
@@ -1052,16 +1052,16 @@ def bulk_create_investigation_api(
                 relations.append(
                     {
                         "問い合わせ番号": inquiry_number,
-                        "問い合わせ問題調査番号": relation_number,
+                        "問い合わせ調査番号": relation_number,
                     }
                 )
 
     return {
         "message": (
-            "問題調査を作成し、複数の問い合わせに関連付けました。"
+            "調査を作成し、複数の問い合わせに関連付けました。"
         ),
-        "問題調査番号": investigation_number,
-        "問題調査の名称や仮説": request.問題調査の名称や仮説,
+        "調査番号": investigation_number,
+        "調査の名称": request.調査の名称,
         "関連付け件数": len(relations),
         "関連付け一覧": relations,
     }
@@ -1073,16 +1073,16 @@ def bulk_link_existing_investigation_api(
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
     inquiry_numbers = request.問い合わせ番号一覧
-    investigation_number = request.問題調査番号
+    investigation_number = request.調査番号
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
-            # 1. 既存の問題調査をロックして状態を確認
+            # 1. 既存の調査をロックして状態を確認
             cur.execute(
                 """
-                SELECT "問題調査状態"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 FOR UPDATE
                 """,
                 (investigation_number,),
@@ -1092,13 +1092,13 @@ def bulk_link_existing_investigation_api(
             if investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が見つかりません。",
+                    detail="指定された調査が見つかりません。",
                 )
 
             if investigation[0] != 1:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけ関連付けできます。",
+                    detail="調査中の調査だけ関連付けできます。",
                 )
 
             
@@ -1106,8 +1106,8 @@ def bulk_link_existing_investigation_api(
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                 """,
                 (investigation_number,),
             )
@@ -1118,7 +1118,7 @@ def bulk_link_existing_investigation_api(
             if not existing_numbers:
                 raise HTTPException(
                     status_code=409,
-                    detail="既存の関連付けがない問題調査には追加できません。",
+                    detail="既存の関連付けがない調査には追加できません。",
                 )
 
             # 3. 今回の対象と既存の関連付け対象をまとめて番号順にロック
@@ -1129,8 +1129,8 @@ def bulk_link_existing_investigation_api(
                 ),
                 existing_numbers AS (
                     SELECT "問い合わせ番号"
-                    FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
+                    FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
                 ),
                 lock_targets AS (
                     SELECT "問い合わせ番号"
@@ -1218,8 +1218,8 @@ def bulk_link_existing_investigation_api(
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = ANY(%s)
                 """,
                 (investigation_number, inquiry_numbers),
@@ -1234,7 +1234,7 @@ def bulk_link_existing_investigation_api(
                     status_code=409,
                     detail=(
                         f"問い合わせ番号 {duplicated_number} は"
-                        "すでにこの問題調査に関連付けられています。"
+                        "すでにこの調査に関連付けられています。"
                     ),
                 )
 
@@ -1244,12 +1244,12 @@ def bulk_link_existing_investigation_api(
             for inquiry_number in inquiry_numbers:
                 cur.execute(
                     """
-                    INSERT INTO "問い合わせ問題調査" (
-                        "問題調査番号",
+                    INSERT INTO "問い合わせ調査" (
+                        "調査番号",
                         "問い合わせ番号"
                     )
                     VALUES (%s, %s)
-                    RETURNING "問い合わせ問題調査番号"
+                    RETURNING "問い合わせ調査番号"
                     """,
                     (investigation_number, inquiry_number),
                 )
@@ -1259,13 +1259,13 @@ def bulk_link_existing_investigation_api(
                 relations.append(
                     {
                         "問い合わせ番号": inquiry_number,
-                        "問い合わせ問題調査番号": relation_number,
+                        "問い合わせ調査番号": relation_number,
                     }
                 )
 
     return {
-        "message": "既存の問題調査を複数の問い合わせに関連付けました。",
-        "問題調査番号": investigation_number,
+        "message": "既存の調査を複数の問い合わせに関連付けました。",
+        "調査番号": investigation_number,
         "関連付け件数": len(relations),
         "関連付け一覧": relations,
     }
@@ -1690,24 +1690,24 @@ def get_inquiry_api(
             )
 
             row = cur.fetchone()
-            # 関連する問題調査番号を取得する
+            # 関連する調査番号を取得する
             if row is not None:
                 cur.execute(
                     '''
-                    SELECT DISTINCT "問題調査番号"
-                    FROM "問い合わせ問題調査"
+                    SELECT DISTINCT "調査番号"
+                    FROM "問い合わせ調査"
                     WHERE "問い合わせ番号" = %s
-                    ORDER BY "問題調査番号"
+                    ORDER BY "調査番号"
                     ''',
                     (inquiry_number,),
                 )
 
-                関連する問題調査番号一覧 = [
+                関連する調査番号一覧 = [
                     relation[0]
                     for relation in cur.fetchall()
                 ]
             else:
-                関連する問題調査番号一覧 = []
+                関連する調査番号一覧 = []
 
     # 2. 該当する問い合わせが存在しない場合
     if row is None:
@@ -1742,5 +1742,5 @@ def get_inquiry_api(
         "引き受け日時": row[13],
         "対応完了日時": row[14],
         "状態": 状態,
-        "関連する問題調査番号一覧": 関連する問題調査番号一覧,
+        "関連する調査番号一覧": 関連する調査番号一覧,
     }

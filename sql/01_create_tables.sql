@@ -4,7 +4,7 @@
 --
 -- 目的：
 --   最新の03_DB設計.mdに基づき、問い合わせ管理システムの
---   基本5テーブルを構築する。
+--   業務テーブルと認証関連テーブルを構築する。
 --
 -- 注意：
 --   本DDLは既存テーブルを削除して再作成する。
@@ -15,9 +15,9 @@
 -- 既存テーブル削除
 -- 外部キーで参照される側より、参照する側を先に削除する。
 -- =========================================================
-DROP TABLE IF EXISTS "問い合わせ問題調査";
+DROP TABLE IF EXISTS "問い合わせ調査";
 DROP TABLE IF EXISTS "対応担当者変更履歴";
-DROP TABLE IF EXISTS "問題調査";
+DROP TABLE IF EXISTS "調査";
 DROP TABLE IF EXISTS "問い合わせ";
 DROP TABLE IF EXISTS "ログインセッション";
 DROP TABLE IF EXISTS "職員認証情報";
@@ -120,61 +120,61 @@ CREATE TABLE "問い合わせ" (
 
 
 -- =========================================================
--- 5. 問題調査
--- 問題調査そのものと、共通の原因・対応・進捗を管理する。
+-- 5. 調査
+-- 調査そのものと、共通の原因・対応・進捗を管理する。
 -- =========================================================
 
-CREATE TABLE "問題調査" (
-    "問題調査番号" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    "問題調査の名称や仮説" VARCHAR(30) NOT NULL,
-    "問題の原因" VARCHAR(1000),
+CREATE TABLE "調査" (
+    "調査番号" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "調査の名称" VARCHAR(30) NOT NULL,
+    "原因・仮説" VARCHAR(1000),
     "情シス側での対応" VARCHAR(1000),
     "問い合わせ者側で必要な対応" VARCHAR(1000),
-    "問題調査状態" INTEGER NOT NULL DEFAULT 1
-        CHECK ("問題調査状態" IN (1, 2, 3)),
+    "調査状態" INTEGER NOT NULL DEFAULT 1
+        CHECK ("調査状態" IN (1, 2, 3)),
     "調査開始日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "対応案策定予定日時" TIMESTAMP,
     "進捗更新の次回更新予定日時" TIMESTAMP,
     "リアクション要求日時" TIMESTAMP,
-    "問題調査断念日時" TIMESTAMP,
-    "最新移行先の問題調査番号" INTEGER,
+    "調査断念日時" TIMESTAMP,
+    "最新移行先の調査番号" INTEGER,
 
-    CONSTRAINT "fk_問題調査_最新移行先"
-        FOREIGN KEY ("最新移行先の問題調査番号")
-        REFERENCES "問題調査" ("問題調査番号")
+    CONSTRAINT "fk_調査_最新移行先"
+        FOREIGN KEY ("最新移行先の調査番号")
+        REFERENCES "調査" ("調査番号")
 );
 
 
 -- =========================================================
--- 6. 問い合わせ問題調査
--- 問い合わせと問題調査の関係、およびその関係の状態・履歴を管理する。
+-- 6. 問い合わせ調査
+-- 問い合わせと調査の関係、およびその関係の状態・履歴を管理する。
 -- =========================================================
 
-CREATE TABLE "問い合わせ問題調査" (
-    "問い合わせ問題調査番号" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    "問題調査番号" INTEGER NOT NULL,
+CREATE TABLE "問い合わせ調査" (
+    "問い合わせ調査番号" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "調査番号" INTEGER NOT NULL,
     "問い合わせ番号" INTEGER NOT NULL,
-    "問い合わせ問題調査状態" INTEGER NOT NULL DEFAULT 1
-        CHECK ("問い合わせ問題調査状態" IN (1, 2, 3, 4, 5)),
+    "問い合わせ調査状態" INTEGER NOT NULL DEFAULT 1
+        CHECK ("問い合わせ調査状態" IN (1, 2, 3, 4, 5)),
     "調査開始日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "断念日時" TIMESTAMP,
     "リアクション被要求日時" TIMESTAMP,
     "リアクション日時" TIMESTAMP,
     "リアクション内容" INTEGER
         CHECK ("リアクション内容" IN (1, 2)),
-    "NGでの移行先問題調査番号" INTEGER,
+    "NGでの移行先調査番号" INTEGER,
 
-    CONSTRAINT "fk_問い合わせ問題調査_問題調査"
-        FOREIGN KEY ("問題調査番号")
-        REFERENCES "問題調査" ("問題調査番号"),
+    CONSTRAINT "fk_問い合わせ調査_調査"
+        FOREIGN KEY ("調査番号")
+        REFERENCES "調査" ("調査番号"),
 
-    CONSTRAINT "fk_問い合わせ問題調査_問い合わせ"
+    CONSTRAINT "fk_問い合わせ調査_問い合わせ"
         FOREIGN KEY ("問い合わせ番号")
         REFERENCES "問い合わせ" ("問い合わせ番号"),
 
-    CONSTRAINT "fk_問い合わせ問題調査_NG移行先"
-        FOREIGN KEY ("NGでの移行先問題調査番号")
-        REFERENCES "問題調査" ("問題調査番号")
+    CONSTRAINT "fk_問い合わせ調査_NG移行先"
+        FOREIGN KEY ("NGでの移行先調査番号")
+        REFERENCES "調査" ("調査番号")
 );
 
 

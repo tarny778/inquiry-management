@@ -190,7 +190,7 @@ export default function InquiryListPage({
             onClick={onOpenInvestigations}
             disabled={loading}
           >
-            問題調査一覧へ
+            調査一覧へ
           </button>
 
         </div>

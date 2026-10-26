@@ -16,21 +16,21 @@ export default function InvestigationInfo({
 
   return (
     <section className="detail-section">
-      <h3>問題調査情報</h3>
+      <h3>調査情報</h3>
 
       <table>
         <tbody>
           <tr>
-            <th>問題調査番号</th>
-            <td>{investigation.問題調査番号}</td>
+            <th>調査番号</th>
+            <td>{investigation.調査番号}</td>
           </tr>
           <tr>
-            <th>名称や仮説</th>
-            <td>{investigation.問題調査の名称や仮説}</td>
+            <th>調査の名称</th>
+            <td>{investigation.調査の名称}</td>
           </tr>
           <tr>
-            <th>問題の原因</th>
-            <td>{investigation.問題の原因 ?? '未設定'}</td>
+            <th>原因・仮説</th>
+            <td>{investigation['原因・仮説'] ?? '未設定'}</td>
           </tr>
           <tr>
             <th>情シス側での対応</th>
@@ -41,9 +41,9 @@ export default function InvestigationInfo({
             <td>{investigation.問い合わせ者側で必要な対応 ?? '未設定'}</td>
           </tr>
           <tr>
-            <th>問題調査状態</th>
+            <th>調査状態</th>
             <td>
-              {statusLabels[investigation.問題調査状態] ?? '不明'}
+              {statusLabels[investigation.調査状態] ?? '不明'}
             </td>
           </tr>
           <tr>
@@ -65,12 +65,12 @@ export default function InvestigationInfo({
             <td>{investigation.リアクション要求日時 ?? '未設定'}</td>
           </tr>
           <tr>
-            <th>問題調査断念日時</th>
-            <td>{investigation.問題調査断念日時 ?? '未設定'}</td>
+            <th>調査断念日時</th>
+            <td>{investigation.調査断念日時 ?? '未設定'}</td>
           </tr>
           <tr>
-            <th>最新移行先の問題調査番号</th>
-            <td>{investigation.最新移行先の問題調査番号}</td>
+            <th>最新移行先の調査番号</th>
+            <td>{investigation.最新移行先の調査番号}</td>
           </tr>
         </tbody>
       </table>

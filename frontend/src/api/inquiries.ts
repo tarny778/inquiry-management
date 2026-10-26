@@ -205,7 +205,7 @@ export async function requestInquiryReopen(
   )
 }
 
-// 問い合わせを既存の問題調査に関連付ける
+// 問い合わせを既存の調査に関連付ける
 export async function linkInvestigation(
   selectedNumbers: number[],
   investigationNumber: number,
@@ -219,14 +219,14 @@ export async function linkInvestigation(
       },
       body: JSON.stringify({
         問い合わせ番号一覧: selectedNumbers,
-        問題調査番号: investigationNumber,
+        調査番号: investigationNumber,
       }),
     },
-    "既存の問題調査への関連付けに失敗しました"
+    "既存の調査への関連付けに失敗しました"
   )
 }
 
-// 問い合わせを新規の問題調査に関連付ける
+// 問い合わせを新規の調査に関連付ける
 export async function createInvestigation(
   selectedNumbers: number[],
   newInvestigationName: string,
@@ -240,9 +240,9 @@ export async function createInvestigation(
       },
       body: JSON.stringify({
         問い合わせ番号一覧: selectedNumbers,
-        問題調査の名称や仮説: newInvestigationName.trim(),
+        調査の名称: newInvestigationName.trim(),
       }),
     },
-    "新規の問題調査への関連付けに失敗しました"
+    "新規の調査への関連付けに失敗しました"
   )
 }

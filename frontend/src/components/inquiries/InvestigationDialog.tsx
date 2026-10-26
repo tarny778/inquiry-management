@@ -32,7 +32,7 @@ export default function InvestigationDailog({
 }: InvestigationDailogProps) {
   return (
     <>
-    {/* 既存の問題調査への関連付けダイアログ */}
+    {/* 既存の調査への関連付けダイアログ */}
     {isLinkInvestigationDialogOpen && (
     <div className="modal-overlay">
         <section
@@ -42,11 +42,11 @@ export default function InvestigationDailog({
         aria-labelledby="link-investigation-title"
         >
         <h2 id="link-investigation-title">
-            既存の問題調査に関連付け
+            既存の調査に関連付け
         </h2>
 
         <label htmlFor="existing-investigation-number">
-            問題調査番号
+            調査番号
         </label>
 
         <input
@@ -96,7 +96,7 @@ export default function InvestigationDailog({
     </div>
     )}
 
-    {/* 新しい問題調査の作成・関連付けダイアログ */}
+    {/* 新しい調査の作成・関連付けダイアログ */}
     {isCreateInvestigationDialogOpen && (
     <div className="modal-overlay">
         <section
@@ -106,11 +106,11 @@ export default function InvestigationDailog({
         aria-labelledby="create-investigation-title"
         >
         <h2 id="create-investigation-title">
-            新しい問題調査を作成・関連付け
+            新しい調査を作成・関連付け
         </h2>
 
         <label htmlFor="new-investigation-name">
-            問題調査の名称・仮説（30文字以内）
+            調査の名称・仮説（30文字以内）
         </label>
 
         <input

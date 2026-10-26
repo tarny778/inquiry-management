@@ -37,7 +37,7 @@ export default function InquiryBulkAction({
                 onClick={() => setIsLinkInvestigationDialogOpen(true)}
                 disabled={selectedNumbers.length === 0 || loading}
             >
-                既存の問題調査に関連付け
+                既存の調査に関連付け
             </button>
 
             <button
@@ -45,7 +45,7 @@ export default function InquiryBulkAction({
                 onClick={() => setIsCreateInvestigationDialogOpen(true)}
                 disabled={selectedNumbers.length === 0 || loading}
             >
-                新しい問題調査を作成・関連付け
+                新しい調査を作成・関連付け
             </button>
             </div>
 

@@ -12,12 +12,12 @@ DATABASE_NAME = main.DATABASE_NAME
 router = APIRouter()
 
 
-# 問題調査の検索・一覧取得
+# 調査の検索・一覧取得
 @router.get("/api/investigations")
 def search_investigations_api(
-    問題調査番号: int | None = Query(default=None, ge=1),
-    問題調査の名称や仮説: str | None = None,
-    問題調査状態: int | None = Query(default=None, ge=1, le=3),
+    調査番号: int | None = Query(default=None, ge=1),
+    調査の名称: str | None = None,
+    調査状態: int | None = Query(default=None, ge=1, le=3),
     問い合わせ職員番号: str | None = None,
     問い合わせ番号: int | None = Query(default=None, ge=1),
     問い合わせ状態: str | None = None,
@@ -33,19 +33,19 @@ def search_investigations_api(
     conditions = []
     params = []
 
-    if 問題調査番号 is not None:
-        conditions.append('q."問題調査番号" = %s')
-        params.append(問題調査番号)
+    if 調査番号 is not None:
+        conditions.append('q."調査番号" = %s')
+        params.append(調査番号)
 
-    if 問題調査の名称や仮説 and 問題調査の名称や仮説.strip():
+    if 調査の名称 and 調査の名称.strip():
         conditions.append(
-            'q."問題調査の名称や仮説" LIKE %s'
+            'q."調査の名称" LIKE %s'
         )
-        params.append(f"%{問題調査の名称や仮説.strip()}%")
+        params.append(f"%{調査の名称.strip()}%")
 
-    if 問題調査状態 is not None:
-        conditions.append('q."問題調査状態" = %s')
-        params.append(問題調査状態)
+    if 調査状態 is not None:
+        conditions.append('q."調査状態" = %s')
+        params.append(調査状態)
 
     # 問い合わせ番号で検索
     if 問い合わせ番号 is not None:
@@ -53,10 +53,10 @@ def search_investigations_api(
             '''
             EXISTS (
                 SELECT 1
-                FROM "問い合わせ問題調査" ik
+                FROM "問い合わせ調査" ik
                 JOIN "問い合わせ" i
                     ON i."問い合わせ番号" = ik."問い合わせ番号"
-                WHERE ik."問題調査番号" = q."問題調査番号"
+                WHERE ik."調査番号" = q."調査番号"
                 AND i."問い合わせ番号" = %s
             )
             '''
@@ -66,7 +66,7 @@ def search_investigations_api(
     # 問い合わせ者の職員番号・問い合わせ状態で検索
     if 問い合わせ職員番号 or 問い合わせ状態 is not None:
         inquiry_conditions = [
-            'ik."問題調査番号" = q."問題調査番号"',
+            'ik."調査番号" = q."調査番号"',
             'i."問い合わせ番号" = ik."問い合わせ番号"',
         ]
         inquiry_params = []
@@ -100,7 +100,7 @@ def search_investigations_api(
             '''
             EXISTS (
                 SELECT 1
-                FROM "問い合わせ問題調査" ik
+                FROM "問い合わせ調査" ik
                 JOIN "問い合わせ" i
                     ON i."問い合わせ番号" = ik."問い合わせ番号"
                 WHERE
@@ -116,10 +116,10 @@ def search_investigations_api(
             '''
             EXISTS (
                 SELECT 1
-                FROM "問い合わせ問題調査" ik
+                FROM "問い合わせ調査" ik
                 JOIN "問い合わせ" i
                     ON i."問い合わせ番号" = ik."問い合わせ番号"
-                WHERE ik."問題調査番号" = q."問題調査番号"
+                WHERE ik."調査番号" = q."調査番号"
                   AND i."対応担当者" = %s
             )
             '''
@@ -142,30 +142,30 @@ def search_investigations_api(
             cur.execute(
                 f'''
                 SELECT COUNT(*)
-                FROM "問題調査" q
+                FROM "調査" q
                 {where_clause}
                 ''',
                 params,
             )
             total = cur.fetchone()[0]
 
-            # 問題調査の一覧を取得
+            # 調査の一覧を取得
             cur.execute(
                 f'''
                 SELECT
-                    q."問題調査番号",
-                    q."問題調査の名称や仮説",
-                    q."問題調査状態",
+                    q."調査番号",
+                    q."調査の名称",
+                    q."調査状態",
 
                     -- 関連する問い合わせの対応担当者氏名
                     (
                         SELECT s."氏名"
-                        FROM "問い合わせ問題調査" ik
+                        FROM "問い合わせ調査" ik
                         JOIN "問い合わせ" i
                             ON i."問い合わせ番号" = ik."問い合わせ番号"
                         JOIN "職員" s
                             ON s."職員番号" = i."対応担当者"
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        WHERE ik."調査番号" = q."調査番号"
                         ORDER BY i."問い合わせ番号"
                         LIMIT 1
                     ) AS "対応担当者職員氏名",
@@ -173,25 +173,25 @@ def search_investigations_api(
                     -- 関連する問い合わせの件数
                     (
                         SELECT COUNT(DISTINCT ik."問い合わせ番号")
-                        FROM "問い合わせ問題調査" ik
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        FROM "問い合わせ調査" ik
+                        WHERE ik."調査番号" = q."調査番号"
                     ) AS "関連問い合わせ件数",
 
                     -- 操作者自身の問い合わせが含まれるか
                     EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
+                        FROM "問い合わせ調査" ik
                         JOIN "問い合わせ" i
                             ON i."問い合わせ番号" = ik."問い合わせ番号"
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        WHERE ik."調査番号" = q."調査番号"
                           AND i."問い合わせ職員番号" = %s
                     ) AS "自分の問い合わせを含む"
 
-                FROM "問題調査" q
+                FROM "調査" q
                 {where_clause}
                 ORDER BY
                     q."調査開始日時" DESC,
-                    q."問題調査番号" DESC
+                    q."調査番号" DESC
                 LIMIT %s OFFSET %s
                 ''',
                 [操作者職員番号] + params + [page_size, offset],
@@ -201,9 +201,9 @@ def search_investigations_api(
 
     # 各行をレスポンス用の辞書に変換
     columns = [
-        "問題調査番号",
-        "問題調査の名称や仮説",
-        "問題調査状態",
+        "調査番号",
+        "調査の名称",
+        "調査状態",
         "対応担当者職員氏名",
         "関連問い合わせ件数",
         "自分の問い合わせを含む",
@@ -222,7 +222,7 @@ def search_investigations_api(
     }
 
 
-# 問題調査の詳細取得
+# 調査の詳細取得
 @router.get("/api/investigations/{investigation_id}")
 def get_investigation_api(
     investigation_id: int = Path(ge=1),
@@ -234,80 +234,80 @@ def get_investigation_api(
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
 
-            # 1. 問題調査そのものの詳細を取得
+            # 1. 調査そのものの詳細を取得
             cur.execute(
                 '''
                 SELECT
-                    "問題調査番号",
-                    "問題調査の名称や仮説",
-                    "問題の原因",
+                    "調査番号",
+                    "調査の名称",
+                    "原因・仮説",
                     "情シス側での対応",
                     "問い合わせ者側で必要な対応",
-                    "問題調査状態",
+                    "調査状態",
                     "調査開始日時",
                     "対応案策定予定日時",
                     "進捗更新の次回更新予定日時",
                     "リアクション要求日時",
-                    "問題調査断念日時",
-                    "最新移行先の問題調査番号"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                    "調査断念日時",
+                    "最新移行先の調査番号"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 ''',
                 (investigation_id,),
             )
 
             row = cur.fetchone()
 
-            # 問題調査が存在しない場合
+            # 調査が存在しない場合
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が見つかりません。",
+                    detail="指定された調査が見つかりません。",
                 )
 
             columns = [
-                "問題調査番号",
-                "問題調査の名称や仮説",
-                "問題の原因",
+                "調査番号",
+                "調査の名称",
+                "原因・仮説",
                 "情シス側での対応",
                 "問い合わせ者側で必要な対応",
-                "問題調査状態",
+                "調査状態",
                 "調査開始日時",
                 "対応案策定予定日時",
                 "進捗更新の次回更新予定日時",
                 "リアクション要求日時",
-                "問題調査断念日時",
-                "最新移行先の問題調査番号",
+                "調査断念日時",
+                "最新移行先の調査番号",
             ]
 
             investigation = dict(zip(columns, row))
 
-            # 2. 関連する問い合わせ問題調査を取得
+            # 2. 関連する問い合わせ調査を取得
             cur.execute(
                 '''
                 SELECT
-                    ik."問い合わせ問題調査番号",
+                    ik."問い合わせ調査番号",
                     ik."問い合わせ番号",
                     requester."氏名" AS "問い合わせ者氏名",
                     handler."氏名" AS "対応担当者氏名",
-                    ik."問い合わせ問題調査状態",
+                    ik."問い合わせ調査状態",
                     ik."調査開始日時",
                     ik."断念日時",
                     ik."リアクション被要求日時",
                     ik."リアクション日時",
                     ik."リアクション内容",
-                    ik."NGでの移行先問題調査番号",
+                    ik."NGでの移行先調査番号",
                     i."問い合わせ職員番号",
                     i."対応担当者"
-                FROM "問い合わせ問題調査" ik
+                FROM "問い合わせ調査" ik
                 JOIN "問い合わせ" i
                     ON i."問い合わせ番号" = ik."問い合わせ番号"
                 JOIN "職員" requester
                     ON requester."職員番号" = i."問い合わせ職員番号"
                 LEFT JOIN "職員" handler
                     ON handler."職員番号" = i."対応担当者"
-                WHERE ik."問題調査番号" = %s
-                ORDER BY ik."問い合わせ問題調査番号"
+                WHERE ik."調査番号" = %s
+                ORDER BY ik."問い合わせ調査番号"
                 ''',
                 (investigation_id,),
             )
@@ -315,17 +315,17 @@ def get_investigation_api(
             rows = cur.fetchall()
 
     columns = [
-        "問い合わせ問題調査番号",
+        "問い合わせ調査番号",
         "問い合わせ番号",
         "問い合わせ者氏名",
         "対応担当者氏名",
-        "問い合わせ問題調査状態",
+        "問い合わせ調査状態",
         "調査開始日時",
         "断念日時",
         "リアクション被要求日時",
         "リアクション日時",
         "リアクション内容",
-        "NGでの移行先問題調査番号",
+        "NGでの移行先調査番号",
         "問い合わせ職員番号",
         "対応担当者職員番号",
     ]
@@ -343,11 +343,11 @@ def get_investigation_api(
 
     return {
         **investigation,
-        "関連する問い合わせ問題調査": related_inquiries,
+        "関連する問い合わせ調査": related_inquiries,
     }
 
 
-# 問題調査の編集
+# 調査の編集
 @router.patch("/api/investigations/{investigation_id}")
 def update_investigation_api(
     body: InvestigationUpdate,
@@ -358,7 +358,7 @@ def update_investigation_api(
     操作者職員番号 = current_user.職員番号
 
     # スキーマで許可された、実際に送信された項目だけを取得
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = body.model_dump(exclude_unset=True, by_alias=True)
 
     # 空のPATCHリクエストは拒否
     if not update_data:
@@ -369,8 +369,8 @@ def update_investigation_api(
 
     # 更新可能なDBカラムを限定する
     column_mapping = {
-        "問題調査の名称や仮説": "問題調査の名称や仮説",
-        "問題の原因": "問題の原因",
+        "調査の名称": "調査の名称",
+        "原因・仮説": "原因・仮説",
         "情シス側での対応": "情シス側での対応",
         "問い合わせ者側で必要な対応": "問い合わせ者側で必要な対応",
         "対応案策定予定日時": "対応案策定予定日時",
@@ -384,20 +384,20 @@ def update_investigation_api(
     )
     values = list(update_data.values())
 
-    # 管理項目を含む、更新後の問題調査を返す
+    # 管理項目を含む、更新後の調査を返す
     returning_columns = [
-        "問題調査番号",
-        "問題調査の名称や仮説",
-        "問題の原因",
+        "調査番号",
+        "調査の名称",
+        "原因・仮説",
         "情シス側での対応",
         "問い合わせ者側で必要な対応",
-        "問題調査状態",
+        "調査状態",
         "調査開始日時",
         "対応案策定予定日時",
         "進捗更新の次回更新予定日時",
         "リアクション要求日時",
-        "問題調査断念日時",
-        "最新移行先の問題調査番号",
+        "調査断念日時",
+        "最新移行先の調査番号",
     ]
 
     returning_clause = sql.SQL(", ").join(
@@ -410,22 +410,22 @@ def update_investigation_api(
             cur.execute(
                 '''
                 SELECT
-                    q."問題調査状態",
+                    q."調査状態",
                     EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        FROM "問い合わせ調査" ik
+                        WHERE ik."調査番号" = q."調査番号"
                     )
                     AND NOT EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
+                        FROM "問い合わせ調査" ik
                         JOIN "問い合わせ" i
                             ON i."問い合わせ番号" = ik."問い合わせ番号"
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        WHERE ik."調査番号" = q."調査番号"
                           AND i."対応担当者" IS DISTINCT FROM %s
                     ) AS 編集権限あり
-                FROM "問題調査" q
-                WHERE q."問題調査番号" = %s
+                FROM "調査" q
+                WHERE q."調査番号" = %s
                 FOR UPDATE OF q
                 ''',
                 (操作者職員番号, investigation_id),
@@ -433,14 +433,14 @@ def update_investigation_api(
 
             row = cur.fetchone()
 
-            # 問題調査が存在しない場合
+            # 調査が存在しない場合
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が見つかりません。",
+                    detail="指定された調査が見つかりません。",
                 )
 
-            問題調査状態 = row[0]
+            調査状態 = row[0]
             編集権限あり = row[1]
 
             # 関連する問い合わせの対応担当者でなければ拒否
@@ -450,11 +450,11 @@ def update_investigation_api(
                     detail="関連する問い合わせの対応担当者本人だけが編集できます。",
                 )
 
-            # 調査中の問題調査だけ編集可能
-            if 問題調査状態 != 1:
+            # 調査中の調査だけ編集可能
+            if 調査状態 != 1:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけ編集できます。",
+                    detail="調査中の調査だけ編集できます。",
                 )
 
 
@@ -462,9 +462,9 @@ def update_investigation_api(
             cur.execute(
                 sql.SQL(
                     '''
-                    UPDATE "問題調査"
+                    UPDATE "調査"
                     SET {}
-                    WHERE "問題調査番号" = %s
+                    WHERE "調査番号" = %s
                     RETURNING {}
                     '''
                 ).format(set_clause, returning_clause),
@@ -481,7 +481,7 @@ def update_investigation_api(
 
 
 
-# 問題調査の断念
+# 調査の断念
 @router.post("/api/investigations/{investigation_id}/abandon")
 def abandon_investigation_api(
     investigation_id: int = Path(ge=1),
@@ -492,26 +492,26 @@ def abandon_investigation_api(
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
-            # 対象の問題調査をロックし、存在・権限・状態を確認
+            # 対象の調査をロックし、存在・権限・状態を確認
             cur.execute(
                 '''
                 SELECT
-                    q."問題調査状態",
+                    q."調査状態",
                     EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        FROM "問い合わせ調査" ik
+                        WHERE ik."調査番号" = q."調査番号"
                     )
                     AND NOT EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
+                        FROM "問い合わせ調査" ik
                         JOIN "問い合わせ" i
                             ON i."問い合わせ番号" = ik."問い合わせ番号"
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        WHERE ik."調査番号" = q."調査番号"
                           AND i."対応担当者" IS DISTINCT FROM %s
                     ) AS 編集権限あり
-                FROM "問題調査" q
-                WHERE q."問題調査番号" = %s
+                FROM "調査" q
+                WHERE q."調査番号" = %s
                 FOR UPDATE OF q
                 ''',
                 (操作者職員番号, investigation_id),
@@ -522,10 +522,10 @@ def abandon_investigation_api(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が見つかりません。",
+                    detail="指定された調査が見つかりません。",
                 )
 
-            問題調査状態 = row[0]
+            調査状態 = row[0]
             編集権限あり = row[1]
 
             if not 編集権限あり:
@@ -534,88 +534,82 @@ def abandon_investigation_api(
                     detail="関連する問い合わせの対応担当者本人だけが断念できます。",
                 )
 
-            if 問題調査状態 != 1:
+            if 調査状態 != 1:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけ断念できます。",
+                    detail="調査中の調査だけ断念できます。",
                 )
 
-            # 関連する問い合わせ問題調査のうち、
-            # 状態1（調査中）のレコードをすべて状態2（個別断念）にする
+            # 関連する問い合わせ調査に状態1・2以外が存在しないか検証
             cur.execute(
                 '''
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 2
-                WHERE "問題調査番号" = %s
-                  AND "問い合わせ問題調査状態" = 1
+                SELECT NOT EXISTS (
+                    SELECT 1
+                    FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
+                    AND "問い合わせ調査状態" NOT IN (1, 2)
+                )
                 ''',
                 (investigation_id,),
             )
 
-            # 問題調査本体を状態3（問題調査断念）にし、断念日時を記録
+            関連レコード整合性あり = cur.fetchone()[0]
+
+            if not 関連レコード整合性あり:
+                logger.error(
+                    "調査の断念処理でデータ整合性エラー: "
+                    "調査番号=%s",
+                    investigation_id,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="データ整合性エラーが発生しました。",
+                )
+
+
+            # 関連する問い合わせ調査のうち、
+            # 状態1（調査中）のレコードをすべて状態2（個別断念）にする
             cur.execute(
                 '''
-                UPDATE "問題調査"
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 2
+                WHERE "調査番号" = %s
+                  AND "問い合わせ調査状態" = 1
+                ''',
+                (investigation_id,),
+            )
+
+            # 調査本体を状態3（調査断念）にし、断念日時を記録
+            cur.execute(
+                '''
+                UPDATE "調査"
                 SET
-                    "問題調査状態" = 3,
-                    "問題調査断念日時" = CURRENT_TIMESTAMP
-                WHERE "問題調査番号" = %s
+                    "調査状態" = 3,
+                    "調査断念日時" = CURRENT_TIMESTAMP
+                WHERE "調査番号" = %s
                 RETURNING
-                    "問題調査番号",
-                    "問題調査の名称や仮説",
-                    "問題調査状態",
-                    "問題調査断念日時"
+                    "調査番号",
+                    "調査の名称",
+                    "調査状態",
+                    "調査断念日時"
                 ''',
                 (investigation_id,),
             )
 
             updated_row = cur.fetchone()
 
-            # 関連する問い合わせ問題調査がすべて状態2になったか検証
-            cur.execute(
-                '''
-                SELECT NOT EXISTS (
-                    SELECT 1
-                    FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
-                      AND "問い合わせ問題調査状態" <> 2
-                )
-                ''',
-                (investigation_id,),
-            )
-
-            全件状態2 = cur.fetchone()[0]
-
-            if not 全件状態2:
-                logger.error(
-                    "問題調査の断念処理でデータ整合性エラー: "
-                    "問題調査番号=%s",
-                    investigation_id,
-                ),
-
-                # HTTPExceptionによってトランザクションをロールバックする。
-                # 問題調査本体・関連レコードの更新はすべて取り消される。
-                raise HTTPException(
-                    status_code=500,
-                    detail=(
-                        "サーバー内部でエラーが発生しました。"
-                        "時間をおいて再度お試しください。"
-                        "解決しない場合は、システム管理者にお問い合わせください。"
-                    ),
-            )
-
             result = {
-                "問題調査番号": updated_row[0],
-                "問題調査の名称や仮説": updated_row[1],
-                "問題調査状態": updated_row[2],
-                "問題調査断念日時": updated_row[3],
+                "調査番号": updated_row[0],
+                "調査の名称": updated_row[1],
+                "調査状態": updated_row[2],
+                "調査断念日時": updated_row[3],
             }
 
     # ここまで正常に到達した場合だけ、トランザクションが確定する
     return result
 
 
-# 問題調査のリアクション要求
+# 調査のリアクション要求
 @router.post(
     "/api/investigations/{investigation_id}/request-reaction"
 )
@@ -628,26 +622,26 @@ def request_reaction_investigation_api(
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
-            # 対象の問題調査をロックし、存在・権限・状態を確認
+            # 対象の調査をロックし、存在・権限・状態を確認
             cur.execute(
                 '''
                 SELECT
-                    q."問題調査状態",
+                    q."調査状態",
                     EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        FROM "問い合わせ調査" ik
+                        WHERE ik."調査番号" = q."調査番号"
                     )
                     AND NOT EXISTS (
                         SELECT 1
-                        FROM "問い合わせ問題調査" ik
+                        FROM "問い合わせ調査" ik
                         JOIN "問い合わせ" i
                             ON i."問い合わせ番号" = ik."問い合わせ番号"
-                        WHERE ik."問題調査番号" = q."問題調査番号"
+                        WHERE ik."調査番号" = q."調査番号"
                           AND i."対応担当者" IS DISTINCT FROM %s
                     ) AS 編集権限あり
-                FROM "問題調査" q
-                WHERE q."問題調査番号" = %s
+                FROM "調査" q
+                WHERE q."調査番号" = %s
                 FOR UPDATE OF q
                 ''',
                 (操作者職員番号, investigation_id),
@@ -658,10 +652,10 @@ def request_reaction_investigation_api(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問題調査が見つかりません。",
+                    detail="指定された調査が見つかりません。",
                 )
 
-            問題調査状態 = row[0]
+            調査状態 = row[0]
             編集権限あり = row[1]
 
             if not 編集権限あり:
@@ -673,68 +667,64 @@ def request_reaction_investigation_api(
                     ),
                 )
 
-            if 問題調査状態 != 1:
+            if 調査状態 != 1:
                 raise HTTPException(
                     status_code=409,
-                    detail="調査中の問題調査だけリアクション要求できます。",
+                    detail="調査中の調査だけリアクション要求できます。",
                 )
 
             # 要求前の整合性チェック：
-            # 関連レコードは状態1（調査中）または
-            # 状態2（個別断念）でなければならない
+            # 関連する問い合わせ調査に状態1・2以外が存在しないか検証
             cur.execute(
                 '''
                 SELECT NOT EXISTS (
                     SELECT 1
-                    FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
-                      AND "問い合わせ問題調査状態" NOT IN (1, 2)
+                    FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
+                    AND "問い合わせ調査状態" NOT IN (1, 2)
                 )
                 ''',
                 (investigation_id,),
             )
 
-            要求前の整合性あり = cur.fetchone()[0]
+            関連レコード整合性あり = cur.fetchone()[0]
 
-            if not 要求前の整合性あり:
+            if not 関連レコード整合性あり:
                 logger.error(
-                    "問題調査の断念処理でデータ整合性エラー: "
-                    "問題調査番号=%s",
+                    "リアクション依頼処理でデータ整合性エラー: "
+                    "調査番号=%s",
                     investigation_id,
-                ),
+                )
                 raise HTTPException(
                     status_code=500,
-                    detail=(
-                        "サーバー内部でエラーが発生しました。"
-                        "時間をおいて再度お試しください。"
-                        "解決しない場合は、システム管理者にお問い合わせください。"
-                    ),
+                    detail="データ整合性エラーが発生しました。",
                 )
+
 
             # 関連レコードの状態1を状態3（リアクション待ち）に変更
             # 状態2（個別断念）はそのまま維持する
             cur.execute(
                 '''
-                UPDATE "問い合わせ問題調査"
-                SET "問い合わせ問題調査状態" = 3
-                WHERE "問題調査番号" = %s
-                  AND "問い合わせ問題調査状態" = 1
+                UPDATE "問い合わせ調査"
+                SET "問い合わせ調査状態" = 3
+                WHERE "調査番号" = %s
+                  AND "問い合わせ調査状態" = 1
                 ''',
                 (investigation_id,),
             )
 
-            # 問題調査本体を状態2にし、リクエスト要求日時を記録
+            # 調査本体を状態2にし、リクエスト要求日時を記録
             cur.execute(
                 '''
-                UPDATE "問題調査"
+                UPDATE "調査"
                 SET
-                    "問題調査状態" = 2,
+                    "調査状態" = 2,
                     "リアクション要求日時" = CURRENT_TIMESTAMP
-                WHERE "問題調査番号" = %s
+                WHERE "調査番号" = %s
                 RETURNING
-                    "問題調査番号",
-                    "問題調査の名称や仮説",
-                    "問題調査状態",
+                    "調査番号",
+                    "調査の名称",
+                    "調査状態",
                     "リアクション要求日時"
                 ''',
                 (investigation_id,),
@@ -749,9 +739,9 @@ def request_reaction_investigation_api(
                 '''
                 SELECT NOT EXISTS (
                     SELECT 1
-                    FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
-                      AND "問い合わせ問題調査状態" NOT IN (2, 3)
+                    FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
+                      AND "問い合わせ調査状態" NOT IN (2, 3)
                 )
                 ''',
                 (investigation_id,),
@@ -761,8 +751,8 @@ def request_reaction_investigation_api(
 
             if not 更新後の整合性あり:
                 logger.error(
-                    "問題調査の断念処理でデータ整合性エラー: "
-                    "問題調査番号=%s",
+                    "調査の断念処理でデータ整合性エラー: "
+                    "調査番号=%s",
                     investigation_id,
                 ),                
                 raise HTTPException(
@@ -775,9 +765,9 @@ def request_reaction_investigation_api(
                 )
 
             result = {
-                "問題調査番号": updated_row[0],
-                "問題調査の名称や仮説": updated_row[1],
-                "問題調査状態": updated_row[2],
+                "調査番号": updated_row[0],
+                "調査の名称": updated_row[1],
+                "調査状態": updated_row[2],
                 "リアクション要求日時": updated_row[3],
             }
 
@@ -786,7 +776,7 @@ def request_reaction_investigation_api(
 
 
 
-# 問い合わせ問題調査の個別断念
+# 問い合わせ調査の個別断念
 @router.post(
     "/api/investigations/relations/{relation_id}/abandon"
 )
@@ -794,17 +784,17 @@ def abandon_inquiry_problem_investigation_api(
     relation_id: int = Path(ge=1),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    """問い合わせ問題調査を個別断念にする。"""
+    """問い合わせ調査を個別断念にする。"""
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
-            # 1. 親の問題調査番号を取得する
+            # 1. 親の調査番号を取得する
             # この段階ではロックせず、親を特定するために使う
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -813,7 +803,7 @@ def abandon_inquiry_problem_investigation_api(
             if row is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ調査が見つかりません。",
                 )
 
             investigation_id = row[0]
@@ -821,9 +811,9 @@ def abandon_inquiry_problem_investigation_api(
             # 2. 親を先にロックする
             cur.execute(
                 """
-                SELECT "問題調査状態"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                SELECT "調査状態"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 FOR UPDATE
                 """,
                 (investigation_id,),
@@ -833,15 +823,15 @@ def abandon_inquiry_problem_investigation_api(
             if parent is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="関連する問題調査が存在しません。",
+                    detail="関連する調査が存在しません。",
                 )
 
             if parent[0] != 1:
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        "調査中の問題調査に関連する"
-                        "問い合わせ問題調査のみ個別断念できます。"
+                        "調査中の調査に関連する"
+                        "問い合わせ調査のみ個別断念できます。"
                     ),
                 )
 
@@ -850,10 +840,10 @@ def abandon_inquiry_problem_investigation_api(
                 """
                 SELECT
                     "問い合わせ番号",
-                    "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
-                  AND "問題調査番号" = %s
+                    "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
+                  AND "調査番号" = %s
                 FOR UPDATE
                 """,
                 (relation_id, investigation_id),
@@ -863,7 +853,7 @@ def abandon_inquiry_problem_investigation_api(
             if relation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ調査が見つかりません。",
                 )
 
             inquiry_number, relation_state = relation
@@ -895,7 +885,7 @@ def abandon_inquiry_problem_investigation_api(
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        "調査中の問い合わせ問題調査のみ"
+                        "調査中の問い合わせ調査のみ"
                         "個別断念できます。"
                     ),
                 )
@@ -903,16 +893,16 @@ def abandon_inquiry_problem_investigation_api(
                         # 5. 対象の関連レコードだけを個別断念にする
             cur.execute(
                 """
-                UPDATE "問い合わせ問題調査"
+                UPDATE "問い合わせ調査"
                 SET
-                    "問い合わせ問題調査状態" = 2,
+                    "問い合わせ調査状態" = 2,
                     "断念日時" = CURRENT_TIMESTAMP
-                WHERE "問い合わせ問題調査番号" = %s
+                WHERE "問い合わせ調査番号" = %s
                 RETURNING
-                    "問い合わせ問題調査番号",
+                    "問い合わせ調査番号",
                     "問い合わせ番号",
-                    "問題調査番号",
-                    "問い合わせ問題調査状態",
+                    "調査番号",
+                    "問い合わせ調査状態",
                     "断念日時"
                 """,
                 (relation_id,),
@@ -920,17 +910,17 @@ def abandon_inquiry_problem_investigation_api(
             updated = cur.fetchone()
 
             result = {
-                "問い合わせ問題調査番号": updated[0],
+                "問い合わせ調査番号": updated[0],
                 "問い合わせ番号": updated[1],
-                "問題調査番号": updated[2],
-                "問い合わせ問題調査状態": updated[3],
+                "調査番号": updated[2],
+                "問い合わせ調査状態": updated[3],
                 "断念日時": updated[4],
-                "message": "問い合わせ問題調査を個別断念にしました。",
+                "message": "問い合わせ調査を個別断念にしました。",
             }
 
     return result
 
-# 問い合わせ問題調査のOK回答
+# 問い合わせ調査のOK回答
 @router.post(
     "/api/investigations/relations/{relation_id}/ok"
 )
@@ -938,16 +928,16 @@ def ok_inquiry_problem_investigation_api(
     relation_id: int = Path(ge=1),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    """問い合わせ問題調査にOKと回答する。"""
+    """問い合わせ調査にOKと回答する。"""
 
     with psycopg.connect(dbname=DATABASE_NAME) as conn:
         with conn.cursor() as cur:
-            # 1. 対象の関連レコードから旧問題調査番号を取得する
+            # 1. 対象の関連レコードから旧調査番号を取得する
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -956,25 +946,25 @@ def ok_inquiry_problem_investigation_api(
             if relation_ref is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ調査が見つかりません。",
                 )
 
             old_investigation_id = relation_ref[0]
 
-            # 2. 問題調査をロックする
+            # 2. 調査をロックする
             cur.execute(
                 """
                 SELECT
-                    "問題調査状態",
-                    "問題調査の名称や仮説",
-                    "問題の原因",
+                    "調査状態",
+                    "調査の名称",
+                    "原因・仮説",
                     "情シス側での対応",
                     "問い合わせ者側で必要な対応",
                     "対応案策定予定日時",
                     "進捗更新の次回更新予定日時",
-                    "最新移行先の問題調査番号"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                    "最新移行先の調査番号"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 FOR UPDATE
                 """,
                 (old_investigation_id,),
@@ -984,7 +974,7 @@ def ok_inquiry_problem_investigation_api(
             if investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="関連する問題調査が見つかりません。",
+                    detail="関連する調査が見つかりません。",
                 )
 
             # 3. 対象の子レコードをロックして取得する
@@ -992,9 +982,9 @@ def ok_inquiry_problem_investigation_api(
                 """
                 SELECT
                     "問い合わせ番号",
-                    "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                    "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 FOR UPDATE
                 """,
                 (relation_id,),
@@ -1004,7 +994,7 @@ def ok_inquiry_problem_investigation_api(
             if relation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ調査が見つかりません。",
                 )
 
             inquiry_number, relation_state = relation
@@ -1037,7 +1027,7 @@ def ok_inquiry_problem_investigation_api(
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        "リアクション待ちの問い合わせ問題調査のみ"
+                        "リアクション待ちの問い合わせ調査のみ"
                         "OKと回答できます。"
                     ),
                 )
@@ -1045,17 +1035,17 @@ def ok_inquiry_problem_investigation_api(
             # 6. 対象の子レコードにOK回答を記録する
             cur.execute(
                 """
-                UPDATE "問い合わせ問題調査"
+                UPDATE "問い合わせ調査"
                 SET
-                    "問い合わせ問題調査状態" = 4,
+                    "問い合わせ調査状態" = 4,
                     "リアクション内容" = 1,
                     "リアクション日時" = CURRENT_TIMESTAMP
-                WHERE "問い合わせ問題調査番号" = %s
+                WHERE "問い合わせ調査番号" = %s
                 RETURNING
-                    "問い合わせ問題調査番号",
+                    "問い合わせ調査番号",
                     "問い合わせ番号",
-                    "問題調査番号",
-                    "問い合わせ問題調査状態",
+                    "調査番号",
+                    "問い合わせ調査状態",
                     "リアクション内容",
                     "リアクション日時"
                 """,
@@ -1064,18 +1054,18 @@ def ok_inquiry_problem_investigation_api(
             updated = cur.fetchone()
 
             result = {
-                "問い合わせ問題調査番号": updated[0],
+                "問い合わせ調査番号": updated[0],
                 "問い合わせ番号": updated[1],
-                "問題調査番号": updated[2],
-                "問い合わせ問題調査状態": updated[3],
+                "調査番号": updated[2],
+                "問い合わせ調査状態": updated[3],
                 "リアクション内容": updated[4],
                 "リアクション日時": updated[5],
-                "message": "問い合わせ問題調査にOKと回答しました。",
+                "message": "問い合わせ調査にOKと回答しました。",
             }
 
     return result
 
-# 問い合わせ問題調査のNG回答
+# 問い合わせ調査のNG回答
 @router.post(
     "/api/investigations/relations/{relation_id}/ng"
 )
@@ -1083,16 +1073,16 @@ def ng_inquiry_problem_investigation_api(
     relation_id: int = Path(ge=1),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    """問い合わせ問題調査にNGと回答し、次の調査先へ移行する。"""
+    """問い合わせ調査にNGと回答し、次の調査先へ移行する。"""
 
     with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
         with conn.cursor() as cur:
-            # 1. 対象の関連レコードから旧問題調査番号を取得する
+            # 1. 対象の関連レコードから旧調査番号を取得する
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -1101,26 +1091,26 @@ def ng_inquiry_problem_investigation_api(
             if relation_ref is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ調査が見つかりません。",
                 )
 
             old_investigation_id = relation_ref[0]
 
-            # 2. 旧問題調査をロックする
+            # 2. 旧調査をロックする
             # 最新移行先の判定・更新を直列化する
             cur.execute(
                 """
                 SELECT
-                    "問題調査状態",
-                    "問題調査の名称や仮説",
-                    "問題の原因",
+                    "調査状態",
+                    "調査の名称",
+                    "原因・仮説",
                     "情シス側での対応",
                     "問い合わせ者側で必要な対応",
                     "対応案策定予定日時",
                     "進捗更新の次回更新予定日時",
-                    "最新移行先の問題調査番号"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                    "最新移行先の調査番号"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 FOR UPDATE
                 """,
                 (old_investigation_id,),
@@ -1130,7 +1120,7 @@ def ng_inquiry_problem_investigation_api(
             if old_investigation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="関連する問題調査が見つかりません。",
+                    detail="関連する調査が見つかりません。",
                 )
 
             (
@@ -1149,10 +1139,10 @@ def ng_inquiry_problem_investigation_api(
                 """
                 SELECT
                     "問い合わせ番号",
-                    "問題調査番号",
-                    "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                    "調査番号",
+                    "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 FOR UPDATE
                 """,
                 (relation_id,),
@@ -1162,7 +1152,7 @@ def ng_inquiry_problem_investigation_api(
             if relation is None:
                 raise HTTPException(
                     status_code=404,
-                    detail="指定された問い合わせ問題調査が見つかりません。",
+                    detail="指定された問い合わせ調査が見つかりません。",
                 )
 
             inquiry_number, relation_investigation_id, relation_state = (
@@ -1172,14 +1162,14 @@ def ng_inquiry_problem_investigation_api(
             if relation_investigation_id != old_investigation_id:
                 raise HTTPException(
                     status_code=409,
-                    detail="問題調査との関連が変更されています。",
+                    detail="調査との関連が変更されています。",
                 )
 
             if relation_state != 3:
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        "リアクション待ちの問い合わせ問題調査のみ"
+                        "リアクション待ちの問い合わせ調査のみ"
                         "NGと回答できます。"
                     ),
                 )
@@ -1214,9 +1204,9 @@ def ng_inquiry_problem_investigation_api(
                 # 移行先の状態遷移とも競合しないようロックする
                 cur.execute(
                     """
-                    SELECT "問題調査状態"
-                    FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    SELECT "調査状態"
+                    FROM "調査"
+                    WHERE "調査番号" = %s
                     FOR UPDATE
                     """,
                     (latest_destination_id,),
@@ -1234,12 +1224,12 @@ def ng_inquiry_problem_investigation_api(
             if destination_id is None:
                 cur.execute(
                     """
-                    INSERT INTO "問題調査" (
-                        "問題調査の名称や仮説",
-                        "問題の原因",
+                    INSERT INTO "調査" (
+                        "調査の名称",
+                        "原因・仮説",
                         "情シス側での対応",
                         "問い合わせ者側で必要な対応",
-                        "問題調査状態",
+                        "調査状態",
                         "調査開始日時",
                         "対応案策定予定日時",
                         "進捗更新の次回更新予定日時"
@@ -1254,7 +1244,7 @@ def ng_inquiry_problem_investigation_api(
                         %s,
                         %s
                     )
-                    RETURNING "問題調査番号"
+                    RETURNING "調査番号"
                     """,
                     (
                         old_name,
@@ -1267,12 +1257,12 @@ def ng_inquiry_problem_investigation_api(
                 )
                 destination_id = cur.fetchone()[0]
 
-                # パターンB：旧問題調査の最新移行先を更新する
+                # パターンB：旧調査の最新移行先を更新する
                 cur.execute(
                     """
-                    UPDATE "問題調査"
-                    SET "最新移行先の問題調査番号" = %s
-                    WHERE "問題調査番号" = %s
+                    UPDATE "調査"
+                    SET "最新移行先の調査番号" = %s
+                    WHERE "調査番号" = %s
                     """,
                     (
                         destination_id,
@@ -1283,21 +1273,21 @@ def ng_inquiry_problem_investigation_api(
             # 7. 旧関連レコードにNG回答と移行先を記録する
             cur.execute(
                 """
-                UPDATE "問い合わせ問題調査"
+                UPDATE "問い合わせ調査"
                 SET
-                    "問い合わせ問題調査状態" = 5,
+                    "問い合わせ調査状態" = 5,
                     "リアクション内容" = 2,
                     "リアクション日時" = CURRENT_TIMESTAMP,
-                    "NGでの移行先問題調査番号" = %s
-                WHERE "問い合わせ問題調査番号" = %s
+                    "NGでの移行先調査番号" = %s
+                WHERE "問い合わせ調査番号" = %s
                 RETURNING
-                    "問い合わせ問題調査番号",
+                    "問い合わせ調査番号",
                     "問い合わせ番号",
-                    "問題調査番号",
-                    "問い合わせ問題調査状態",
+                    "調査番号",
+                    "問い合わせ調査状態",
                     "リアクション内容",
                     "リアクション日時",
-                    "NGでの移行先問題調査番号"
+                    "NGでの移行先調査番号"
                 """,
                 (
                     destination_id,
@@ -1311,8 +1301,8 @@ def ng_inquiry_problem_investigation_api(
             cur.execute(
                 """
                 SELECT "問い合わせ番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = %s
                 """,
                 (destination_id, inquiry_number),
@@ -1324,24 +1314,24 @@ def ng_inquiry_problem_investigation_api(
                     status_code=409,
                     detail=(
                         f"問い合わせ番号 {inquiry_number} は"
-                        "すでにこの問題調査に関連付けられています。"
+                        "すでにこの調査に関連付けられています。"
                     ),
                 )
 
-            # 9. 問い合わせと移行先問題調査を新たに関連づける
+            # 9. 問い合わせと移行先調査を新たに関連づける
             # 関連レコードの状態はDBの初期値1を使用する
             cur.execute(
                 """
-                INSERT INTO "問い合わせ問題調査" (
+                INSERT INTO "問い合わせ調査" (
                     "問い合わせ番号",
-                    "問題調査番号"
+                    "調査番号"
                 )
                 VALUES (%s, %s)
                 RETURNING
-                    "問い合わせ問題調査番号",
+                    "問い合わせ調査番号",
                     "問い合わせ番号",
-                    "問題調査番号",
-                    "問い合わせ問題調査状態"
+                    "調査番号",
+                    "問い合わせ調査状態"
                 """,
                 (
                     inquiry_number,
@@ -1352,16 +1342,16 @@ def ng_inquiry_problem_investigation_api(
             new_relation = cur.fetchone()
 
             result = {
-                "問い合わせ問題調査番号": updated_relation[0],
+                "問い合わせ調査番号": updated_relation[0],
                 "問い合わせ番号": updated_relation[1],
-                "問題調査番号": updated_relation[2],
-                "問い合わせ問題調査状態": updated_relation[3],
+                "調査番号": updated_relation[2],
+                "問い合わせ調査状態": updated_relation[3],
                 "リアクション内容": updated_relation[4],
                 "リアクション日時": updated_relation[5],
-                "NGでの移行先問題調査番号": updated_relation[6],
-                "新しい問題調査番号": destination_id,
-                "新しい問い合わせ問題調査番号": new_relation[0],
-                "新しい問い合わせ問題調査状態": new_relation[3],
+                "NGでの移行先調査番号": updated_relation[6],
+                "新しい調査番号": destination_id,
+                "新しい問い合わせ調査番号": new_relation[0],
+                "新しい問い合わせ調査状態": new_relation[3],
                 "message": "NGと回答し、追加調査先へ移行しました。",
             }
 
