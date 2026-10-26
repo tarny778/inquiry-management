@@ -30,6 +30,9 @@ import {
     updateInvestigation,
     abandonInvestigation,
     requestReactionInvestigation,
+    abandonRelatedInvestigation,
+    answerRelatedInquiryOk,
+    answerRelatedInquiryNg,
   } from './api/investigations'
 import useInvestigationList  from './useInvestigationList'
 
@@ -1309,6 +1312,136 @@ function App() {
     }
   }
 
+  // 問い合わせ問題調査を個別断念する
+  async function handleAbandonRelatedInvestigation(
+    relationNumber: number,
+  ) {
+    if (investigationLoading || !selectedInvestigation) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `問い合わせ問題調査番号 ${relationNumber} を個別断念しますか？`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      // 個別断念APIを呼び出す
+      await abandonRelatedInvestigation(relationNumber)
+
+      // 詳細情報を再取得する
+      // 関連一覧も最新状態になる
+      const detail = await getInvestigationDetail(
+        selectedInvestigation['問題調査番号'],
+      )
+
+      setSelectedInvestigation(detail)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setInvestigationScreenMode('list')
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+
+  // 問い合わせ問題調査にOKと回答する
+  async function handleAnswerRelatedInquiryOk(
+    relationId: number,
+  ) {
+    if (investigationLoading || !selectedInvestigation) {
+      return
+    }
+
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      await answerRelatedInquiryOk(relationId)
+
+      // 詳細情報を再取得する
+      const detail = await getInvestigationDetail(
+        selectedInvestigation['問題調査番号'],
+      )
+
+      setSelectedInvestigation(detail)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setInvestigationScreenMode('list')
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 問い合わせ問題調査にNGと回答する
+  async function handleAnswerRelatedInquiryNg(
+    relationId: number,
+  ) {
+    if (investigationLoading || !selectedInvestigation) {
+      return
+    }
+
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      await answerRelatedInquiryNg(relationId)
+
+      // 詳細情報を再取得する
+      const detail = await getInvestigationDetail(
+        selectedInvestigation['問題調査番号'],
+      )
+
+      setSelectedInvestigation(detail)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setInvestigationScreenMode('list')
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+
+
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoginError('')
@@ -1499,6 +1632,15 @@ function App() {
             handleRequestReactionInvestigation(
               selectedInvestigation['問題調査番号'],
             )
+          }
+          onAbandonRelated={(relationNumber) =>
+            handleAbandonRelatedInvestigation(relationNumber)
+          }
+          onAnswerRelatedInquiryOk={(relationNumber) =>
+            handleAnswerRelatedInquiryOk(relationNumber)
+          }
+          onAnswerRelatedInquiryNg={(relationNumber) =>
+            handleAnswerRelatedInquiryNg(relationNumber)
           }
         />
       )

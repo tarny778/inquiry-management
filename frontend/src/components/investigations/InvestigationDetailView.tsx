@@ -11,6 +11,9 @@ type InvestigationDetailViewProps = {
   onEdit: () => void
   onAbandon:() => Promise<void>
   onRequestReaction:() => Promise<void>
+  onAbandonRelated: (relationNumber: number) => Promise<void>
+  onAnswerRelatedInquiryOk: (relationId: number) => Promise<void>
+  onAnswerRelatedInquiryNg: (relationId: number) => Promise<void>
 }
 
 export default function InvestigationDetailView({
@@ -21,6 +24,9 @@ export default function InvestigationDetailView({
   onEdit,
   onAbandon,
   onRequestReaction,
+  onAbandonRelated,
+  onAnswerRelatedInquiryOk,
+  onAnswerRelatedInquiryNg,
 }: InvestigationDetailViewProps) {
   
   const canAbandon =
@@ -75,6 +81,12 @@ export default function InvestigationDetailView({
         relatedInquiries={
           investigation.関連する問い合わせ問題調査
         }
+        user={user}
+        investigationState={investigation.問題調査状態}
+        loading={loading}
+        onAbandonRelated={onAbandonRelated}
+        onAnswerOk={onAnswerRelatedInquiryOk}
+        onAnswerNg={onAnswerRelatedInquiryNg}
       />
     </div>
   )

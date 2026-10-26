@@ -109,3 +109,37 @@ export async function requestReactionInvestigation(
     '問題調査のリアクション要求に失敗しました。',
   )
 }
+
+
+/** 問い合わせ問題調査を個別断念する */
+export async function abandonRelatedInvestigation(
+  relationNumber: number,
+): Promise<void> {
+  await apiRequest<void>(
+    `/api/investigations/relations/${relationNumber}/abandon`,
+    { method: 'POST' },
+    '問い合わせ問題調査の個別断念に失敗しました。',
+  )
+}
+
+// 問い合わせ問題調査にOKと回答する
+export async function answerRelatedInquiryOk(
+  relationId: number,
+): Promise<void> {
+  await apiRequest<void>(
+    `/api/investigations/relations/${relationId}/ok`,
+    { method: 'POST' },
+    'OKの回答に失敗しました。',
+  )
+}
+
+// 問い合わせ問題調査にNGと回答する
+export async function answerRelatedInquiryNg(
+  relationId: number,
+): Promise<void> {
+  await apiRequest<void>(
+    `/api/investigations/relations/${relationId}/ng`,
+    { method: 'POST' },
+    'NGの回答に失敗しました。',
+  )
+}
