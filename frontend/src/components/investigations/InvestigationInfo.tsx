@@ -25,7 +25,7 @@ export default function InvestigationInfo({
             <td>{investigation.調査番号}</td>
           </tr>
           <tr>
-            <th>名称や仮説</th>
+            <th>調査の名称</th>
             <td>{investigation.調査の名称}</td>
           </tr>
           <tr>
