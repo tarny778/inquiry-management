@@ -75,6 +75,7 @@ export default function InquiryView({
                 </button>
 
                 <button
+                    className="button-primary"
                     type="button"
                     onClick={openInquiryEdit}
                     disabled={loading || selectedInquiry.状態 === '対応完了'}
@@ -83,6 +84,7 @@ export default function InquiryView({
                 </button>
 
                 <button
+                    className="button-primary"
                     type="button"
                     onClick={() =>
                     handleAcceptInquiry(selectedInquiry.問い合わせ番号)
@@ -93,6 +95,7 @@ export default function InquiryView({
                 </button>
 
                 <button
+                    className="button-primary"
                     type="button"
                     onClick={() =>
                     handleCompleteInquiry(selectedInquiry.問い合わせ番号)
@@ -103,6 +106,7 @@ export default function InquiryView({
                 </button>
 
                 <button
+                    className="button-primary"
                     type="button"
                     onClick={() =>
                     handleReopenInquiry(selectedInquiry.問い合わせ番号)
