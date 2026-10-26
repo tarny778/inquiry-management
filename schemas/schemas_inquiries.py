@@ -99,19 +99,19 @@ class InquiryBulkComplete(BaseModel):
 class InvestigationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    問題調査の名称や仮説: str = Field(
+    調査の名称: str = Field(
         min_length=1,
         max_length=30,
     )
 
-    @field_validator("問題調査の名称や仮説")
+    @field_validator("調査の名称")
     @classmethod
-    def validate_問題調査の名称や仮説(cls, value):
+    def validate_調査の名称(cls, value):
         value = value.strip()
 
         if not value:
             raise ValueError(
-                "問題調査の名称や仮説は空白だけでは登録できません"
+                "調査の名称は空白だけでは登録できません"
             )
 
         return value
@@ -121,7 +121,7 @@ class BulkInvestigationCreate(BaseModel):
 
     問い合わせ番号一覧: list[int] = Field(min_length=1)
 
-    問題調査の名称や仮説: str = Field(
+    調査の名称: str = Field(
         min_length=1,
         max_length=30,
     )
@@ -141,14 +141,14 @@ class BulkInvestigationCreate(BaseModel):
 
         return value
 
-    @field_validator("問題調査の名称や仮説")
+    @field_validator("調査の名称")
     @classmethod
-    def validate_問題調査の名称や仮説(cls, value):
+    def validate_調査の名称(cls, value):
         value = value.strip()
 
         if not value:
             raise ValueError(
-                "問題調査の名称や仮説は空白だけでは登録できません"
+                "調査の名称は空白だけでは登録できません"
             )
 
         return value
@@ -157,7 +157,7 @@ class BulkLinkInvestigation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     問い合わせ番号一覧: list[int] = Field(min_length=1)
-    問題調査番号: int = Field(ge=1)
+    調査番号: int = Field(ge=1)
 
     @field_validator("問い合わせ番号一覧")
     @classmethod
