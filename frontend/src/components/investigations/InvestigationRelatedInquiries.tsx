@@ -33,14 +33,14 @@ export default function InvestigationRelatedInquiries({
 
   return (
     <section className="list-section">
-      <h3>関連する問い合わせ問題調査</h3>
+      <h3>関連する問い合わせ調査</h3>
 
       <p>関連件数：{relatedInquiries.length} 件</p>
 
       <table>
         <thead>
           <tr>
-            <th>問い合わせ問題調査番号</th>
+            <th>問い合わせ調査番号</th>
             <th>問い合わせ番号</th>
             <th>問い合わせ者</th>
             <th>対応担当者</th>
@@ -50,7 +50,7 @@ export default function InvestigationRelatedInquiries({
             <th>リアクション被要求日時</th>
             <th>リアクション日時</th>
             <th>リアクション内容</th>
-            <th>NGでの移行先問題調査番号</th>
+            <th>NGでの移行先調査番号</th>
             <th>個別断念</th>
             <th>OK回答</th>
             <th>NG回答</th>
@@ -61,7 +61,7 @@ export default function InvestigationRelatedInquiries({
           {relatedInquiries.length === 0 ? (
             <tr>
               <td colSpan={14}>
-                関連する問い合わせ問題調査はありません。
+                関連する問い合わせ調査はありません。
               </td>
             </tr>
           ) : (
@@ -69,19 +69,19 @@ export default function InvestigationRelatedInquiries({
               const canAbandonRelated =
                 user !== null &&
                 investigationState === 1 &&
-                relatedInquiry['問い合わせ問題調査状態'] === 1 &&
+                relatedInquiry['問い合わせ調査状態'] === 1 &&
                 relatedInquiry['対応担当者職員番号'] === user['職員番号']
               const canAnswer = (relatedInquiry: InvestigationRelatedInquiry) =>
                 user !== null &&
                 investigationState === 2 &&
-                relatedInquiry['問い合わせ問題調査状態'] === 3 &&
+                relatedInquiry['問い合わせ調査状態'] === 3 &&
                 relatedInquiry['問い合わせ職員番号'] === user['職員番号']
               return(
                 <tr
-                  key={relatedInquiry.問い合わせ問題調査番号}
+                  key={relatedInquiry.問い合わせ調査番号}
                 >
                   <td>
-                    {relatedInquiry.問い合わせ問題調査番号}
+                    {relatedInquiry.問い合わせ調査番号}
                   </td>
                   <td>{relatedInquiry.問い合わせ番号}</td>
                   <td>{relatedInquiry.問い合わせ者氏名}</td>
@@ -90,7 +90,7 @@ export default function InvestigationRelatedInquiries({
                   </td>
                   <td>
                     {statusLabels[
-                      relatedInquiry.問い合わせ問題調査状態
+                      relatedInquiry.問い合わせ調査状態
                     ] ?? '不明'}
                   </td>
                   <td>
@@ -109,14 +109,14 @@ export default function InvestigationRelatedInquiries({
                     {relatedInquiry.リアクション内容 ?? '—'}
                   </td>
                   <td>
-                    {relatedInquiry.NGでの移行先問題調査番号 ?? '—'}
+                    {relatedInquiry.NGでの移行先調査番号 ?? '—'}
                   </td>
                   <td>
                     <button
                       type="button"
                       onClick={() =>
                         onAbandonRelated(
-                          relatedInquiry['問い合わせ問題調査番号'],
+                          relatedInquiry['問い合わせ調査番号'],
                         )
                       }
                       disabled={loading || !canAbandonRelated}
@@ -131,7 +131,7 @@ export default function InvestigationRelatedInquiries({
                         disabled={loading}
                         onClick={() =>
                           void onAnswerOk(
-                            relatedInquiry['問い合わせ問題調査番号'],
+                            relatedInquiry['問い合わせ調査番号'],
                           )
                         }
                       >
@@ -147,7 +147,7 @@ export default function InvestigationRelatedInquiries({
                         disabled={loading}
                         onClick={() =>
                           void onAnswerNg(
-                            relatedInquiry['問い合わせ問題調査番号'],
+                            relatedInquiry['問い合わせ調査番号'],
                           )
                         }
                       >
