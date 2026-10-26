@@ -271,7 +271,7 @@ def completion_test_inquiries():
 
 @pytest.fixture
 def inquiry_problem_investigation_factory():
-    """問い合わせ問題調査を作成するテスト用ファクトリ。"""
+    """問い合わせ調査を作成するテスト用ファクトリ。"""
     created_investigation_ids = []
     created_relation_ids = []
 
@@ -280,30 +280,30 @@ def inquiry_problem_investigation_factory():
             dbname="inquiry_management_test"
         ) as conn:
             with conn.cursor() as cur:
-                # 1. 問題調査を作成
+                # 1. 調査を作成
                 cur.execute(
                     """
-                    INSERT INTO "問題調査" (
-                        "問題調査の名称や仮説"
+                    INSERT INTO "調査" (
+                        "調査の名称"
                     )
                     VALUES (%s)
-                    RETURNING "問題調査番号"
+                    RETURNING "調査番号"
                     """,
                     ("テスト用の調査",),
                 )
                 investigation_id = cur.fetchone()[0]
                 created_investigation_ids.append(investigation_id)
 
-                # 2. 問い合わせ問題調査を作成
+                # 2. 問い合わせ調査を作成
                 cur.execute(
                     """
-                    INSERT INTO "問い合わせ問題調査" (
-                        "問題調査番号",
+                    INSERT INTO "問い合わせ調査" (
+                        "調査番号",
                         "問い合わせ番号",
-                        "問い合わせ問題調査状態"
+                        "問い合わせ調査状態"
                     )
                     VALUES (%s, %s, %s)
-                    RETURNING "問い合わせ問題調査番号"
+                    RETURNING "問い合わせ調査番号"
                     """,
                     (
                         investigation_id,
@@ -326,8 +326,8 @@ def inquiry_problem_investigation_factory():
             for investigation_id in created_investigation_ids:
                 cur.execute(
                     """
-                    DELETE FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_id,),
                 )
@@ -335,8 +335,8 @@ def inquiry_problem_investigation_factory():
             for investigation_id in created_investigation_ids:
                 cur.execute(
                     """
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_id,),
                 )
@@ -420,7 +420,7 @@ def bulk_completion_test_inquiries():
 
 @pytest.fixture
 def unlinked_investigation_factory():
-    """関連付け前の問題調査を作成し、テスト後に削除する。"""
+    """関連付け前の調査を作成し、テスト後に削除する。"""
     created_investigation_numbers = []
 
     def create_investigation(state=1):
@@ -428,14 +428,14 @@ def unlinked_investigation_factory():
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO "問題調査" (
-                        "問題調査の名称や仮説",
-                        "問題調査状態"
+                    INSERT INTO "調査" (
+                        "調査の名称",
+                        "調査状態"
                     )
                     VALUES (%s, %s)
-                    RETURNING "問題調査番号"
+                    RETURNING "調査番号"
                     """,
-                    ("テスト用の問題調査", state),
+                    ("テスト用の調査", state),
                 )
                 investigation_number = cur.fetchone()[0]
 
@@ -450,8 +450,8 @@ def unlinked_investigation_factory():
             for investigation_number in created_investigation_numbers:
                 cur.execute(
                     """
-                    DELETE FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_number,),
                 )
@@ -459,8 +459,8 @@ def unlinked_investigation_factory():
             for investigation_number in created_investigation_numbers:
                 cur.execute(
                     """
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_number,),
                 )
@@ -519,7 +519,7 @@ def _make_second_in_progress_inquiry(completion_test_inquiries):
 
 @pytest.fixture
 def bulk_created_investigation_cleanup():
-    """一括APIのテストで作成した問題調査を後片付けする。"""
+    """一括APIのテストで作成した調査を後片付けする。"""
     investigation_numbers = []
 
     def register(investigation_number):
@@ -532,8 +532,8 @@ def bulk_created_investigation_cleanup():
             for investigation_number in investigation_numbers:
                 cur.execute(
                     """
-                    DELETE FROM "問い合わせ問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "問い合わせ調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_number,),
                 )
@@ -541,15 +541,15 @@ def bulk_created_investigation_cleanup():
             for investigation_number in investigation_numbers:
                 cur.execute(
                     """
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_number,),
                 )
 
 @pytest.fixture
 def detail_test_investigation_links(detail_test_inquiries):
-    """詳細取得API用に、問題調査との関連付けを作成する。"""
+    """詳細取得API用に、調査との関連付けを作成する。"""
     inquiry_number = detail_test_inquiries["pending"]
     investigation_numbers = []
 
@@ -558,18 +558,18 @@ def detail_test_investigation_links(detail_test_inquiries):
             "dbname=inquiry_management_test"
         ) as conn:
             with conn.cursor() as cur:
-                # 問題調査を2件作成
+                # 調査を2件作成
                 for name in [
                     "詳細APIテスト用調査A",
                     "詳細APIテスト用調査B",
                 ]:
                     cur.execute(
                         '''
-                        INSERT INTO "問題調査" (
-                            "問題調査の名称や仮説"
+                        INSERT INTO "調査" (
+                            "調査の名称"
                         )
                         VALUES (%s)
-                        RETURNING "問題調査番号"
+                        RETURNING "調査番号"
                         ''',
                         (name,),
                     )
@@ -578,11 +578,11 @@ def detail_test_investigation_links(detail_test_inquiries):
                         investigation_number
                     )
 
-                    # 問い合わせと問題調査を関連付ける
+                    # 問い合わせと調査を関連付ける
                     cur.execute(
                         '''
-                        INSERT INTO "問い合わせ問題調査" (
-                            "問題調査番号",
+                        INSERT INTO "問い合わせ調査" (
+                            "調査番号",
                             "問い合わせ番号"
                         )
                         VALUES (%s, %s)
@@ -595,20 +595,20 @@ def detail_test_investigation_links(detail_test_inquiries):
 
         yield {
             "問い合わせ番号": inquiry_number,
-            "問題調査番号一覧": investigation_numbers,
+            "調査番号一覧": investigation_numbers,
         }
 
     finally:
-        # 関連レコードを先に削除し、その後に問題調査を削除
+        # 関連レコードを先に削除し、その後に調査を削除
         with psycopg.connect(
             "dbname=inquiry_management_test"
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
-                    DELETE FROM "問い合わせ問題調査"
+                    DELETE FROM "問い合わせ調査"
                     WHERE "問い合わせ番号" = %s
-                      AND "問題調査番号" = ANY(%s)
+                      AND "調査番号" = ANY(%s)
                     ''',
                     (
                         inquiry_number,
@@ -618,8 +618,8 @@ def detail_test_investigation_links(detail_test_inquiries):
 
                 cur.execute(
                     '''
-                    DELETE FROM "問題調査"
-                    WHERE "問題調査番号" = ANY(%s)
+                    DELETE FROM "調査"
+                    WHERE "調査番号" = ANY(%s)
                     ''',
                     (investigation_numbers,),
                 )
@@ -1274,7 +1274,7 @@ def test_complete_inquiry_by_inquiry_problem_investigation_state(
     state,
     expected_status,
 ):
-    """関連する問い合わせ問題調査の状態によって完了可否が決まる。"""
+    """関連する問い合わせ調査の状態によって完了可否が決まる。"""
     inquiry_number = completion_test_inquiries["in_progress"]
 
     # 対応担当者を J0001 に設定
@@ -1897,12 +1897,12 @@ def test_reopen_inquiry_conflict_when_expired(
     assert row is not None
     assert row[0] is not None
 
-#新規問題調査へ個別関連付け
+#新規調査へ個別関連付け
 def test_create_investigation_success(
     completion_test_inquiries,
     monkeypatch,
 ):
-    """対応中の問い合わせに問題調査を作成し、関連付ける。"""
+    """対応中の問い合わせに調査を作成し、関連付ける。"""
     _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
@@ -1913,7 +1913,7 @@ def test_create_investigation_success(
         response = client.post(
             f"/api/inquiries/{inquiry_number}/investigations",
             json={
-                "問題調査の名称や仮説": "ネットワーク接続の不具合",
+                "調査の名称": "ネットワーク接続の不具合",
             },
         )
 
@@ -1921,23 +1921,23 @@ def test_create_investigation_success(
 
         data = response.json()
         assert data["問い合わせ番号"] == inquiry_number
-        assert data["問題調査の名称や仮説"] == "ネットワーク接続の不具合"
-        assert "問題調査番号" in data
-        assert "問い合わせ問題調査番号" in data
+        assert data["調査の名称"] == "ネットワーク接続の不具合"
+        assert "調査番号" in data
+        assert "問い合わせ調査番号" in data
 
-        investigation_number = data["問題調査番号"]
-        inquiry_investigation_number = data["問い合わせ問題調査番号"]
+        investigation_number = data["調査番号"]
+        inquiry_investigation_number = data["問い合わせ調査番号"]
 
-        # 問題調査が初期状態1で登録されたことを確認
+        # 調査が初期状態1で登録されたことを確認
         with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     SELECT
-                        "問題調査の名称や仮説",
-                        "問題調査状態"
-                    FROM "問題調査"
-                    WHERE "問題調査番号" = %s
+                        "調査の名称",
+                        "調査状態"
+                    FROM "調査"
+                    WHERE "調査番号" = %s
                     """,
                     (investigation_number,),
                 )
@@ -1952,11 +1952,11 @@ def test_create_investigation_success(
                 cur.execute(
                     """
                     SELECT
-                        "問題調査番号",
+                        "調査番号",
                         "問い合わせ番号",
-                        "問い合わせ問題調査状態"
-                    FROM "問い合わせ問題調査"
-                    WHERE "問い合わせ問題調査番号" = %s
+                        "問い合わせ調査状態"
+                    FROM "問い合わせ調査"
+                    WHERE "問い合わせ調査番号" = %s
                     """,
                     (inquiry_investigation_number,),
                 )
@@ -1975,8 +1975,8 @@ def test_create_investigation_success(
                 if inquiry_investigation_number is not None:
                     cur.execute(
                         """
-                        DELETE FROM "問い合わせ問題調査"
-                        WHERE "問い合わせ問題調査番号" = %s
+                        DELETE FROM "問い合わせ調査"
+                        WHERE "問い合わせ調査番号" = %s
                         """,
                         (inquiry_investigation_number,),
                     )
@@ -1984,8 +1984,8 @@ def test_create_investigation_success(
                 if investigation_number is not None:
                     cur.execute(
                         """
-                        DELETE FROM "問題調査"
-                        WHERE "問題調査番号" = %s
+                        DELETE FROM "調査"
+                        WHERE "調査番号" = %s
                         """,
                         (investigation_number,),
                     )
@@ -2003,7 +2003,7 @@ def test_create_investigation_pending_inquiry_conflict(
     response = client.post(
         f"/api/inquiries/{inquiry_number}/investigations",
         json={
-            "問題調査の名称や仮説": "テスト用の仮説",
+            "調査の名称": "テスト用の仮説",
         },
     )
 
@@ -2022,7 +2022,7 @@ def test_create_investigation_completed_inquiry_conflict(
     response = client.post(
         f"/api/inquiries/{inquiry_number}/investigations",
         json={
-            "問題調査の名称や仮説": "テスト用の仮説",
+            "調査の名称": "テスト用の仮説",
         },
     )
 
@@ -2036,7 +2036,7 @@ def test_create_investigation_inquiry_not_found(monkeypatch):
     response = client.post(
         "/api/inquiries/999999999/investigations",
         json={
-            "問題調査の名称や仮説": "テスト用の仮説",
+            "調査の名称": "テスト用の仮説",
         },
     )
 
@@ -2047,7 +2047,7 @@ def test_create_investigation_forbidden_for_other_handler(
     completion_test_inquiries,
     monkeypatch,
 ):
-    """別の職員は対応担当者の問い合わせに問題調査を作成できない。"""
+    """別の職員は対応担当者の問い合わせに調査を作成できない。"""
     _set_test_user(monkeypatch, staff_number="J0002")
 
     inquiry_number = completion_test_inquiries["in_progress"]
@@ -2055,7 +2055,7 @@ def test_create_investigation_forbidden_for_other_handler(
     response = client.post(
         f"/api/inquiries/{inquiry_number}/investigations",
         json={
-            "問題調査の名称や仮説": "テスト用の仮説",
+            "調査の名称": "テスト用の仮説",
         },
     )
 
@@ -2083,7 +2083,7 @@ def test_create_investigation_invalid_name(
     response = client.post(
         f"/api/inquiries/{inquiry_number}/investigations",
         json={
-            "問題調査の名称や仮説": name,
+            "調査の名称": name,
         },
     )
 
@@ -2096,7 +2096,7 @@ def test_link_existing_investigation_success(
     inquiry_problem_investigation_factory,
     monkeypatch,
 ):
-    """対応中の問い合わせに調査中の問題調査を関連付けられる。"""
+    """対応中の問い合わせに調査中の調査を関連付けられる。"""
     _set_test_user(monkeypatch, staff_number="J0001")
 
     # 既存の関連付けを持つ問い合わせ
@@ -2120,20 +2120,20 @@ def test_link_existing_investigation_success(
                 ("J0001", inquiry_number),
             )
 
-    # 問題調査と最初の関連付けを作成
+    # 調査と最初の関連付けを作成
     relation_id = inquiry_problem_investigation_factory(
         existing_inquiry_number,
         state=1,
     )
 
-    # 関連レコード番号から問題調査番号を取得
+    # 関連レコード番号から調査番号を取得
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -2148,21 +2148,21 @@ def test_link_existing_investigation_success(
 
     data = response.json()
     assert data["問い合わせ番号"] == inquiry_number
-    assert data["問題調査番号"] == investigation_number
-    assert "問い合わせ問題調査番号" in data
+    assert data["調査番号"] == investigation_number
+    assert "問い合わせ調査番号" in data
 
     with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT
-                    "問題調査番号",
+                    "調査番号",
                     "問い合わせ番号",
-                    "問い合わせ問題調査状態"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                    "問い合わせ調査状態"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
-                (data["問い合わせ問題調査番号"],),
+                (data["問い合わせ調査番号"],),
             )
             relation = cur.fetchone()
 
@@ -2217,19 +2217,19 @@ def test_link_investigation_nonexistent_inquiry_returns_404(
 
     # 既存の関連付けを持つ問い合わせ
     existing_inquiry_number = completion_test_inquiries["in_progress"]
-    # 問題調査と最初の関連付けを作成
+    # 調査と最初の関連付けを作成
     relation_id = inquiry_problem_investigation_factory(
         existing_inquiry_number,
         state=1,
     )
-    # 関連レコード番号から問題調査番号を取得
+    # 関連レコード番号から調査番号を取得
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -2248,7 +2248,7 @@ def test_link_investigation_nonexistent_investigation_returns_404(
     completion_test_inquiries,
     monkeypatch,
 ):
-    """存在しない問題調査は関連付けできない。"""
+    """存在しない調査は関連付けできない。"""
     _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
@@ -2271,7 +2271,7 @@ def test_link_investigation_other_handler_returns_403(
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
-    #既存の問い合わせ問題調査を作成
+    #既存の問い合わせ調査を作成
     existing_inquiry_number = completion_test_inquiries["pending"]
     with psycopg.connect(dbname="inquiry_management_test") as conn:
             with conn.cursor() as cur:
@@ -2287,19 +2287,19 @@ def test_link_investigation_other_handler_returns_403(
                     """,
                     ("J0001", existing_inquiry_number),
                 )
-    # 問題調査と最初の関連付けを作成
+    # 調査と最初の関連付けを作成
     relation_id = inquiry_problem_investigation_factory(
         existing_inquiry_number,
         state=1,
     )
-    # 関連レコード番号から問題調査番号を取得
+    # 関連レコード番号から調査番号を取得
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -2320,7 +2320,7 @@ def test_link_investigation_non_active_state_returns_409(
     monkeypatch,
     state,
 ):
-    """調査中以外の問題調査は関連付けできない。"""
+    """調査中以外の調査は関連付けできない。"""
     _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
@@ -2338,25 +2338,25 @@ def test_link_investigation_duplicate_returns_409(
     inquiry_problem_investigation_factory,
     monkeypatch,
 ):
-    """同じ問い合わせと問題調査の組み合わせを二重登録できない。"""
+    """同じ問い合わせと調査の組み合わせを二重登録できない。"""
     _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
-    # 問題調査と最初の関連付けを作成
+    # 調査と最初の関連付けを作成
     relation_id = inquiry_problem_investigation_factory(
         inquiry_number,
         state=1,
     )
 
-    # 関連レコード番号から問題調査番号を取得
+    # 関連レコード番号から調査番号を取得
     with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -2376,9 +2376,9 @@ def test_link_investigation_duplicate_returns_409(
             cur.execute(
                 """
                 SELECT COUNT(*)
-                FROM "問い合わせ問題調査"
+                FROM "問い合わせ調査"
                 WHERE "問い合わせ番号" = %s
-                  AND "問題調査番号" = %s
+                  AND "調査番号" = %s
                 """,
                 (inquiry_number, investigation_number),
             )
@@ -2409,7 +2409,7 @@ def test_link_investigation_existing_inquiry_other_handler_returns_403(
                 ("J0002", existing_inquiry_number),
             )
 
-    # 既存の関連付けを持つ問題調査を作成
+    # 既存の関連付けを持つ調査を作成
     relation_id = inquiry_problem_investigation_factory(
         existing_inquiry_number,
         state=1,
@@ -2419,9 +2419,9 @@ def test_link_investigation_existing_inquiry_other_handler_returns_403(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -2456,12 +2456,12 @@ def test_link_investigation_without_existing_relation_returns_409(
     unlinked_investigation_factory,
     monkeypatch,
 ):
-    """既存の関連付けがない問題調査には追加できない。"""
+    """既存の関連付けがない調査には追加できない。"""
     _set_test_user(monkeypatch, staff_number="J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
 
-    # 問題調査は作成するが、関連付けは作成しない
+    # 調査は作成するが、関連付けは作成しない
     investigation_number = unlinked_investigation_factory(state=1)
 
     response = client.post(
@@ -2477,7 +2477,7 @@ def test_bulk_create_investigation_success(
     bulk_created_investigation_cleanup,
     monkeypatch,
 ):
-    """複数の対応中問い合わせに、新しい問題調査を関連付けられる。"""
+    """複数の対応中問い合わせに、新しい調査を関連付けられる。"""
     _set_test_user(monkeypatch)
 
     inquiry1 = completion_test_inquiries["in_progress"]
@@ -2489,14 +2489,14 @@ def test_bulk_create_investigation_success(
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [inquiry1, inquiry2],
-            "問題調査の名称や仮説": "一括登録の正常系テスト",
+            "調査の名称": "一括登録の正常系テスト",
         },
     )
 
     assert response.status_code == 200
     data = response.json()
 
-    investigation_number = data["問題調査番号"]
+    investigation_number = data["調査番号"]
     bulk_created_investigation_cleanup(investigation_number)
 
     assert data["関連付け件数"] == 2
@@ -2512,10 +2512,10 @@ def test_bulk_create_investigation_success(
             cur.execute(
                 """
                 SELECT
-                    "問題調査の名称や仮説",
-                    "問題調査状態"
-                FROM "問題調査"
-                WHERE "問題調査番号" = %s
+                    "調査の名称",
+                    "調査状態"
+                FROM "調査"
+                WHERE "調査番号" = %s
                 """,
                 (investigation_number,),
             )
@@ -2524,8 +2524,8 @@ def test_bulk_create_investigation_success(
             cur.execute(
                 """
                 SELECT COUNT(*)
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                 """,
                 (investigation_number,),
             )
@@ -2548,14 +2548,14 @@ def test_bulk_create_investigation_single_inquiry_success(
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [inquiry_number],
-            "問題調査の名称や仮説": "1件選択の正常系テスト",
+            "調査の名称": "1件選択の正常系テスト",
         },
     )
 
     assert response.status_code == 200
     data = response.json()
 
-    bulk_created_investigation_cleanup(data["問題調査番号"])
+    bulk_created_investigation_cleanup(data["調査番号"])
 
     assert data["関連付け件数"] == 1
     assert len(data["関連付け一覧"]) == 1
@@ -2581,7 +2581,7 @@ def test_bulk_create_investigation_missing_inquiry_returns_404(
                 inquiry_number,
                 999999999,
             ],
-            "問題調査の名称や仮説": name,
+            "調査の名称": name,
         },
     )
 
@@ -2592,8 +2592,8 @@ def test_bulk_create_investigation_missing_inquiry_returns_404(
             cur.execute(
                 """
                 SELECT COUNT(*)
-                FROM "問題調査"
-                WHERE "問題調査の名称や仮説" = %s
+                FROM "調査"
+                WHERE "調査の名称" = %s
                 """,
                 (name,),
             )
@@ -2614,7 +2614,7 @@ def test_bulk_create_investigation_pending_inquiry_returns_409(
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [inquiry1, inquiry2],
-            "問題調査の名称や仮説": name,
+            "調査の名称": name,
         },
     )
 
@@ -2625,8 +2625,8 @@ def test_bulk_create_investigation_pending_inquiry_returns_409(
             cur.execute(
                 """
                 SELECT COUNT(*)
-                FROM "問題調査"
-                WHERE "問題調査の名称や仮説" = %s
+                FROM "調査"
+                WHERE "調査の名称" = %s
                 """,
                 (name,),
             )
@@ -2649,7 +2649,7 @@ def test_bulk_create_investigation_completed_inquiry_returns_409(
                 inquiry_number,
                 completed_number,
             ],
-            "問題調査の名称や仮説": "一括登録の完了状態テスト",
+            "調査の名称": "一括登録の完了状態テスト",
         },
     )
 
@@ -2668,7 +2668,7 @@ def test_bulk_create_investigation_other_handler_returns_403(
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [inquiry_number],
-            "問題調査の名称や仮説": "一括登録の権限テスト",
+            "調査の名称": "一括登録の権限テスト",
         },
     )
 
@@ -2680,7 +2680,7 @@ def test_bulk_create_investigation_empty_list_returns_422():
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [],
-            "問題調査の名称や仮説": "空リストのテスト",
+            "調査の名称": "空リストのテスト",
         },
     )
 
@@ -2692,7 +2692,7 @@ def test_bulk_create_investigation_duplicate_numbers_returns_422():
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [101, 101],
-            "問題調査の名称や仮説": "重複番号のテスト",
+            "調査の名称": "重複番号のテスト",
         },
     )
 
@@ -2704,7 +2704,7 @@ def test_bulk_create_investigation_invalid_number_returns_422():
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [0],
-            "問題調査の名称や仮説": "番号範囲のテスト",
+            "調査の名称": "番号範囲のテスト",
         },
     )
 
@@ -2724,28 +2724,28 @@ def test_bulk_create_investigation_invalid_name_returns_422(name):
         "/api/inquiries/bulk-investigations",
         json={
             "問い合わせ番号一覧": [101],
-            "問題調査の名称や仮説": name,
+            "調査の名称": name,
         },
     )
 
     assert response.status_code == 422
 
 # =========================================================
-# 既存の問題調査を複数の問い合わせに関連付けるAPIのテスト
+# 既存の調査を複数の問い合わせに関連付けるAPIのテスト
 # =========================================================
 
 def _get_bulk_link_relation_count(
     investigation_number,
     inquiry_numbers,
 ):
-    """指定した問題調査と問い合わせの関連付け件数を取得する。"""
+    """指定した調査と問い合わせの関連付け件数を取得する。"""
     with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT COUNT(*)
-                FROM "問い合わせ問題調査"
-                WHERE "問題調査番号" = %s
+                FROM "問い合わせ調査"
+                WHERE "調査番号" = %s
                   AND "問い合わせ番号" = ANY(%s)
                 """,
                 (investigation_number, inquiry_numbers),
@@ -2758,7 +2758,7 @@ def test_bulk_link_existing_investigation_success(
     completion_test_inquiries,
     inquiry_problem_investigation_factory,
 ):
-    """複数の対応中問い合わせに既存の問題調査を関連付けできる。"""
+    """複数の対応中問い合わせに既存の調査を関連付けできる。"""
     _set_test_user(monkeypatch, "J0001")
 
     existing_number = completion_test_inquiries["in_progress"]
@@ -2769,7 +2769,7 @@ def test_bulk_link_existing_investigation_success(
     inquiry_numbers = [first_number, second_number]
 
     try:
-        # 既存の関連付け先となる問題調査を作成
+        # 既存の関連付け先となる調査を作成
         relation_id = inquiry_problem_investigation_factory(
             existing_number,
             state=1,
@@ -2779,9 +2779,9 @@ def test_bulk_link_existing_investigation_success(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT "問題調査番号"
-                    FROM "問い合わせ問題調査"
-                    WHERE "問い合わせ問題調査番号" = %s
+                    SELECT "調査番号"
+                    FROM "問い合わせ調査"
+                    WHERE "問い合わせ調査番号" = %s
                     """,
                     (relation_id,),
                 )
@@ -2808,12 +2808,12 @@ def test_bulk_link_existing_investigation_success(
             "/api/inquiries/bulk-link-investigation",
             json={
                 "問い合わせ番号一覧": inquiry_numbers,
-                "問題調査番号": investigation_number,
+                "調査番号": investigation_number,
             },
         )
 
         assert response.status_code == 200, response.text
-        assert response.json()["問題調査番号"] == investigation_number
+        assert response.json()["調査番号"] == investigation_number
         assert response.json()["関連付け件数"] == 2
         assert {
             item["問い合わせ番号"]
@@ -2826,14 +2826,14 @@ def test_bulk_link_existing_investigation_success(
         ) == 2
 
     finally:
-        # 問い合わせ問題調査の関連レコードを先に削除
+        # 問い合わせ調査の関連レコードを先に削除
         with psycopg.connect(
             dbname="inquiry_management_test"
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    DELETE FROM "問い合わせ問題調査"
+                    DELETE FROM "問い合わせ調査"
                     WHERE "問い合わせ番号" = ANY(%s)
                     """,
                     (inquiry_numbers,),
@@ -2857,7 +2857,7 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
     inquiry_numbers = [inquiry_number]
 
     try:
-        # 既存の関連付け先となる問題調査を作成
+        # 既存の関連付け先となる調査を作成
         relation_id = inquiry_problem_investigation_factory(
             existing_number,
             state=1,
@@ -2867,9 +2867,9 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT "問題調査番号"
-                    FROM "問い合わせ問題調査"
-                    WHERE "問い合わせ問題調査番号" = %s
+                    SELECT "調査番号"
+                    FROM "問い合わせ調査"
+                    WHERE "問い合わせ調査番号" = %s
                     """,
                     (relation_id,),
                 )
@@ -2896,12 +2896,12 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
             "/api/inquiries/bulk-link-investigation",
             json={
                 "問い合わせ番号一覧": inquiry_numbers,
-                "問題調査番号": investigation_number,
+                "調査番号": investigation_number,
             },
         )
 
         assert response.status_code == 200, response.text
-        assert response.json()["問題調査番号"] == investigation_number
+        assert response.json()["調査番号"] == investigation_number
         assert response.json()["関連付け件数"] == 1
         assert {
             item["問い合わせ番号"]
@@ -2921,7 +2921,7 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    DELETE FROM "問い合わせ問題調査"
+                    DELETE FROM "問い合わせ調査"
                     WHERE "問い合わせ番号" = ANY(%s)
                     """,
                     (inquiry_numbers,),
@@ -2934,14 +2934,14 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
 def test_bulk_link_existing_investigation_not_found(
     completion_test_inquiries,
 ):
-    """存在しない問題調査は関連付けできない。"""
+    """存在しない調査は関連付けできない。"""
     inquiry_number = completion_test_inquiries["in_progress"]
 
     response = client.post(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": [inquiry_number],
-            "問題調査番号": 999999999,
+            "調査番号": 999999999,
         },
     )
 
@@ -2958,7 +2958,7 @@ def test_bulk_link_existing_investigation_inquiry_not_found(
 
     valid_number = completion_test_inquiries["in_progress"]
     missing_number = 999999999
-    #既存の問い合わせ問題調査を作成
+    #既存の問い合わせ調査を作成
     existing_inquiry_number = completion_test_inquiries["pending"]
     with psycopg.connect(dbname="inquiry_management_test") as conn:
             with conn.cursor() as cur:
@@ -2974,19 +2974,19 @@ def test_bulk_link_existing_investigation_inquiry_not_found(
                     """,
                     ("J0001", existing_inquiry_number),
                 )
-    # 問題調査と最初の関連付けを作成
+    # 調査と最初の関連付けを作成
     relation_id = inquiry_problem_investigation_factory(
         existing_inquiry_number,
         state=1,
     )
-    # 関連レコード番号から問題調査番号を取得
+    # 関連レコード番号から調査番号を取得
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -2996,7 +2996,7 @@ def test_bulk_link_existing_investigation_inquiry_not_found(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": [valid_number, missing_number],
-            "問題調査番号": investigation_number,
+            "調査番号": investigation_number,
         },
     )
 
@@ -3012,7 +3012,7 @@ def test_bulk_link_existing_investigation_wrong_state(
     completion_test_inquiries,
     unlinked_investigation_factory,
 ):
-    """調査中以外の問題調査は関連付けできない。"""
+    """調査中以外の調査は関連付けできない。"""
     _set_test_user(monkeypatch, "J0001")
 
     inquiry_number = completion_test_inquiries["in_progress"]
@@ -3022,7 +3022,7 @@ def test_bulk_link_existing_investigation_wrong_state(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": [inquiry_number],
-            "問題調査番号": investigation_number,
+            "調査番号": investigation_number,
         },
     )
 
@@ -3049,7 +3049,7 @@ def test_bulk_link_existing_investigation_inquiry_not_in_progress(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": [valid_number, pending_number],
-            "問題調査番号": investigation_number,
+            "調査番号": investigation_number,
         },
     )
 
@@ -3069,7 +3069,7 @@ def test_bulk_link_existing_investigation_wrong_handler(
     _set_test_user(monkeypatch, "J0002")
 
     inquiry_number = completion_test_inquiries["in_progress"]
-    #既存の問い合わせ問題調査を作成
+    #既存の問い合わせ調査を作成
     existing_inquiry_number = completion_test_inquiries["pending"]
     with psycopg.connect(dbname="inquiry_management_test") as conn:
             with conn.cursor() as cur:
@@ -3085,19 +3085,19 @@ def test_bulk_link_existing_investigation_wrong_handler(
                     """,
                     ("J0001", existing_inquiry_number),
                 )
-    # 問題調査と最初の関連付けを作成
+    # 調査と最初の関連付けを作成
     relation_id = inquiry_problem_investigation_factory(
         existing_inquiry_number,
         state=1,
     )
-    # 関連レコード番号から問題調査番号を取得
+    # 関連レコード番号から調査番号を取得
     with psycopg.connect(dbname="inquiry_management_test") as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -3107,7 +3107,7 @@ def test_bulk_link_existing_investigation_wrong_handler(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": [inquiry_number],
-            "問題調査番号": investigation_number,
+            "調査番号": investigation_number,
         },
     )
 
@@ -3140,9 +3140,9 @@ def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT "問題調査番号"
-                    FROM "問い合わせ問題調査"
-                    WHERE "問い合わせ問題調査番号" = %s
+                    SELECT "調査番号"
+                    FROM "問い合わせ調査"
+                    WHERE "問い合わせ調査番号" = %s
                     """,
                     (relation_id,),
                 )
@@ -3179,7 +3179,7 @@ def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns
             "/api/inquiries/bulk-link-investigation",
             json={
                 "問い合わせ番号一覧": inquiry_numbers,
-                "問題調査番号": investigation_number,
+                "調査番号": investigation_number,
             },
         )
 
@@ -3199,7 +3199,7 @@ def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    DELETE FROM "問い合わせ問題調査"
+                    DELETE FROM "問い合わせ調査"
                     WHERE "問い合わせ番号" = ANY(%s)
                     """,
                     (inquiry_numbers,),
@@ -3227,9 +3227,9 @@ def test_bulk_link_existing_investigation_already_linked(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT "問題調査番号"
-                FROM "問い合わせ問題調査"
-                WHERE "問い合わせ問題調査番号" = %s
+                SELECT "調査番号"
+                FROM "問い合わせ調査"
+                WHERE "問い合わせ調査番号" = %s
                 """,
                 (relation_id,),
             )
@@ -3240,7 +3240,7 @@ def test_bulk_link_existing_investigation_already_linked(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": [inquiry_number],
-            "問題調査番号": investigation_number,
+            "調査番号": investigation_number,
         },
     )
 
@@ -3268,7 +3268,7 @@ def test_bulk_link_existing_investigation_invalid_inquiry_numbers(
         "/api/inquiries/bulk-link-investigation",
         json={
             "問い合わせ番号一覧": inquiry_numbers,
-            "問題調査番号": 1,
+            "調査番号": 1,
         },
     )
 
@@ -3800,9 +3800,9 @@ def test_get_inquiry_success(detail_test_inquiries):
     assert result["件名"] == "詳細APIテスト-引き受け待ち"
     assert result["問い合わせ詳細"] == "詳細取得APIの自動テスト用"
     assert result["状態"] == "引き受け待ち"
-    assert "関連する問題調査番号一覧" in result
+    assert "関連する調査番号一覧" in result
     assert isinstance(
-        result["関連する問題調査番号一覧"],
+        result["関連する調査番号一覧"],
         list,
     )
 
@@ -3833,12 +3833,12 @@ def test_get_inquiry_status(detail_test_inquiries):
 def test_get_inquiry_includes_related_investigation_numbers(
     detail_test_investigation_links,
 ):
-    """関連する問題調査番号を一覧で取得できる。"""
+    """関連する調査番号を一覧で取得できる。"""
     inquiry_number = (
         detail_test_investigation_links["問い合わせ番号"]
     )
     expected_numbers = (
-        detail_test_investigation_links["問題調査番号一覧"]
+        detail_test_investigation_links["調査番号一覧"]
     )
 
     response = client.get(
@@ -3849,7 +3849,7 @@ def test_get_inquiry_includes_related_investigation_numbers(
 
     result = response.json()
 
-    assert result["関連する問題調査番号一覧"] == sorted(
+    assert result["関連する調査番号一覧"] == sorted(
         expected_numbers
     )
 
@@ -3857,7 +3857,7 @@ def test_get_inquiry_includes_related_investigation_numbers(
 def test_get_inquiry_without_related_investigations(
     detail_test_inquiries,
 ):
-    """関連する問題調査がない場合は空リストを返す。"""
+    """関連する調査がない場合は空リストを返す。"""
     inquiry_number = detail_test_inquiries["pending"]
 
     response = client.get(
@@ -3868,4 +3868,4 @@ def test_get_inquiry_without_related_investigations(
 
     result = response.json()
 
-    assert result["関連する問題調査番号一覧"] == []
+    assert result["関連する調査番号一覧"] == []
