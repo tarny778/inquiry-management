@@ -81,6 +81,78 @@
 
 
 /* ==================================================
+   共通ボタンデザイン
+   ================================================== */
+
+/* 共通の形・サイズ */
+.button-primary,
+.button-secondary,
+.button-success,
+.button-danger {
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* 基本操作：紺色 */
+.button-primary {
+  border-color: #24466b;
+  background-color: #24466b;
+  color: #ffffff;
+}
+
+.button-primary:hover:not(:disabled) {
+  border-color: #193651;
+  background-color: #193651;
+}
+
+/* 画面移動・例外操作：クリア */
+.button-secondary {
+  border-color: #24466b;
+  background-color: #ffffff;
+  color: #24466b;
+}
+
+.button-secondary:hover:not(:disabled) {
+  background-color: #f1f5f9;
+}
+
+/* OK：緑 */
+.button-success {
+  border-color: #15803d;
+  background-color: #15803d;
+  color: #ffffff;
+}
+
+.button-success:hover:not(:disabled) {
+  border-color: #166534;
+  background-color: #166534;
+}
+
+/* NG：赤 */
+.button-danger {
+  border-color: #b42318;
+  background-color: #b42318;
+  color: #ffffff;
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: #8f1d14;
+  background-color: #8f1d14;
+}
+
+/* 無効状態 */
+.button-primary:disabled,
+.button-secondary:disabled,
+.button-success:disabled,
+.button-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==================================================
    2. アプリ共通ヘッダー(1行目)
    ================================================== */
 
@@ -163,6 +235,30 @@
   cursor: not-allowed;
 }
 
+.page-section-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.page-section-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.inquiry-icon {
+  background-color: #e4edf8;
+  color: #24466b;
+}
+
+.investigation-icon {
+  background-color: #e3f3ed;
+  color: #176b53;
+}
 
 
 /* ==================================================
@@ -284,26 +380,7 @@
 }
 
 .search-buttons button {
-  padding: 8px 22px;
-  border: 1px solid #24466b;
-  border-radius: 5px;
-  background-color: #24466b;
-  color: #ffffff;
-  font-size: 14px;
   cursor: pointer;
-}
-
-.search-buttons button:hover {
-  background-color: #193651;
-}
-
-.search-buttons .clear-button {
-  background-color: #ffffff;
-  color: #24466b;
-}
-
-.search-buttons .clear-button:hover {
-  background-color: #f1f5f9;
 }
 
 
@@ -494,17 +571,7 @@
 }
 
 .bulk-buttons button {
-  padding: 8px 12px;
-  border: 1px solid #24466b;
-  border-radius: 5px;
-  background-color: #24466b;
-  color: #ffffff;
-  font-size: 13px;
   cursor: pointer;
-}
-
-.bulk-buttons button:hover:not(:disabled) {
-  background-color: #193651;
 }
 
 .bulk-buttons button:disabled {

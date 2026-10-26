@@ -53,6 +53,7 @@ export default function InvestigationTable({
                 <td>
                   <button
                     type="button"
+                    className="link-button"
                     onClick={() =>
                       onSelectInvestigation(investigation.調査番号)
                     }
@@ -63,6 +64,7 @@ export default function InvestigationTable({
                 <td>
                   <button
                     type="button"
+                    className="link-button"
                     onClick={() =>
                       onSelectInvestigation(investigation.調査番号)
                     }
