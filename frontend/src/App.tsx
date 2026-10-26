@@ -150,8 +150,8 @@ function App() {
   const [error, setError] = useState('')
   const [loginError, setLoginError] = useState('')
 
-  // 以下は問題調査画面用のstate
-  // 問い合わせ画面と問題調査画面の切り替え
+  // 以下は調査画面用のstate
+  // 問い合わせ画面と調査画面の切り替え
   const [mainScreen, setMainScreen] =
     useState<'inquiry' | 'investigation'>('inquiry')
   const [investigationScreenMode, setInvestigationScreenMode] =
@@ -165,8 +165,8 @@ function App() {
     useState<InvestigationDetail | null>(null)
   const [investigationEditForm, setInvestigationEditForm] =
     useState<InvestigationEditForm>({
-      '問題調査の名称や仮説': '',
-      '問題の原因': '',
+      '調査の名称': '',
+      '原因・仮説': '',
       '情シス側での対応': '',
       '問い合わせ者側で必要な対応': '',
       '対応案策定予定日時': '',
@@ -778,7 +778,7 @@ function App() {
     }
 
     const confirmed = window.confirm(
-      `選択した ${selectedNumbers.length} 件の問い合わせを、問題調査番号 ${investigationNumber} に関連付けますか？`,
+      `選択した ${selectedNumbers.length} 件の問い合わせを、調査番号 ${investigationNumber} に関連付けますか？`,
     )
 
     if (!confirmed) {
@@ -821,7 +821,7 @@ function App() {
       }
 
       setSelectedNumbers([])
-      setActionMessage('問い合わせを既存の問題調査に関連付けました。')
+      setActionMessage('問い合わせを既存の調査に関連付けました。')
     } catch (err) {
       setError(
         err instanceof Error
@@ -845,7 +845,7 @@ function App() {
     }
 
     const confirmed = window.confirm(
-      `選択した ${selectedNumbers.length} 件の問い合わせに、新しい問題調査「${newInvestigationName.trim()}」を作成して関連付けますか？`,
+      `選択した ${selectedNumbers.length} 件の問い合わせに、新しい調査「${newInvestigationName.trim()}」を作成して関連付けますか？`,
     )
 
     if (!confirmed) {
@@ -888,7 +888,7 @@ function App() {
       }
 
       setSelectedNumbers([])
-      setActionMessage('問い合わせを新規の問題調査に関連付けました。')
+      setActionMessage('問い合わせを新規の調査に関連付けました。')
     } catch (err) {
       setError(
         err instanceof Error
@@ -993,7 +993,7 @@ function App() {
     }
   }, [])
 
-  // 以下問題調査関連のファンクション
+  // 以下調査関連のファンクション
   // 検索条件とページ番号に基づき、一覧を再読み込み
   async function fetchInvestigationSearchResults(
     filters: InvestigationFilters,
@@ -1082,7 +1082,7 @@ function App() {
 
     const confirmed = window.confirm(
       `初期条件での検索として、${msgShozoku}が操作者本人で、` +
-      '問い合わせ状態が「対応中」の問い合わせに関連する問題調査を検索しますか？',
+      '問い合わせ状態が「対応中」の問い合わせに関連する調査を検索しますか？',
     )
 
     if (!confirmed) {
@@ -1129,7 +1129,7 @@ function App() {
     }
   }
 
-  // 問題調査一覧のページを切り替える
+  // 調査一覧のページを切り替える
   async function handleInvestigationPageChange(
     pageNumber: number,
   ) {
@@ -1155,7 +1155,7 @@ function App() {
     }
   }
 
-  // 問題調査の詳細を取得する
+  // 調査の詳細を取得する
   async function handleSelectInvestigation(
     investigationNumber: number,
   ) {
@@ -1187,14 +1187,14 @@ function App() {
     }
   }
 
-  // 問題調査の内容を更新する
+  // 調査の内容を更新する
   const handleSaveInvestigation = async (
     event: SubmitEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 
     if (selectedInvestigation === null) {
-      setError('問題調査の詳細データがありません。')
+      setError('調査の詳細データがありません。')
       return
     }
 
@@ -1204,13 +1204,13 @@ function App() {
 
       // ① 編集内容を API に送信する
       await updateInvestigation(
-        selectedInvestigation.問題調査番号,
+        selectedInvestigation.調査番号,
         investigationEditForm,
       )
 
       // ② 保存後の最新の詳細情報を取得する
       const updatedInvestigation = await getInvestigationDetail(
-        selectedInvestigation.問題調査番号,
+        selectedInvestigation.調査番号,
       )
 
       // ③ 詳細情報を更新する
@@ -1219,18 +1219,18 @@ function App() {
       // ④ 詳細画面に戻る
       setInvestigationScreenMode('view')
     } catch (error) {
-      console.error('問題調査の保存に失敗しました。', error)
+      console.error('調査の保存に失敗しました。', error)
       setError(
         error instanceof Error
           ? error.message
-          : '問題調査の保存に失敗しました。',
+          : '調査の保存に失敗しました。',
       )
     } finally {
       setInvestigationLoading(false)
     }
   }
 
-  // 問題調査を断念する
+  // 調査を断念する
   async function handleAbandonInvestigation(
     investigationNumber: number,
   ) {
@@ -1271,7 +1271,7 @@ function App() {
     }
   }
 
-  // 問題調査にリアクション要求する
+  // 調査にリアクション要求する
   async function handleRequestReactionInvestigation(
     investigationNumber: number,
   ) {
@@ -1312,7 +1312,7 @@ function App() {
     }
   }
 
-  // 問い合わせ問題調査を個別断念する
+  // 問い合わせ調査を個別断念する
   async function handleAbandonRelatedInvestigation(
     relationNumber: number,
   ) {
@@ -1321,7 +1321,7 @@ function App() {
     }
 
     const confirmed = window.confirm(
-      `問い合わせ問題調査番号 ${relationNumber} を個別断念しますか？`,
+      `問い合わせ調査番号 ${relationNumber} を個別断念しますか？`,
     )
 
     if (!confirmed) {
@@ -1338,7 +1338,7 @@ function App() {
       // 詳細情報を再取得する
       // 関連一覧も最新状態になる
       const detail = await getInvestigationDetail(
-        selectedInvestigation['問題調査番号'],
+        selectedInvestigation['調査番号'],
       )
 
       setSelectedInvestigation(detail)
@@ -1362,7 +1362,7 @@ function App() {
   }
 
 
-  // 問い合わせ問題調査にOKと回答する
+  // 問い合わせ調査にOKと回答する
   async function handleAnswerRelatedInquiryOk(
     relationId: number,
   ) {
@@ -1378,7 +1378,7 @@ function App() {
 
       // 詳細情報を再取得する
       const detail = await getInvestigationDetail(
-        selectedInvestigation['問題調査番号'],
+        selectedInvestigation['調査番号'],
       )
 
       setSelectedInvestigation(detail)
@@ -1401,7 +1401,7 @@ function App() {
     }
   }
 
-  // 問い合わせ問題調査にNGと回答する
+  // 問い合わせ調査にNGと回答する
   async function handleAnswerRelatedInquiryNg(
     relationId: number,
   ) {
@@ -1417,7 +1417,7 @@ function App() {
 
       // 詳細情報を再取得する
       const detail = await getInvestigationDetail(
-        selectedInvestigation['問題調査番号'],
+        selectedInvestigation['調査番号'],
       )
 
       setSelectedInvestigation(detail)
@@ -1576,19 +1576,19 @@ function App() {
       </div>
     )
   }
-  // 問題調査関連画面
+  // 調査関連画面
   if (mainScreen === 'investigation') {
     // 詳細画面
     if (investigationScreenMode === 'view') {
       if (selectedInvestigation === null) {
         return (
           <div>
-            <p>問題調査の詳細データがありません。</p>
+            <p>調査の詳細データがありません。</p>
             <button
               type="button"
               onClick={() => setInvestigationScreenMode('list')}
             >
-              問題調査一覧へ戻る
+              調査一覧へ戻る
             </button>
           </div>
         )
@@ -1607,10 +1607,10 @@ function App() {
           }}
           onEdit={() => {
             setInvestigationEditForm({
-              '問題調査の名称や仮説':
-                selectedInvestigation['問題調査の名称や仮説'],
-              '問題の原因':
-                selectedInvestigation['問題の原因'] ?? '',
+              '調査の名称':
+                selectedInvestigation['調査の名称'],
+              '原因・仮説':
+                selectedInvestigation['原因・仮説'] ?? '',
               '情シス側での対応':
                 selectedInvestigation['情シス側での対応'] ?? '',
               '問い合わせ者側で必要な対応':
@@ -1625,12 +1625,12 @@ function App() {
           }}
           onAbandon={() =>
             handleAbandonInvestigation(
-              selectedInvestigation['問題調査番号'],
+              selectedInvestigation['調査番号'],
             )
           }
           onRequestReaction={() =>
             handleRequestReactionInvestigation(
-              selectedInvestigation['問題調査番号'],
+              selectedInvestigation['調査番号'],
             )
           }
           onAbandonRelated={(relationNumber) =>
@@ -1651,12 +1651,12 @@ function App() {
       if (selectedInvestigation === null) {
         return (
           <div>
-            <p>問題調査の詳細データがありません。</p>
+            <p>調査の詳細データがありません。</p>
             <button
               type="button"
               onClick={() => setInvestigationScreenMode('list')}
             >
-              問題調査一覧へ戻る
+              調査一覧へ戻る
             </button>
           </div>
         )
@@ -1675,7 +1675,7 @@ function App() {
     // 一覧画面
     return (
       <div>
-        <h2>問題調査一覧</h2>
+        <h2>調査一覧</h2>
         <button
           type="button"
           onClick={() => setMainScreen('inquiry')}
