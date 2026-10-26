@@ -34,6 +34,7 @@ export default function InquiryBulkAction({
             
             <div className="bulk-investigation-actions">
             <button
+                className="button-primary"
                 type="button"
                 onClick={() => setIsLinkInvestigationDialogOpen(true)}
                 disabled={selectedNumbers.length === 0 || loading}
@@ -42,6 +43,7 @@ export default function InquiryBulkAction({
             </button>
 
             <button
+                className="button-primary"
                 type="button"
                 onClick={() => setIsCreateInvestigationDialogOpen(true)}
                 disabled={selectedNumbers.length === 0 || loading}
