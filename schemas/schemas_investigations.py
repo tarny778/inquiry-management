@@ -12,7 +12,7 @@ class InvestigationUpdate(BaseModel):
         default=None,
         max_length=30,
     )
-    原因・仮説: str | None = Field(default=None, max_length=1000)
+    原因仮説: str | None = Field(default=None, max_length=1000, alias="原因・仮説")
     情シス側での対応: str | None = Field(default=None, max_length=1000)
     問い合わせ者側で必要な対応: str | None = Field(
         default=None,
