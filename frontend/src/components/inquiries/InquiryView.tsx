@@ -63,6 +63,7 @@ export default function InquiryView({
             actions={
                 <>
                 <button
+                    className="button-secondary"
                     type="button"
                     onClick={async () => {
                     await refreshCurrentInquiryList()
@@ -71,7 +72,7 @@ export default function InquiryView({
                     }}
                     disabled={loading}
                 >
-                    一覧に戻る
+                    ← 一覧に戻る
                 </button>
 
                 <button
@@ -106,6 +107,7 @@ export default function InquiryView({
                 </button>
 
                 <button
+                    className="button-secondary"
                     className="button-primary"
                     type="button"
                     onClick={() =>
