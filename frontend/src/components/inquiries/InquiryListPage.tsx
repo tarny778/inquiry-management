@@ -163,6 +163,7 @@ export default function InquiryListPage({
             <>
               {user?.所属 === '情報システム課' && (
                 <button
+                  className="button-primary"
                   type="button"
                   onClick={openNewInquiry}
                   disabled={loading}
@@ -172,11 +173,12 @@ export default function InquiryListPage({
               )}
 
               <button
+                className="button-secondary"
                 type="button"
                 onClick={onOpenInvestigations}
                 disabled={loading}
               >
-                調査一覧へ
+                調査一覧へ →
               </button>
             </>
           }
