@@ -46,7 +46,7 @@ export default function InquiryCreate({
               onClick={onCancel}
               disabled={loading}
             >
-              ← ← 一覧に戻る
+              ← 一覧に戻る
             </button>
           }
         />
