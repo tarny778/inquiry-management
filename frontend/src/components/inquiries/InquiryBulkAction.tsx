@@ -23,6 +23,7 @@ export default function InquiryBulkAction({
 
         <div className="bulk-buttons">
             <button
+            className="button-primary"
             type="button"
             onClick={() => void handleBulkAccept()}
             disabled={selectedNumbers.length === 0 || loading}
@@ -52,6 +53,7 @@ export default function InquiryBulkAction({
 
             
             <button
+            className="button-primary"
             type="button"
             onClick={() => void handleBulkComplete()}
             disabled={selectedNumbers.length === 0 || loading}
