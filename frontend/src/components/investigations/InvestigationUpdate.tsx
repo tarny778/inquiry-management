@@ -32,7 +32,7 @@ export default function InvestigationUpdate({
       <form onSubmit={onSubmit}>
         <div className="form-group">
           <label htmlFor="investigation-name">
-            名称や仮説
+            調査の名称
           </label>
           <textarea
             id="investigation-name"
