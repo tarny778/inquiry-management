@@ -193,6 +193,7 @@ export default function InquirySearch({
 
         <div className="search-buttons">
         <button
+            className="button-primary"
             type="button"
             onClick={handleSearch}
             disabled={initialCondition || loading}
@@ -202,7 +203,7 @@ export default function InquirySearch({
 
         <button
             type="button"
-            className="clear-button"
+            className="button-secondary"
             onClick={clearSearch}
             disabled={initialCondition || loading}
         >
