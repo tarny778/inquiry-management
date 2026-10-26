@@ -63,7 +63,7 @@ export default function InvestigationDetailView({
                 onClick={onBack}
                 disabled={loading}
               >
-                ← ← 調査一覧へ戻る
+                ← 調査一覧へ戻る
               </button>
 
               <button
