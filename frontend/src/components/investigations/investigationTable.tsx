@@ -22,16 +22,16 @@ export default function InvestigationTable({
 }: InvestigationTableProps) {
   return (
     <section className="list-section">
-      <h3>問題調査一覧</h3>
+      <h3>調査一覧</h3>
 
       <p>検索結果：{total} 件</p>
 
       <table>
         <thead>
           <tr>
-            <th>問題調査番号</th>
+            <th>調査番号</th>
             <th>名称や仮説</th>
-            <th>問題調査状態</th>
+            <th>調査状態</th>
             <th>対応担当者</th>
             <th>関連問い合わせ件数</th>
             <th>自分の問い合わせ</th>
@@ -44,30 +44,30 @@ export default function InvestigationTable({
               <td colSpan={6}>
                 {loading
                   ? '検索中...'
-                  : '該当する問題調査はありません。'}
+                  : '該当する調査はありません。'}
               </td>
             </tr>
           ) : (
             investigations.map((investigation) => (
-              <tr key={investigation.問題調査番号}>
+              <tr key={investigation.調査番号}>
                 <td>
                   <button
                     type="button"
                     onClick={() =>
-                      onSelectInvestigation(investigation.問題調査番号)
+                      onSelectInvestigation(investigation.調査番号)
                     }
                   >
-                    {investigation.問題調査番号}
+                    {investigation.調査番号}
                   </button>
                 </td>
                 <td>
                   <button
                     type="button"
                     onClick={() =>
-                      onSelectInvestigation(investigation.問題調査番号)
+                      onSelectInvestigation(investigation.調査番号)
                     }
                   >
-                    {investigation.問題調査の名称や仮説}
+                    {investigation.調査の名称}
                   </button>
                 </td>
                 <td>
@@ -75,7 +75,7 @@ export default function InvestigationTable({
                     1: '調査中',
                     2: 'リアクション要求済み',
                     3: '調査断念',
-                  }[investigation.問題調査状態] ?? '不明'}
+                  }[investigation.調査状態] ?? '不明'}
                 </td>
                 <td>
                   {investigation.対応担当者職員氏名 ?? '未設定'}
