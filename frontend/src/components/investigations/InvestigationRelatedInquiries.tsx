@@ -113,6 +113,7 @@ export default function InvestigationRelatedInquiries({
                   </td>
                   <td>
                     <button
+                      className="button-secondary"
                       type="button"
                       onClick={() =>
                         onAbandonRelated(
@@ -127,6 +128,7 @@ export default function InvestigationRelatedInquiries({
                   <td>
                     {canAnswer(relatedInquiry) && (
                       <button
+                        className="button-success"
                         type="button"
                         disabled={loading}
                         onClick={() =>
@@ -143,6 +145,7 @@ export default function InvestigationRelatedInquiries({
                   <td>
                     {canAnswer(relatedInquiry) && (
                       <button
+                        className="button-danger"
                         type="button"
                         disabled={loading}
                         onClick={() =>
