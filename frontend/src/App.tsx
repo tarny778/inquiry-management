@@ -1570,7 +1570,8 @@ function App() {
               </p>
             )}
 
-            <button type="submit" disabled={loading}>
+            <button
+  className="button-primary" type="submit" disabled={loading}>
               {loading ? 'ログイン中...' : 'ログイン'}
             </button>
           </form>
@@ -1587,10 +1588,11 @@ function App() {
           <div>
             <p>調査の詳細データがありません。</p>
             <button
+              className="button-secondary"
               type="button"
               onClick={() => setInvestigationScreenMode('list')}
             >
-              調査一覧へ戻る
+              ← 調査一覧へ戻る
             </button>
           </div>
         )
@@ -1656,10 +1658,11 @@ function App() {
           <div>
             <p>調査の詳細データがありません。</p>
             <button
+              className="button-secondary"
               type="button"
               onClick={() => setInvestigationScreenMode('list')}
             >
-              調査一覧へ戻る
+              ← 調査一覧へ戻る
             </button>
           </div>
         )
@@ -1692,11 +1695,12 @@ function App() {
             title="調査一覧"
             actions={
               <button
+                className="button-secondary"
                 type="button"
                 onClick={() => setMainScreen('inquiry')}
                 disabled={investigationLoading}
               >
-                問い合わせ一覧へ
+                ← 問い合わせ一覧へ
               </button>
             }
           />
