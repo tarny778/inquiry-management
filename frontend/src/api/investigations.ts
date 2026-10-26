@@ -6,7 +6,7 @@ import type {
   InvestigationEditForm,
 } from '../types'
 
-// 検索条件に基づく問題調査一覧を取得する
+// 検索条件に基づく調査一覧を取得する
 export async function getSearchInvestigations(
   filters: InvestigationFilters,
   pageNumber = 1,
@@ -17,7 +17,7 @@ export async function getSearchInvestigations(
   })
 
   if (filters.investigationNumber.trim()) {
-    params.set('問題調査番号', filters.investigationNumber.trim())
+    params.set('調査番号', filters.investigationNumber.trim())
   }
 
   if (filters.inquiryNumber.trim()) {
@@ -37,32 +37,32 @@ export async function getSearchInvestigations(
   }
 
   if (filters.investigationStatus) {
-    params.set('問題調査状態', filters.investigationStatus)
+    params.set('調査状態', filters.investigationStatus)
   }
 
   if (filters.keyword.trim()) {
-    params.set('問題調査の名称や仮説', filters.keyword.trim())
+    params.set('調査の名称', filters.keyword.trim())
   }
 
   return apiRequest<InvestigationListResponse>(
     `/api/investigations?${params.toString()}`,
     { method: 'GET' },
-    '問題調査の検索に失敗しました。',
+    '調査の検索に失敗しました。',
   )
 }
 
-// 問題調査の詳細データを取得する
+// 調査の詳細データを取得する
 export async function getInvestigationDetail(
   investigationNumber: number,
 ): Promise<InvestigationDetail> {
   return apiRequest<InvestigationDetail>(
     `/api/investigations/${investigationNumber}`,
     { method: 'GET' },
-    '問題調査の詳細取得に失敗しました。',
+    '調査の詳細取得に失敗しました。',
   )
 }
 
-// 問題調査を編集する
+// 調査を編集する
 export async function updateInvestigation(
   investigationNumber: number,
   form: InvestigationEditForm,
@@ -84,45 +84,45 @@ export async function updateInvestigation(
       },
       body: JSON.stringify(payload),
     },
-    '問題調査の編集に失敗しました。',
+    '調査の編集に失敗しました。',
   )
 }
 
-// 問題調査を断念する
+// 調査を断念する
 export async function abandonInvestigation(
   investigationNumber: number,
 ): Promise<void> {
   await apiRequest<void>(
     `/api/investigations/${investigationNumber}/abandon`,
     { method: 'POST' },
-    '問題調査の断念に失敗しました。',
+    '調査の断念に失敗しました。',
   )
 }
 
-// 問題調査にリアクション要求する
+// 調査にリアクション要求する
 export async function requestReactionInvestigation(
   investigationNumber: number,
 ): Promise<void> {
   await apiRequest<void>(
     `/api/investigations/${investigationNumber}/request-reaction`,
     { method: 'POST' },
-    '問題調査のリアクション要求に失敗しました。',
+    '調査のリアクション要求に失敗しました。',
   )
 }
 
 
-/** 問い合わせ問題調査を個別断念する */
+/** 問い合わせ調査を個別断念する */
 export async function abandonRelatedInvestigation(
   relationNumber: number,
 ): Promise<void> {
   await apiRequest<void>(
     `/api/investigations/relations/${relationNumber}/abandon`,
     { method: 'POST' },
-    '問い合わせ問題調査の個別断念に失敗しました。',
+    '問い合わせ調査の個別断念に失敗しました。',
   )
 }
 
-// 問い合わせ問題調査にOKと回答する
+// 問い合わせ調査にOKと回答する
 export async function answerRelatedInquiryOk(
   relationId: number,
 ): Promise<void> {
@@ -133,7 +133,7 @@ export async function answerRelatedInquiryOk(
   )
 }
 
-// 問い合わせ問題調査にNGと回答する
+// 問い合わせ調査にNGと回答する
 export async function answerRelatedInquiryNg(
   relationId: number,
 ): Promise<void> {
