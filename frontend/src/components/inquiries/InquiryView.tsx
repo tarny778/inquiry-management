@@ -173,10 +173,10 @@ export default function InquiryView({
             <dt>対応完了日時</dt>
             <dd>{selectedInquiry.対応完了日時 || '—'}</dd>
 
-            <dt>関連する問題調査番号</dt>
+            <dt>関連する調査番号</dt>
             <dd>
-                {selectedInquiry.関連する問題調査番号一覧.length > 0
-                ? selectedInquiry.関連する問題調査番号一覧.join('、')
+                {selectedInquiry.関連する調査番号一覧.length > 0
+                ? selectedInquiry.関連する調査番号一覧.join('、')
                 : 'なし'}
             </dd>
             </dl>
