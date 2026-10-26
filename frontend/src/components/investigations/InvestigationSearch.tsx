@@ -145,6 +145,7 @@ export default function InvestigationSearch({
 
         <div className="search-buttons">
         <button
+            className="button-secondary"
             type="button"
             onClick={onApplyInitialCondition}
             disabled={loading}
@@ -153,6 +154,7 @@ export default function InvestigationSearch({
         </button>
 
         <button
+            className="button-primary"
             type="button"
             onClick={handleSearch}
             disabled={loading}
@@ -162,7 +164,7 @@ export default function InvestigationSearch({
 
         <button
             type="button"
-            className="clear-button"
+            className="button-secondary"
             onClick={clearSearch}
             disabled={loading}
         >
