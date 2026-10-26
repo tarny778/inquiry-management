@@ -31,22 +31,22 @@ export default function InvestigationDetailView({
   
   const canAbandon =
     user !== null &&
-    investigation['問題調査状態'] === 1 &&
-    investigation['関連する問い合わせ問題調査'].length > 0 &&
-    investigation['関連する問い合わせ問題調査'].every(
+    investigation['調査状態'] === 1 &&
+    investigation['関連する問い合わせ調査'].length > 0 &&
+    investigation['関連する問い合わせ調査'].every(
       (item) =>
         item['対応担当者職員番号'] === user['職員番号'],
     )
   return (
     <div>
-      <h2>問題調査詳細</h2>
+      <h2>調査詳細</h2>
 
       <button
         type="button"
         onClick={onBack}
         disabled={loading}
       >
-        問題調査一覧へ戻る
+        調査一覧へ戻る
       </button>
 
       <button
@@ -79,10 +79,10 @@ export default function InvestigationDetailView({
 
       <InvestigationRelatedInquiries
         relatedInquiries={
-          investigation.関連する問い合わせ問題調査
+          investigation.関連する問い合わせ調査
         }
         user={user}
-        investigationState={investigation.問題調査状態}
+        investigationState={investigation.調査状態}
         loading={loading}
         onAbandonRelated={onAbandonRelated}
         onAnswerOk={onAnswerRelatedInquiryOk}
