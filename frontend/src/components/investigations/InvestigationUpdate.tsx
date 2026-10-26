@@ -54,11 +54,11 @@ export default function InvestigationUpdate({
           </label>
           <textarea
             id="investigation-cause"
-            value={editForm.原因・仮説}
+            value={editForm['原因・仮説']}
             onChange={(event) =>
               setEditForm({
                 ...editForm,
-                原因・仮説: event.target.value,
+                '原因・仮説': event.target.value,
               })
             }
             disabled={loading}
