@@ -29,7 +29,11 @@ type InquiryViewProps = {
   handleReopenInquiry: (inquiryNumber: number) => void
 }
 
-
+const receptionHandlingLabels: Record<string, string> = {
+  '1': '即時解決',
+  '2': '要調査',
+  '3': '他部署へ引き継ぎ',
+}
 
 
 export default function InquiryView({
@@ -150,59 +154,98 @@ export default function InquiryView({
             問い合わせ番号：{selectedInquiry.問い合わせ番号}
             </h3>
 
+            
             <dl className="inquiry-detail">
-            <dt>状態</dt>
-            <dd>{selectedInquiry.状態}</dd>
+              <div className="inquiry-detail-item inquiry-detail-full">
+                <dt>件名</dt>
+                <dd>{selectedInquiry.件名}</dd>
+              </div>
 
-            <dt>件名</dt>
-            <dd>{selectedInquiry.件名}</dd>
+              <div className="inquiry-detail-item">
+                <dt>問い合わせ分類</dt>
+                <dd>{selectedInquiry.問い合わせ分類 || '—'}</dd>
+              </div>
 
-            <dt>問い合わせ職員番号</dt>
-            <dd>{selectedInquiry.問い合わせ職員番号 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>緊急度</dt>
+                <dd>{selectedInquiry.緊急度 ?? '—'}</dd>
+              </div>
 
-            <dt>問い合わせ当時の所属</dt>
-            <dd>{selectedInquiry.問い合わせ当時の所属 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>受付経路</dt>
+                <dd>{selectedInquiry.受付経路 || '—'}</dd>
+              </div>
 
-            <dt>受付経路</dt>
-            <dd>{selectedInquiry.受付経路 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>受信日時</dt>
+                <dd>{selectedInquiry.受信日時 || '—'}</dd>
+              </div>
 
-            <dt>問い合わせ分類</dt>
-            <dd>{selectedInquiry.問い合わせ分類 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>問い合わせ職員番号</dt>
+                <dd>{selectedInquiry.問い合わせ職員番号 || '—'}</dd>
+              </div>
 
-            <dt>緊急度</dt>
-            <dd>{selectedInquiry.緊急度 ?? '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>問い合わせ当時の所属</dt>
+                <dd>{selectedInquiry.問い合わせ当時の所属 || '—'}</dd>
+              </div>
 
-            <dt>受付時の処理</dt>
-            <dd>{selectedInquiry.受付時の処理 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>受付担当者</dt>
+                <dd>{selectedInquiry.受付担当者 || '—'}</dd>
+              </div>
 
-            <dt>問い合わせ詳細</dt>
-            <dd>{selectedInquiry.問い合わせ詳細 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>登録日時</dt>
+                <dd>{selectedInquiry.登録日時 || '—'}</dd>
+              </div>
 
-            <dt>受付担当者</dt>
-            <dd>{selectedInquiry.受付担当者 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>受付時の処理</dt>
+                <dd>
+                  {selectedInquiry.受付時の処理 !== null
+                    ? receptionHandlingLabels[selectedInquiry.受付時の処理] ??
+                      selectedInquiry.受付時の処理
+                    : '—'}
+                </dd>
+              </div>
 
-            <dt>対応担当者</dt>
-            <dd>{selectedInquiry.対応担当者 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>状態</dt>
+                <dd>{selectedInquiry.状態}</dd>
+              </div>
 
-            <dt>受信日時</dt>
-            <dd>{selectedInquiry.受信日時 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>対応担当者</dt>
+                <dd>{selectedInquiry.対応担当者 || '—'}</dd>
+              </div>
 
-            <dt>登録日時</dt>
-            <dd>{selectedInquiry.登録日時 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>引き受け日時</dt>
+                <dd>{selectedInquiry.引き受け日時 || '—'}</dd>
+              </div>
 
-            <dt>引き受け日時</dt>
-            <dd>{selectedInquiry.引き受け日時 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>関連する調査番号</dt>
+                <dd>
+                  {selectedInquiry.関連する調査番号一覧.length > 0
+                    ? selectedInquiry.関連する調査番号一覧.join('、')
+                    : 'なし'}
+                </dd>
+              </div>
 
-            <dt>対応完了日時</dt>
-            <dd>{selectedInquiry.対応完了日時 || '—'}</dd>
+              <div className="inquiry-detail-item">
+                <dt>対応完了日時</dt>
+                <dd>{selectedInquiry.対応完了日時 || '—'}</dd>
+              </div>
 
-            <dt>関連する調査番号</dt>
-            <dd>
-                {selectedInquiry.関連する調査番号一覧.length > 0
-                ? selectedInquiry.関連する調査番号一覧.join('、')
-                : 'なし'}
-            </dd>
+              <div className="inquiry-detail-item inquiry-detail-full">
+                <dt>問い合わせ詳細</dt>
+                <dd>{selectedInquiry.問い合わせ詳細 || '—'}</dd>
+              </div>
             </dl>
+
         </section>
         </main>
     </div>

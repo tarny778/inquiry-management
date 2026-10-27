@@ -159,7 +159,7 @@ def search_investigations_api(
 
                     -- 関連する問い合わせの対応担当者氏名
                     (
-                        SELECT s."氏名"
+                        SELECT s."職員番号"
                         FROM "問い合わせ調査" ik
                         JOIN "問い合わせ" i
                             ON i."問い合わせ番号" = ik."問い合わせ番号"
@@ -168,7 +168,7 @@ def search_investigations_api(
                         WHERE ik."調査番号" = q."調査番号"
                         ORDER BY i."問い合わせ番号"
                         LIMIT 1
-                    ) AS "対応担当者職員氏名",
+                    ) AS "対応担当者職員番号",
 
                     -- 関連する問い合わせの件数
                     (
@@ -204,7 +204,7 @@ def search_investigations_api(
         "調査番号",
         "調査の名称",
         "調査状態",
-        "対応担当者職員氏名",
+        "対応担当者職員番号",
         "関連問い合わせ件数",
         "自分の問い合わせを含む",
     ]

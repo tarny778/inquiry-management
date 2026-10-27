@@ -386,6 +386,94 @@
 }
 
 
+/* 入力フォーム共通レイアウト */
+.form-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 16px;
+}
+
+/* フォームのラベルと入力欄 */
+.form-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 入力欄の共通デザイン */
+.form-fields input,
+.form-fields select,
+.form-fields textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background-color: #ffffff;
+  color: #263445;
+  font: inherit;
+  font-weight: 400;
+}
+
+/* 長文入力欄 */
+.form-fields textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+/* 横3列を使う項目 */
+.form-field-three {
+  grid-column: span 3;
+}
+
+/* 横2列を使う項目 */
+.form-field-wide {
+  grid-column: span 2;
+}
+
+/* 横幅いっぱいを使う項目 */
+.form-field-full {
+  grid-column: 1 / -1;
+}
+
+/* フォーム末尾の操作ボタン */
+.form-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* タブレット */
+@media (max-width: 900px) {
+  .form-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-field-full {
+    grid-column: 1 / -1;
+  }
+}
+
+/* スマートフォン */
+@media (max-width: 600px) {
+  .form-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-field-wide,
+  .form-field-full {
+    grid-column: 1;
+  }
+}
+
+
+
 /* ==================================================
    5. 詳細検索
    ================================================== */
@@ -700,6 +788,119 @@
 }
 
 
+/* ==================================================
+   調査一覧表
+   ================================================== */
+
+.investigation-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: left;
+}
+
+.investigation-table th,
+.investigation-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.investigation-table th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.investigation-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* 列幅 */
+.investigation-table .col-investigation-number {
+  width: 82px;
+}
+
+.investigation-table .col-investigation-handler {
+  width: 130px;
+}
+
+.investigation-table .col-investigation-status {
+  width: 200px;
+}
+
+.investigation-table .col-my-inquiry {
+  width: 100px;
+}
+
+/* 調査番号 */
+.investigation-table .investigation-number-cell {
+  white-space: nowrap;
+}
+
+/* 調査の名称：残りの幅を使用 */
+.investigation-table .investigation-name-cell {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* 対応担当者 */
+.investigation-table .investigation-handler-cell {
+  overflow-wrap: anywhere;
+}
+
+/* 自分の問い合わせ */
+.investigation-table .my-inquiry-cell {
+  text-align: center;
+}
+
+/* 調査状態：調査中（青） */
+.status.investigating {
+  background-color: #dceafe;
+  color: #1d4e89;
+}
+
+/* 調査状態：リアクション要求済み（緑） */
+.status.reaction-requested {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+/* 調査状態：断念（黄色） */
+.status.abandoned {
+  background-color: #fff1d6;
+  color: #925b08;
+}
+
+/* 想定外の状態 */
+.status.unknown {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+/* タブレット */
+@media (max-width: 900px) {
+  .investigation-table th,
+  .investigation-table td {
+    padding: 8px 5px;
+    font-size: 12px;
+  }
+
+  .investigation-table .col-investigation-status {
+    width: 180px;
+  }
+}
+
+/* スマートフォン */
+@media (max-width: 600px) {
+  .investigation-table th,
+  .investigation-table td {
+    padding: 12px 8px;
+  }
+}
+
 
 /* ==================================================
    10. 問い合わせ状態ラベル
@@ -755,25 +956,108 @@
 }
 
 
+
 /* ==================================================
    12. 問い合わせ詳細
    ================================================== */
 
 .inquiry-detail {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 12px 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+}
+
+.inquiry-detail-item {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inquiry-detail-full {
+  grid-column: 1 / -1;
 }
 
 .inquiry-detail dt {
   font-weight: bold;
+  text-align: center;
 }
 
 .inquiry-detail dd {
+  min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+  text-align: left;
 }
+
+
+/* ==================================================
+   調査詳細
+   ================================================== */
+
+.investigation-detail-title {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.investigation-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+}
+
+.investigation-detail-item {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.investigation-detail-full {
+  grid-column: 1 / -1;
+}
+
+.investigation-detail dt {
+  font-weight: bold;
+  text-align: center;
+}
+
+.investigation-detail dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+/* タブレット */
+@media (max-width: 900px) {
+  .investigation-detail-item {
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+/* スマートフォン */
+@media (max-width: 600px) {
+  .investigation-detail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .investigation-detail-item {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .investigation-detail-full {
+    grid-column: 1;
+  }
+}
+
 
 
 /* ==================================================
@@ -950,11 +1234,16 @@
 
   .inquiry-detail {
     grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
+    gap: 12px;
   }
 
-  .inquiry-detail dd {
-    margin-bottom: 12px;
+  .inquiry-detail-item {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .inquiry-detail-full {
+    grid-column: 1;
   }
 
   .inquiry-table th,
@@ -997,3 +1286,159 @@
 
 }
 
+
+/* ==================================================
+   関連する問い合わせ調査テーブル
+   ================================================== */
+
+.related-inquiries-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.related-inquiries-table {
+  width: 100%;
+  min-width: 846px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: left;
+}
+
+.related-inquiries-table th,
+.related-inquiries-table td {
+  box-sizing: border-box;
+  padding: 8px 5px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.related-inquiries-table th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.related-inquiries-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* 列幅：合計846px。最後の列は残り幅を使用 */
+.related-inquiries-table .col-relation-number {
+  width: 82px;
+}
+
+.related-inquiries-table .col-inquiry-number {
+  width: 82px;
+}
+
+.related-inquiries-table .col-requester {
+  width: 100px;
+}
+
+.related-inquiries-table .col-handler {
+  width: 100px;
+}
+
+.related-inquiries-table .col-related-status {
+  width: 200px;
+}
+
+.related-inquiries-table .col-reaction {
+  width: 200px;
+}
+
+.related-inquiries-table .col-next-investigation {
+  width: 82px;
+}
+
+/* 番号は折り返さない */
+.related-inquiries-table .related-number-cell {
+  white-space: nowrap;
+}
+
+/* 状態ラベル */
+.related-status {
+  display: inline-block;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 調査中：青 */
+.related-status.investigating {
+  background-color: #dceafe;
+  color: #1d4e89;
+}
+
+/* 断念：黄 */
+.related-status.abandoned {
+  background-color: #fff1d6;
+  color: #925b08;
+}
+
+/* リアクション待ち：黄 */
+.related-status.reaction-waiting {
+  background-color: #fff1d6;
+  color: #925b08;
+}
+
+/* OK：緑 */
+.related-status.related-ok {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+/* NG：赤 */
+.related-status.related-ng {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+/* リアクション日時と内容 */
+.related-reaction-cell {
+  overflow-wrap: anywhere;
+}
+
+.related-reaction-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+.related-reaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.related-reaction-actions button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* 個別断念日時・断念ボタン */
+.related-abandon-cell {
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.related-abandon-cell button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* 関連データがない場合 */
+.related-inquiries-empty {
+  padding: 20px !important;
+  text-align: center;
+  color: #64748b;
+}

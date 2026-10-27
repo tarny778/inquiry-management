@@ -45,7 +45,7 @@ export default function InquiryCreate({
         )}
 
         <form className="search-section" onSubmit={onSubmit}>
-          <div className="search-fields">
+          <div className="form-fields">
             <label>
               問い合わせ職員番号 *
               <input
@@ -82,6 +82,57 @@ export default function InquiryCreate({
             </label>
 
             <label>
+              受信日時{createForm.受付経路 === '電話' && (
+                '(電話なら登録時に自動設定)'
+              )}
+              <input
+                type="datetime-local"
+                value={createForm.受信日時}
+                onChange={(event) =>
+                  setCreateForm({
+                    ...createForm,
+                    受信日時: event.target.value,
+                  })
+                }
+                required={createForm.受付経路 !== '電話'}
+                disabled={loading || createForm.受付経路 === '電話'}
+              />
+              
+            </label>
+            <label>
+              受付時の処理 *
+              <select
+                value={createForm.受付時の処理}
+                onChange={(event) =>
+                  setCreateForm({
+                    ...createForm,
+                    受付時の処理: event.target.value,
+                  })
+                }
+                disabled={loading}
+              >
+                <option value="1">即時解決</option>
+                <option value="2">要調査</option>
+                <option value="3">他所属案内</option>
+              </select>
+            </label>
+
+            <label className="form-field-wide">
+              件名 *
+              <input
+                value={createForm.件名}
+                onChange={(event) =>
+                  setCreateForm({
+                    ...createForm,
+                    件名: event.target.value,
+                  })
+                }
+                maxLength={100}
+                required
+                disabled={loading}
+              />
+            </label>
+            <label>
               問い合わせ分類 *
               <select
                 value={createForm.問い合わせ分類}
@@ -97,22 +148,6 @@ export default function InquiryCreate({
                 <option value="分類B">分類B</option>
                 <option value="分類C">分類C</option>
               </select>
-            </label>
-
-            <label>
-              件名 *
-              <input
-                value={createForm.件名}
-                onChange={(event) =>
-                  setCreateForm({
-                    ...createForm,
-                    件名: event.target.value,
-                  })
-                }
-                maxLength={100}
-                required
-                disabled={loading}
-              />
             </label>
 
             <label>
@@ -132,64 +167,24 @@ export default function InquiryCreate({
                 <option value="3">3</option>
               </select>
             </label>
-
-            <label>
-              受付時の処理 *
-              <select
-                value={createForm.受付時の処理}
+            <label className="form-field-three">
+              問い合わせ詳細
+              <textarea
+                value={createForm.問い合わせ詳細}
                 onChange={(event) =>
                   setCreateForm({
                     ...createForm,
-                    受付時の処理: event.target.value,
+                    問い合わせ詳細: event.target.value,
                   })
                 }
+                maxLength={1000}
+                rows={5}
                 disabled={loading}
-              >
-                <option value="1">即時解決</option>
-                <option value="2">要調査</option>
-                <option value="3">他所属案内</option>
-              </select>
-            </label>
-
-            <label>
-              受信日時
-              <input
-                type="datetime-local"
-                value={createForm.受信日時}
-                onChange={(event) =>
-                  setCreateForm({
-                    ...createForm,
-                    受信日時: event.target.value,
-                  })
-                }
-                required={createForm.受付経路 !== '電話'}
-                disabled={loading || createForm.受付経路 === '電話'}
               />
-              {createForm.受付経路 === '電話' && (
-                <span className="initial-condition-description">
-                  電話の場合は登録時に自動設定されます。
-                </span>
-              )}
             </label>
           </div>
 
-          <label>
-            問い合わせ詳細
-            <textarea
-              value={createForm.問い合わせ詳細}
-              onChange={(event) =>
-                setCreateForm({
-                  ...createForm,
-                  問い合わせ詳細: event.target.value,
-                })
-              }
-              maxLength={1000}
-              rows={5}
-              disabled={loading}
-            />
-          </label>
-
-          <div className="bulk-buttons">
+          <div className="form-actions">
 
             <button
   className="button-primary" type="submit" disabled={loading}>

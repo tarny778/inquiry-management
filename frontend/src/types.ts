@@ -85,7 +85,7 @@ export type Investigation = {
   調査番号: number
   調査の名称: string
   調査状態: number
-  対応担当者職員氏名: string | null
+  対応担当者職員番号: string | null
   関連問い合わせ件数: number
   自分の問い合わせを含む: boolean
 }
