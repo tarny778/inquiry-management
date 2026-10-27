@@ -310,6 +310,16 @@ function App() {
       setInvestigationScreenMode('view')
       setMainScreen('investigation')
     } catch (err) {
+      // セッション切れ
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setSelectedInquiry(null)
+        return
+      }
+
+      // その他のAPIエラー
       setError(
         err instanceof Error
           ? err.message
@@ -376,29 +386,25 @@ function App() {
 
   function openInquiryEdit() {
     if (!selectedInquiry) return
-    console.log(
-      '編集対象の受信日時:',
-      selectedInquiry.受信日時,
-    )
 
-    setEditForm({
-      問い合わせ職員番号:
-        selectedInquiry.問い合わせ職員番号 ?? '',
-      受付経路:
-        selectedInquiry.受付経路 ?? '電話',
-      問い合わせ分類:
-        selectedInquiry.問い合わせ分類 ?? '分類A',
-      件名:
-        selectedInquiry.件名,
-      緊急度:
-        String(selectedInquiry.緊急度 ?? 2),
-      受付時の処理:
-        String(selectedInquiry.受付時の処理 ?? '2'),
-      問い合わせ詳細:
-        selectedInquiry.問い合わせ詳細 ?? '',
-      受信日時:
-        (selectedInquiry.受信日時 ?? '').split('.')[0],
-    })
+      setEditForm({
+        問い合わせ職員番号:
+          selectedInquiry.問い合わせ職員番号 ?? '',
+        受付経路:
+          selectedInquiry.受付経路 ?? '電話',
+        問い合わせ分類:
+          selectedInquiry.問い合わせ分類 ?? '分類A',
+        件名:
+          selectedInquiry.件名,
+        緊急度:
+          String(selectedInquiry.緊急度 ?? 2),
+        受付時の処理:
+          String(selectedInquiry.受付時の処理 ?? '2'),
+        問い合わせ詳細:
+          selectedInquiry.問い合わせ詳細 ?? '',
+        受信日時:
+          (selectedInquiry.受信日時 ?? '').split('.')[0],
+      })
 
     setScreenMode('edit')
   }
@@ -1315,7 +1321,6 @@ function App() {
       // ④ 詳細画面に戻る
       setInvestigationScreenMode('view')
     } catch (error) {
-      console.error('調査の保存に失敗しました。', error)
       setError(
         error instanceof Error
           ? error.message
@@ -1750,6 +1755,7 @@ function App() {
             handleAnswerRelatedInquiryNg(relationNumber)
           }
           onOpenInquiry={openRelatedInquiry}
+          onOpenInvestigation={openRelatedInvestigation}
         />
         </div>
       )

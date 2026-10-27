@@ -334,8 +334,7 @@ export default function InquiryListPage({
 
 
       </main>
-
-      {/*　関連付けダイアログ */}
+      {/*関連付けダイアログ */}
       <InvestigationDailog
         loading={loading}
         selectedNumbers={selectedNumbers}

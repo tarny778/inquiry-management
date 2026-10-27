@@ -13,6 +13,7 @@ type InvestigationRelatedInquiriesProps = {
   onAnswerOk: (relationId: number) => Promise<void>
   onAnswerNg: (relationId: number) => Promise<void>
   onOpenInquiry: (inquiryNumber: number) => void
+  onOpenInvestigation: (investigationNumber: number) => void
 }
 
 export default function InvestigationRelatedInquiries({
@@ -23,7 +24,8 @@ export default function InvestigationRelatedInquiries({
   onAbandonRelated,
   onAnswerOk,
   onAnswerNg,
-  onOpenInquiry
+  onOpenInquiry,
+  onOpenInvestigation,
 }: InvestigationRelatedInquiriesProps) {
   const statusLabels: Record<number, string> = {
     1: '調査中',
@@ -182,7 +184,21 @@ export default function InvestigationRelatedInquiries({
                     </td>
 
                     <td className="related-number-cell">
-                      {relatedInquiry['NGでの移行先調査番号'] ?? '—'}
+                      {relatedInquiry['NGでの移行先調査番号'] ? (
+                        <button
+                          className="link-button"
+                          type="button"
+                          onClick={() =>
+                            onOpenInvestigation(
+                              relatedInquiry['NGでの移行先調査番号']!
+                            )
+                          }
+                          disabled={loading}
+                        >
+                          {relatedInquiry['NGでの移行先調査番号']}
+                        </button>
+                        ):'-'
+                      }
                     </td>
 
                     <td className="related-abandon-cell">
