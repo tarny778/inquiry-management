@@ -27,6 +27,7 @@ type InquiryViewProps = {
   handleAcceptInquiry: (inquiryNumber: number) => void
   handleCompleteInquiry: (inquiryNumber: number) => void
   handleReopenInquiry: (inquiryNumber: number) => void
+  onOpenInvestigation: (investigationNumber: number) => void
 }
 
 const receptionHandlingLabels: Record<string, string> = {
@@ -49,6 +50,7 @@ export default function InquiryView({
   handleAcceptInquiry,
   handleCompleteInquiry,
   handleReopenInquiry,
+  onOpenInvestigation,
 }: InquiryViewProps) {
   const canEditInquiry =
     (selectedInquiry.状態 === '引き受け待ち' &&
@@ -230,7 +232,23 @@ export default function InquiryView({
                 <dt>関連する調査番号</dt>
                 <dd>
                   {selectedInquiry.関連する調査番号一覧.length > 0
-                    ? selectedInquiry.関連する調査番号一覧.join('、')
+                    ? selectedInquiry.関連する調査番号一覧.map(
+                        (investigationNumber, index) => (
+                          <span key={investigationNumber}>
+                            {index > 0 && '、'}
+                            <button
+                              className="link-button"
+                              type="button"
+                              onClick={() =>
+                                onOpenInvestigation(investigationNumber)
+                              }
+                              disabled={loading}
+                            >
+                              {investigationNumber}
+                            </button>
+                          </span>
+                        ),
+                      )
                     : 'なし'}
                 </dd>
               </div>

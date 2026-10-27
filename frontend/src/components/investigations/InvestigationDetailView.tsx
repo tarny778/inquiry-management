@@ -16,6 +16,7 @@ type InvestigationDetailViewProps = {
   onAbandonRelated: (relationNumber: number) => Promise<void>
   onAnswerRelatedInquiryOk: (relationId: number) => Promise<void>
   onAnswerRelatedInquiryNg: (relationId: number) => Promise<void>
+  onOpenInquiry: (inquiryNumber: number) => void
 }
 
 export default function InvestigationDetailView({
@@ -29,6 +30,7 @@ export default function InvestigationDetailView({
   onAbandonRelated,
   onAnswerRelatedInquiryOk,
   onAnswerRelatedInquiryNg,
+  onOpenInquiry,
 }: InvestigationDetailViewProps) {
   
   const canAbandon =
@@ -106,6 +108,7 @@ export default function InvestigationDetailView({
           onAbandonRelated={onAbandonRelated}
           onAnswerOk={onAnswerRelatedInquiryOk}
           onAnswerNg={onAnswerRelatedInquiryNg}
+          onOpenInquiry={onOpenInquiry}
         />
       </main>
     </div>

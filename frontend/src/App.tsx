@@ -275,6 +275,51 @@ function App() {
     }
   }
 
+  // 調査一覧へ移動し、現在の検索条件で一覧を再取得する
+  async function handleOpenInvestigations() {
+    setError('')
+    setSelectedNumbers([])
+    setActionMessage('')
+    setMainScreen('investigation')
+    setInvestigationLoading(true)
+
+    try {
+      await fetchInvestigationSearchResults(
+        investigationList.appliedFilters,
+        investigationCurrentPage,
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 関連する調査の詳細画面を開く
+  async function openRelatedInvestigation(
+    investigationNumber: number,
+  ) {
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      const detail = await getInvestigationDetail(
+        investigationNumber,
+      )
+
+      setSelectedInvestigation(detail)
+      setSelectedInquiry(null)
+      setInvestigationScreenMode('view')
+      setMainScreen('investigation')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : '調査詳細の取得に失敗しました。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
   // 問い合わせ詳細データを取得する
   async function fetchInquiryDetail(
     inquiryNumber: number,
@@ -838,8 +883,6 @@ function App() {
     }
   }
 
-
-
   async function handleBulkCreateInvestigation() {
     if (
       selectedNumbers.length === 0 ||
@@ -946,8 +989,6 @@ function App() {
     setActionMessage('')
     setError('')
   }
-
-
 
   // ページを開いたとき、既存セッションがあれば職員情報と一覧を取得する。
   useEffect(() => {
@@ -1157,6 +1198,56 @@ function App() {
       )
     } finally {
       setInvestigationLoading(false)
+    }
+  }
+
+  // 問い合わせ一覧へ移動し、現在の表示条件で一覧を再取得する
+  async function handleOpenInquiryList() {
+    setError('')
+    setMainScreen('inquiry')
+    setSelectedNumbers([])
+    setActionMessage('')
+    setLoading(true)
+
+    try {
+      await refreshCurrentInquiryList()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 関連する問い合わせの詳細画面を開く
+  async function openRelatedInquiry(
+    inquiryNumber: number,
+  ) {
+    setError('')
+    setLoading(true)
+
+    try {
+      const detail = await fetchInquiryDetail(inquiryNumber)
+
+      if (detail === null) {
+        return
+      }
+
+      setSelectedInquiry(detail)
+      setSelectedInvestigation(null)
+      setScreenMode('view')
+      setMainScreen('inquiry')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : '問い合わせ詳細の取得に失敗しました。',
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1658,6 +1749,7 @@ function App() {
           onAnswerRelatedInquiryNg={(relationNumber) =>
             handleAnswerRelatedInquiryNg(relationNumber)
           }
+          onOpenInquiry={openRelatedInquiry}
         />
         </div>
       )
@@ -1715,7 +1807,7 @@ function App() {
               <button
                 className="button-secondary"
                 type="button"
-                onClick={() => setMainScreen('inquiry')}
+                onClick={handleOpenInquiryList}
                 disabled={investigationLoading}
               >
                 ← 問い合わせ一覧へ
@@ -1834,6 +1926,7 @@ function App() {
         handleAcceptInquiry={handleAcceptInquiry}
         handleCompleteInquiry={handleCompleteInquiry}
         handleReopenInquiry={handleReopenInquiry}
+        onOpenInvestigation={openRelatedInvestigation}
       />
       </div>
     )
@@ -1902,7 +1995,7 @@ function App() {
       setExistingInvestigationNumber={setExistingInvestigationNumber}
       newInvestigationName={newInvestigationName}
       setNewInvestigationName={setNewInvestigationName}
-      onOpenInvestigations={() => setMainScreen('investigation')}
+      onOpenInvestigations={handleOpenInvestigations}
     />
     </div>
   )

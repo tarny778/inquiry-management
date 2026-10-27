@@ -369,7 +369,7 @@ def test_search_investigations_response(
         "調査一覧APIテスト-複数問い合わせ"
     )
     assert item["調査状態"] == 1
-    assert item["対応担当者職員氏名"] is not None
+    assert item["対応担当者職員番号"] is not None
     assert item["関連問い合わせ件数"] == 2
     assert item["自分の問い合わせを含む"] is True
 
