@@ -1,40 +1,27 @@
 
-import AppHeader from '../AppHeader'
 import PageHeader from '../PageHeader'
 import type { InquiryCreateForm } from '../../types'
 
 type InquiryCreateProps = {
-  user: {
-    氏名: string
-    職員番号: string
-  } | null
   createForm: InquiryCreateForm
   setCreateForm: (form: InquiryCreateForm) => void
   loading: boolean
   error: string
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
   onCancel: () => void
-  onLogout: () => void
 }
 
 export default function InquiryCreate({
-  user,
   createForm,
   setCreateForm,
   loading,
   error,
   onSubmit,
   onCancel,
-  onLogout,
 }: InquiryCreateProps) {
   return (
     <div className="app">
-      <AppHeader
-        user={user}
-        onLogout={onLogout}
-        loading={loading}
-      />
-
+      
       <main className="main">
         <PageHeader
           section="問い合わせ"
@@ -46,7 +33,7 @@ export default function InquiryCreate({
               onClick={onCancel}
               disabled={loading}
             >
-              ← 一覧に戻る
+              ↑ 一覧に戻る
             </button>
           }
         />
@@ -203,18 +190,10 @@ export default function InquiryCreate({
           </label>
 
           <div className="bulk-buttons">
-            <button
-              className="button-secondary"
-              type="button"
-              onClick={onCancel}
-              disabled={loading}
-            >
-              キャンセル
-            </button>
 
             <button
   className="button-primary" type="submit" disabled={loading}>
-              {loading ? '登録中...' : '登録する'}
+              {loading ? '登録中...' : '登録'}
             </button>
           </div>
         </form>

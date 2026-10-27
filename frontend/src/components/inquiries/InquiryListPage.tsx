@@ -3,7 +3,6 @@ import type {
   Inquiry,
 } from '../../types'
 
-import AppHeader from '../AppHeader'
 import PageHeader from '../PageHeader'
 import InquirySearch  from './InquirySearch'
 import InquiryTable from './InquiryTable'
@@ -18,6 +17,7 @@ type InquiryListPageProps = {
   } | null
 
   loading: boolean
+  setLoading: (loading: boolean) => void
   error: string
   setError: (error: string) => void
 
@@ -35,7 +35,6 @@ type InquiryListPageProps = {
     pageNumber?: number,
   ) => Promise<boolean>
 
-  handleLogout: () => void
   openNewInquiry: () => void
   openInquiryDetail: (inquiryNumber: number) => void
 
@@ -93,6 +92,7 @@ type InquiryListPageProps = {
 export default function InquiryListPage({
   user,
   loading,
+  setLoading,
   error,
   setError,
   inquiries,
@@ -103,7 +103,6 @@ export default function InquiryListPage({
   appliedFilters,
   loadInquiries,
   fetchSearchResults,
-  handleLogout,
   openNewInquiry,
   openInquiryDetail,
   handleInitialConditionChange,
@@ -149,11 +148,6 @@ export default function InquiryListPage({
 }: InquiryListPageProps) {
   return (
     <div className="app">
-      <AppHeader
-        user={user}
-        onLogout={handleLogout}
-        loading={loading}
-      />
 
       <main className="main">
         <PageHeader
@@ -257,6 +251,7 @@ export default function InquiryListPage({
           {/* 一括操作*/}
           <InquiryBulkAction
             loading={loading}
+            user={user}
             selectedNumbers={selectedNumbers}
             handleBulkAccept={handleBulkAccept}
             handleBulkComplete={handleBulkComplete}
@@ -285,11 +280,16 @@ export default function InquiryListPage({
 
                 setSelectedNumbers([])
                 setActionMessage('')
+                setLoading(true)
 
-                if (listDisplayMode === 'initial') {
-                  await loadInquiries(nextPage)
-                } else {
-                  await fetchSearchResults(appliedFilters, nextPage)
+                try {
+                  if (listDisplayMode === 'initial') {
+                    await loadInquiries(nextPage)
+                  } else {
+                    await fetchSearchResults(appliedFilters, nextPage)
+                  }
+                } finally {
+                  setLoading(false)
                 }
               }}
               disabled={currentPage <= 1 || loading}
@@ -311,11 +311,16 @@ export default function InquiryListPage({
 
                 setSelectedNumbers([])
                 setActionMessage('')
+                setLoading(true)
 
-                if (listDisplayMode === 'initial') {
-                  await loadInquiries(nextPage)
-                } else {
-                  await fetchSearchResults(appliedFilters, nextPage)
+                try {
+                  if (listDisplayMode === 'initial') {
+                    await loadInquiries(nextPage)
+                  } else {
+                    await fetchSearchResults(appliedFilters, nextPage)
+                  }
+                } finally {
+                  setLoading(false)
                 }
               }}
               disabled={

@@ -318,7 +318,8 @@
    ================================================== */
 
 .search-section,
-.list-section {
+.list-section,
+.detail-section {
   margin-bottom: 14px;
   padding: 16px 18px;
   background-color: #ffffff;
@@ -332,7 +333,8 @@
 }
 
 .search-section h3,
-.list-section h3 {
+.list-section h3,
+.detail-section h3 {
   margin: 0 0 10px;
   font-size: 16px;
 }

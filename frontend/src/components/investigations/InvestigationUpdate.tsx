@@ -6,7 +6,6 @@ import type {
   LoginUser,
 } from '../../types'
 
-import AppHeader from '../AppHeader'
 import PageHeader from '../PageHeader'
 
 type InvestigationUpdateProps = {
@@ -19,7 +18,6 @@ type InvestigationUpdateProps = {
   onCancel: () => void
   loading: boolean
   user: LoginUser | null
-  onLogout: () => void
 }
 
 export default function InvestigationUpdate({
@@ -29,16 +27,9 @@ export default function InvestigationUpdate({
   onSubmit,
   onCancel,
   loading,
-  user,
-  onLogout,
 }: InvestigationUpdateProps) {
   return (
     <div className="app">
-      <AppHeader
-        user={user}
-        onLogout={onLogout}
-        loading={loading}
-      />
 
       <main className="main">
         <section className="detail-section">
@@ -52,7 +43,7 @@ export default function InvestigationUpdate({
                 onClick={onCancel}
                 disabled={loading}
               >
-                キャンセル
+                ↑ 戻る
               </button>
             }
           />

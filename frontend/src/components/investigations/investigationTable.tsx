@@ -57,6 +57,7 @@ export default function InvestigationTable({
                     onClick={() =>
                       onSelectInvestigation(investigation.調査番号)
                     }
+                    disabled={loading}
                   >
                     {investigation.調査番号}
                   </button>
@@ -68,6 +69,7 @@ export default function InvestigationTable({
                     onClick={() =>
                       onSelectInvestigation(investigation.調査番号)
                     }
+                    disabled={loading}
                   >
                     {investigation.調査の名称}
                   </button>

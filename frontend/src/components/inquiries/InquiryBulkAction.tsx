@@ -1,5 +1,10 @@
 type InquiryBulkActionProps = {
-  loading: boolean  
+  loading: boolean
+  user: {
+    氏名: string
+    職員番号: string
+    所属: string
+  } | null
   selectedNumbers: number[]
   handleBulkAccept: () => Promise<void>
   handleBulkComplete: () => Promise<void>
@@ -9,6 +14,7 @@ type InquiryBulkActionProps = {
 
 export default function InquiryBulkAction({
   loading,
+  user,
   selectedNumbers,
   handleBulkAccept,
   handleBulkComplete,
@@ -21,49 +27,51 @@ export default function InquiryBulkAction({
             選択中：{selectedNumbers.length}件
         </span>
 
-        <div className="bulk-buttons">
-            <button
-            className="button-primary"
-            type="button"
-            onClick={() => void handleBulkAccept()}
-            disabled={selectedNumbers.length === 0 || loading}
-            >
-            {loading ? '処理中...' : '引き受け'}
-            </button>
-
-            
-            <div className="bulk-investigation-actions">
-            <button
+        {user?.所属 === '情報システム課' && (
+            <div className="bulk-buttons">
+                <button
                 className="button-primary"
                 type="button"
-                onClick={() => setIsLinkInvestigationDialogOpen(true)}
+                onClick={() => void handleBulkAccept()}
                 disabled={selectedNumbers.length === 0 || loading}
-            >
-                既存の調査に関連付け
-            </button>
+                >
+                {loading ? '処理中...' : '引き受け'}
+                </button>
 
-            <button
+                
+                <div className="bulk-investigation-actions">
+                <button
+                    className="button-primary"
+                    type="button"
+                    onClick={() => setIsLinkInvestigationDialogOpen(true)}
+                    disabled={selectedNumbers.length === 0 || loading}
+                >
+                    既存の調査に関連付け
+                </button>
+
+                <button
+                    className="button-primary"
+                    type="button"
+                    onClick={() => setIsCreateInvestigationDialogOpen(true)}
+                    disabled={selectedNumbers.length === 0 || loading}
+                >
+                    新しい調査を作成・関連付け
+                </button>
+                </div>
+
+
+                
+                <button
                 className="button-primary"
                 type="button"
-                onClick={() => setIsCreateInvestigationDialogOpen(true)}
+                onClick={() => void handleBulkComplete()}
                 disabled={selectedNumbers.length === 0 || loading}
-            >
-                新しい調査を作成・関連付け
-            </button>
+                >
+                {loading ? '処理中...' : '対応完了'}
+                </button>
+
             </div>
-
-
-            
-            <button
-            className="button-primary"
-            type="button"
-            onClick={() => void handleBulkComplete()}
-            disabled={selectedNumbers.length === 0 || loading}
-            >
-            {loading ? '処理中...' : '対応完了'}
-            </button>
-
-        </div>
+        )}
     </div>
   )
 }

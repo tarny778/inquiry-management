@@ -1,7 +1,6 @@
 
 import type { InvestigationDetail,LoginUser } from '../../types'
 
-import AppHeader from '../AppHeader'
 import PageHeader from '../PageHeader'
 import InvestigationInfo from './InvestigationInfo'
 import InvestigationRelatedInquiries from './InvestigationRelatedInquiries'
@@ -10,7 +9,6 @@ type InvestigationDetailViewProps = {
   investigation: InvestigationDetail
   user: LoginUser | null
   loading: boolean
-  onLogout: () => void
   onBack: () => Promise<void>
   onEdit: () => void
   onAbandon:() => Promise<void>
@@ -24,7 +22,6 @@ export default function InvestigationDetailView({
   investigation,
   user,
   loading,
-  onLogout,
   onBack,
   onEdit,
   onAbandon,
@@ -44,11 +41,6 @@ export default function InvestigationDetailView({
     )
   return (
     <div className="app">
-      <AppHeader
-        user={user}
-        onLogout={onLogout}
-        loading={loading}
-      />
 
       <main className="main">
         
@@ -57,40 +49,44 @@ export default function InvestigationDetailView({
           title="調査詳細"
           actions={
             <>
+              {user?.所属 === '情報システム課' && (
+                <button
+                  className="button-primary"
+                  type="button"
+                  onClick={onEdit}
+                  disabled={loading || !canAbandon}
+                >
+                  編集
+                </button>
+              )}
+              {user?.所属 === '情報システム課' && (
+                <button
+                  className="button-primary"
+                  type="button"
+                  onClick={onRequestReaction}
+                  disabled={loading || !canAbandon}
+                >
+                  リアクション要求
+                </button>
+              )}
+              {user?.所属 === '情報システム課' && (
+                <button
+                  className="button-secondary"
+                  type="button"
+                  onClick={onAbandon}
+                  disabled={loading || !canAbandon}
+                >
+                  断念
+                </button>
+              )}
+
               <button
                 className="button-secondary"
                 type="button"
                 onClick={onBack}
                 disabled={loading}
               >
-                ← 調査一覧へ戻る
-              </button>
-
-              <button
-                className="button-primary"
-                type="button"
-                onClick={onEdit}
-                disabled={loading || !canAbandon}
-              >
-                編集
-              </button>
-
-              <button
-                className="button-secondary"
-                type="button"
-                onClick={onAbandon}
-                disabled={loading || !canAbandon}
-              >
-                断念
-              </button>
-
-              <button
-                className="button-primary"
-                type="button"
-                onClick={onRequestReaction}
-                disabled={loading || !canAbandon}
-              >
-                リアクション要求
+                ↑ 一覧に戻る
               </button>
             </>
           }

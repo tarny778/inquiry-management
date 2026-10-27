@@ -1598,17 +1598,28 @@ function App() {
         )
       }
       return (
+        <div>
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading || investigationLoading}
+        />
         <InvestigationDetailView
           investigation={selectedInvestigation}
           user={user}
           loading={investigationLoading}
-          onLogout={handleLogout}
           onBack={async () => {
-            await fetchInvestigationSearchResults(
-              investigationList.appliedFilters,
-              investigationCurrentPage,
-            )
-            setInvestigationScreenMode('list')
+            setInvestigationLoading(true)
+
+            try {
+              await fetchInvestigationSearchResults(
+                investigationList.appliedFilters,
+                investigationCurrentPage,
+              )
+              setInvestigationScreenMode('list')
+            } finally {
+              setInvestigationLoading(false)
+            }
           }}
           onEdit={() => {
             setInvestigationEditForm({
@@ -1648,6 +1659,7 @@ function App() {
             handleAnswerRelatedInquiryNg(relationNumber)
           }
         />
+        </div>
       )
     }
 
@@ -1668,6 +1680,12 @@ function App() {
         )
       }
       return(
+        <div>
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading || investigationLoading}
+        />
         <InvestigationUpdate
           investigation={selectedInvestigation}
           editForm={investigationEditForm}
@@ -1676,8 +1694,8 @@ function App() {
           onCancel={() => setInvestigationScreenMode('view')}
           loading={investigationLoading}
           user={user}
-          onLogout={handleLogout}
         />
+        </div>
       )
     }
     // 一覧画面
@@ -1686,7 +1704,7 @@ function App() {
         <AppHeader
           user={user}
           onLogout={handleLogout}
-          loading={loading}
+          loading={loading || investigationLoading}
         />
 
         <main className="main">
@@ -1750,44 +1768,61 @@ function App() {
   // 新規作成画面
   if (screenMode === 'new' && mainScreen ==='inquiry') {
     return (
+      <div>
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading || investigationLoading}
+        />
       <InquiryCreate
-        user={user}
         createForm={createForm}
         setCreateForm={setCreateForm}
         loading={loading}
         error={error}
         onSubmit={handleCreateInquiry}
         onCancel={() => setScreenMode('list')}
-        onLogout={handleLogout}
       />
+      </div>
     )
   }
 
   // 編集画面
   if (screenMode === 'edit' && selectedInquiry !== null) {
     return (
+      <div>
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading || investigationLoading}
+        />
       <InquiryUpdate
-        user={user}
         editForm={editForm}
         setEditForm={setEditForm}
         loading={loading}
         error={error}
         onSubmit={handleUpdateInquiry}
         onCancel={() => setScreenMode('view')}
-        onLogout={handleLogout}
       />
+      </div>
     )
   }
 
   // 詳細画面
   if (selectedInquiry !== null) {
     return (
+      <div>
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading || investigationLoading}
+        />
       <InquiryView
         user={user}
         selectedInquiry={selectedInquiry}
         setSelectedInquiry={setSelectedInquiry}
         setScreenMode={setScreenMode}
         loading={loading}
+        setLoading={setLoading}
         error={error}
         listDisplayMode={listDisplayMode}
         currentPage={currentPage}
@@ -1799,16 +1834,23 @@ function App() {
         handleAcceptInquiry={handleAcceptInquiry}
         handleCompleteInquiry={handleCompleteInquiry}
         handleReopenInquiry={handleReopenInquiry}
-        onLogout={handleLogout}
       />
+      </div>
     )
   }
 
   // 一覧画面
   return (
+    <div>
+        <AppHeader
+          user={user}
+          onLogout={handleLogout}
+          loading={loading || investigationLoading}
+        />
     <InquiryListPage
       user={user}
       loading={loading}
+      setLoading={setLoading}
       error={error}
       setError={setError}
       inquiries={inquiries}
@@ -1819,7 +1861,6 @@ function App() {
       appliedFilters={appliedFilters}
       loadInquiries={loadInquiries}
       fetchSearchResults={fetchSearchResults}
-      handleLogout={handleLogout}
       openNewInquiry={openNewInquiry}
       openInquiryDetail={openInquiryDetail}
       handleInitialConditionChange={handleInitialConditionChange}
@@ -1863,6 +1904,7 @@ function App() {
       setNewInvestigationName={setNewInvestigationName}
       onOpenInvestigations={() => setMainScreen('investigation')}
     />
+    </div>
   )
 }
 

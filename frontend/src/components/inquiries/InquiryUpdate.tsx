@@ -1,44 +1,42 @@
-import AppHeader from '../AppHeader'
+
 import PageHeader from '../PageHeader'
 import type { FormEvent } from 'react'
 import type { InquiryEditForm } from '../../types'
 
 type InquiryUpdateProps = {
-  user: {
-    氏名: string
-    職員番号: string
-  } | null
   editForm: InquiryEditForm
   setEditForm: (form: InquiryEditForm) => void
   loading: boolean
   error: string
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onCancel: () => void
-  onLogout: () => void
 }
 
 export default function InquiryUpdate({
-  user,
   editForm,
   setEditForm,
   loading,
   error,
   onSubmit,
   onCancel,
-  onLogout,
 }: InquiryUpdateProps) {
     return (
       <div className="app">
-        <AppHeader
-          user={user}
-          onLogout={onLogout}
-          loading={loading}
-        />
 
         <main className="main">
           <PageHeader
             section="問い合わせ"
             title="問い合わせ編集"
+            actions={
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={onCancel}
+                disabled={loading}
+              >
+                ↑ 戻る
+              </button>
+            }
           />
             {error && (
             <p className="error-message" role="alert">
@@ -189,18 +187,10 @@ export default function InquiryUpdate({
             </label>
 
             <div className="bulk-buttons">
-              <button
-                className="button-secondary"
-                type="button"
-                onClick={onCancel}
-                disabled={loading}
-              >
-                キャンセル
-              </button>
 
               <button
   className="button-primary" type="submit" disabled={loading}>
-                {loading ? '更新中...' : '更新する'}
+                {loading ? '保存中...' : '保存'}
               </button>
             </div>
           </form>
