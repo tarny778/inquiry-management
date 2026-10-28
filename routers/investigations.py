@@ -20,7 +20,10 @@ def search_investigations_api(
     調査状態: int | None = Query(default=None, ge=1, le=3),
     問い合わせ職員番号: str | None = None,
     問い合わせ番号: int | None = Query(default=None, ge=1),
-    問い合わせ状態: str | None = None,
+    問い合わせ状態: str | None = Query(
+        default=None,
+        pattern="^(引き受け待ち|対応中|対応完了)$",
+    ),
     対応担当者職員番号: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
@@ -157,7 +160,7 @@ def search_investigations_api(
                     q."調査の名称",
                     q."調査状態",
 
-                    -- 関連する問い合わせの対応担当者氏名
+                    -- 関連する問い合わせの対応担当者職員番号
                     (
                         SELECT s."職員番号"
                         FROM "問い合わせ調査" ik

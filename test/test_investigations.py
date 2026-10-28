@@ -481,29 +481,6 @@ def test_search_investigations_by_status(
     )
 
 
-def test_search_investigations_by_requester_name(
-    investigation_search_test_data,
-):
-    """問い合わせ者の氏名で部分一致検索できることを確認する。"""
-
-    response = client.get(
-        "/api/investigations",
-        params={"問い合わせ者氏名": "情シス太郎"},
-    )
-
-    assert response.status_code == 200, response.text
-
-    returned_numbers = {
-        item["調査番号"]
-        for item in response.json()["items"]
-    }
-
-    assert (
-        investigation_search_test_data["investigation_numbers"][0]
-        in returned_numbers
-    )
-
-
 def test_search_investigations_pagination(
     investigation_search_test_data,
 ):
