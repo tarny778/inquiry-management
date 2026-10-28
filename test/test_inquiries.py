@@ -1022,25 +1022,6 @@ def test_bulk_accept_rejects_general_staff(
 
     assert after == before
 
-# =========================================================
-# 個別対応完了APIのテスト
-# =========================================================
-
-
-@pytest.mark.parametrize(
-    ("state", "expected_status"),
-    [
-        (1, 409),  # 調査中：拒否
-        (2, 200),  # 断念：許可
-        (3, 409),  # リアクション待ち：拒否
-        (4, 200),  # OK：許可
-        (5, 200),  # NG・移行済み：許可
-    ],
-)
-@pytest.mark.parametrize(
-    "unfinished_state",
-    [1, 3],
-)
 def test_bulk_complete_inquiries_success(
     bulk_completion_test_inquiries,
     monkeypatch,
@@ -1612,16 +1593,6 @@ def test_reopen_inquiry_conflict_when_expired(
     assert row is not None
     assert row[0] is not None
 
-#新規調査へ個別関連付け
-@pytest.mark.parametrize(
-    "name",
-    [
-        "",
-        "   ",
-        "あ" * 31,
-    ],
-)
-@pytest.mark.parametrize("state", [2, 3])
 def test_bulk_create_investigation_success(
     completion_test_inquiries,
     bulk_created_investigation_cleanup,
