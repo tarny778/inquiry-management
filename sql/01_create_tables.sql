@@ -16,7 +16,6 @@
 -- 外部キーで参照される側より、参照する側を先に削除する。
 -- =========================================================
 DROP TABLE IF EXISTS "問い合わせ調査";
-DROP TABLE IF EXISTS "対応担当者変更履歴";
 DROP TABLE IF EXISTS "調査";
 DROP TABLE IF EXISTS "問い合わせ";
 DROP TABLE IF EXISTS "ログインセッション";
@@ -183,25 +182,6 @@ CREATE TABLE "問い合わせ調査" (
             "NGでの移行先調査番号" IS NULL
             OR "NGでの移行先調査番号" <> "調査番号"
         )
-);
-
-
--- =========================================================
--- 7. 対応担当者変更履歴
--- =========================================================
-
-CREATE TABLE "対応担当者変更履歴" (
-    "問い合わせ番号" INTEGER NOT NULL,
-    "変更日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "変更後の対応担当者氏名" VARCHAR(30) NOT NULL,
-    "変更処理した職員氏名" VARCHAR(30) NOT NULL,
-    "変更理由" VARCHAR(500),
-
-    PRIMARY KEY ("問い合わせ番号", "変更日時"),
-
-    CONSTRAINT "fk_対応担当者変更履歴_問い合わせ"
-        FOREIGN KEY ("問い合わせ番号")
-        REFERENCES "問い合わせ" ("問い合わせ番号")
 );
 
 
