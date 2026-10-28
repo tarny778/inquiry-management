@@ -29,6 +29,19 @@ def test_required_inquiry_fields_reject_blank_strings(blank):
             InquiryCreate(**inquiry_create_payload(**{field: blank}))
 
 
+@pytest.mark.parametrize("blank", ["", "   ", "\\t\\n", "　", None])
+def test_required_inquiry_fields_reject_blank_or_none(blank):
+    for field in ("問い合わせ職員番号", "件名"):
+        with pytest.raises(ValidationError):
+            InquiryCreate(**inquiry_create_payload(**{field: blank}))
+        with pytest.raises(ValidationError):
+            InquiryUpdate(
+                **inquiry_create_payload(
+                    **{field: blank, "受信日時": "2026-10-28T10:00:00"}
+                )
+            )
+
+
 @pytest.mark.parametrize("blank", ["", "   ", "\t\n", "　"])
 def test_optional_inquiry_detail_normalizes_blank_to_none(blank):
     created = InquiryCreate(**inquiry_create_payload(問い合わせ詳細=blank))
