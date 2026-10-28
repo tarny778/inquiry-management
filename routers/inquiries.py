@@ -166,7 +166,7 @@ def create_inquiry_api(
         "問い合わせ番号": inquiry_number
     }
 
-#個別引き受け
+#一括引き受け
 @router.post("/api/inquiries/bulk-accept")
 def accept_inquiries_bulk_api(
     request: InquiryBulkAccept,
@@ -506,7 +506,7 @@ def reopen_inquiry_api(
         "問い合わせ番号": inquiry_number,
     }
 
-#新規調査へ個別関連付け
+#複数問い合わせへの新規調査作成・関連付け
 @router.post("/api/inquiries/bulk-investigations")
 def bulk_create_investigation_api(
     request: BulkInvestigationCreate,
