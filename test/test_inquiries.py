@@ -759,7 +759,7 @@ def test_create_inquiry_success(monkeypatch):
                     )
 
 
-#個別引き受けテスト
+#一括引き受けAPIのテスト
 def create_pending_inquiry_for_bulk_test():
     """一括引き受けテスト用の問い合わせを1件作成する。"""
     response = client.post(
