@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 os.environ["DATABASE_NAME"] = "inquiry_management_test"
 
@@ -724,6 +725,8 @@ def test_create_inquiry_success(monkeypatch):
                 cur.execute(
                     '''
                     SELECT
+                        "受信日時",
+                        "登録日時",
                         "問い合わせ職員番号",
                         "件名",
                         "受付担当者",
@@ -737,11 +740,22 @@ def test_create_inquiry_success(monkeypatch):
                 inquiry = cur.fetchone()
 
         assert inquiry is not None
-        assert inquiry[0] == "T0001"
-        assert inquiry[1] == "正常系テスト用問い合わせ"
-        assert inquiry[2] == "J0001"
-        assert inquiry[3] is None
-        assert inquiry[4] is None
+        assert inquiry[0].tzinfo is not None
+        assert inquiry[1].tzinfo is not None
+        assert inquiry[2] == "T0001"
+        assert inquiry[3] == "正常系テスト用問い合わせ"
+        assert inquiry[4] == "J0001"
+        assert inquiry[5] is None
+        assert inquiry[6] is None
+
+        detail_response = client.get(
+            f"/api/inquiries/{inquiry_number}"
+        )
+        assert detail_response.status_code == 200
+        received_at = datetime.fromisoformat(
+            detail_response.json()["受信日時"]
+        )
+        assert received_at.tzinfo is not None
 
     finally:
         # テストで登録したデータを削除して後片付けする

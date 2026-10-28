@@ -133,6 +133,7 @@ export default function InvestigationUpdate({
                 <input
                   id="investigation-plan-date"
                   type="datetime-local"
+                  step={1}
                   value={editForm.対応案策定予定日時}
                   onChange={(event) =>
                     setEditForm({
@@ -152,6 +153,7 @@ export default function InvestigationUpdate({
                 <input
                   id="investigation-next-update"
                   type="datetime-local"
+                  step={1}
                   value={editForm.進捗更新の次回更新予定日時}
                   onChange={(event) =>
                     setEditForm({

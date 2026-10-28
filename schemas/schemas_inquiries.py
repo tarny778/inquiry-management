@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from schemas.string_normalization import blank_string_to_none
+from schemas.datetime_utils import require_aware_datetime
 
 from pydantic import (
     BaseModel,
@@ -75,6 +76,11 @@ class InquiryCreate(BaseModel):
         if value not in {1, 2, 3}:
             raise ValueError("受付時の処理は1、2、3のいずれかを指定してください")
         return value
+
+    @field_validator("受信日時")
+    @classmethod
+    def require_timezone(cls, value):
+        return require_aware_datetime(value)
 
     @model_validator(mode="after")
     def validate_receipt_datetime(self):
@@ -220,6 +226,11 @@ class InquiryUpdate(BaseModel):
             raise ValueError("受付時の処理は1、2、3のいずれかを指定してください")
         return value
 
+    @field_validator("受信日時")
+    @classmethod
+    def require_timezone(cls, value):
+        return require_aware_datetime(value)
+
 
 
 class InquirySearch(BaseModel):
@@ -304,6 +315,11 @@ class InquirySearch(BaseModel):
         if value is not None and not set(value) <= allowed:
             raise ValueError("状態の指定が不正です")
         return value
+
+    @field_validator("受信日時開始", "受信日時終了")
+    @classmethod
+    def require_timezone(cls, value):
+        return require_aware_datetime(value)
 
     @model_validator(mode="after")
     def validate_受信日時(self):

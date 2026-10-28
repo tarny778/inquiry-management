@@ -31,7 +31,7 @@ def test_required_inquiry_fields_reject_blank_or_none(blank):
         with pytest.raises(ValidationError):
             InquiryUpdate(
                 **inquiry_create_payload(
-                    **{field: blank, "受信日時": "2026-10-28T10:00:00"}
+                    **{field: blank, "受信日時": "2026-10-28T10:00:00+09:00"}
                 )
             )
 
@@ -42,7 +42,7 @@ def test_optional_inquiry_detail_normalizes_blank_to_none(blank):
     assert created.問い合わせ詳細 is None
 
     updated = InquiryUpdate(
-        **inquiry_create_payload(問い合わせ詳細=blank, 受信日時="2026-10-28T10:00:00")
+        **inquiry_create_payload(問い合わせ詳細=blank, 受信日時="2026-10-28T10:00:00+09:00")
     )
     assert updated.問い合わせ詳細 is None
 
@@ -94,6 +94,81 @@ def test_login_preserves_nonblank_password_whitespace():
     password = "  Valid-Password-123!  "
     request = LoginRequest(職員番号="J0001", パスワード=password)
     assert request.パスワード == password
+
+
+def test_business_datetimes_require_timezone_and_normalize_to_utc():
+    created = InquiryCreate(
+        **inquiry_create_payload(
+            受付経路="メール",
+            受信日時="2026-10-28T10:00:00+09:00",
+        )
+    )
+    assert created.受信日時.isoformat() == "2026-10-28T01:00:00+00:00"
+
+    inquiry = InquiryUpdate(
+        **inquiry_create_payload(
+            受付経路="メール",
+            受信日時="2026-10-28T10:00:00+09:00",
+        )
+    )
+    assert inquiry.受信日時.isoformat() == "2026-10-28T01:00:00+00:00"
+
+    investigation = InvestigationUpdate(
+        調査の名称="日時テスト",
+        対応案策定予定日時="2026-10-28T10:00:00+09:00",
+    )
+    assert (
+        investigation.対応案策定予定日時.isoformat()
+        == "2026-10-28T01:00:00+00:00"
+    )
+
+
+@pytest.mark.parametrize(
+    "model,payload",
+    [
+        (
+            InquiryCreate,
+            inquiry_create_payload(
+                受付経路="メール",
+                受信日時="2026-10-28T10:00:00",
+            ),
+        ),
+        (
+            InquiryUpdate,
+            inquiry_create_payload(
+                受付経路="メール",
+                受信日時="2026-10-28T10:00:00",
+            ),
+        ),
+        (
+            InvestigationUpdate,
+            {
+                "調査の名称": "日時テスト",
+                "対応案策定予定日時": "2026-10-28T10:00:00",
+            },
+        ),
+    ],
+)
+def test_business_datetime_rejects_timezone_free_input(model, payload):
+    with pytest.raises(ValidationError):
+        model(**payload)
+
+
+def test_inquiry_search_normalizes_offset_datetime_bounds_before_comparison():
+    search = InquirySearch(
+        初期条件=2,
+        受信日時開始="2026-10-28T01:00:00+00:00",
+        受信日時終了="2026-10-28T10:00:00+09:00",
+    )
+    assert search.受信日時開始 == search.受信日時終了
+
+
+def test_inquiry_search_rejects_timezone_free_datetime():
+    with pytest.raises(ValidationError):
+        InquirySearch(
+            初期条件=2,
+            受信日時開始="2026-10-28T10:00:00",
+        )
 
 
 @pytest.mark.parametrize("value", ["", "   ", "\t\n", "　"])

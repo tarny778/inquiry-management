@@ -5,6 +5,7 @@ import type {
   InvestigationFilters,
   InvestigationEditForm,
 } from '../types'
+import { localDateTimeToApi } from '../dateTime'
 
 // 検索条件に基づく調査一覧を取得する
 export async function getSearchInvestigations(
@@ -69,10 +70,13 @@ export async function updateInvestigation(
 ): Promise<InvestigationDetail> {
   const payload = {
     ...form,
-    対応案策定予定日時:
-      form.対応案策定予定日時 || null,
+    対応案策定予定日時: form.対応案策定予定日時
+      ? localDateTimeToApi(form.対応案策定予定日時)
+      : null,
     進捗更新の次回更新予定日時:
-      form.進捗更新の次回更新予定日時 || null,
+      form.進捗更新の次回更新予定日時
+        ? localDateTimeToApi(form.進捗更新の次回更新予定日時)
+        : null,
   }
 
   return apiRequest<InvestigationDetail>(

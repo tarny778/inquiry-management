@@ -1,6 +1,7 @@
 
 import PageHeader from '../PageHeader'
 import type { InquiryDetail, InquiryFilters, ScreenMode } from '../../types'
+import { formatApiDateTimeInJapan } from '../../dateTime'
 
 type InquiryViewProps = {
   user: {
@@ -180,7 +181,7 @@ export default function InquiryView({
 
               <div className="inquiry-detail-item">
                 <dt>受信日時</dt>
-                <dd>{selectedInquiry.受信日時 || '—'}</dd>
+                <dd>{formatApiDateTimeInJapan(selectedInquiry.受信日時)}</dd>
               </div>
 
               <div className="inquiry-detail-item">
@@ -200,7 +201,7 @@ export default function InquiryView({
 
               <div className="inquiry-detail-item">
                 <dt>登録日時</dt>
-                <dd>{selectedInquiry.登録日時 || '—'}</dd>
+                <dd>{formatApiDateTimeInJapan(selectedInquiry.登録日時)}</dd>
               </div>
 
               <div className="inquiry-detail-item">
@@ -225,7 +226,7 @@ export default function InquiryView({
 
               <div className="inquiry-detail-item">
                 <dt>引き受け日時</dt>
-                <dd>{selectedInquiry.引き受け日時 || '—'}</dd>
+                <dd>{formatApiDateTimeInJapan(selectedInquiry.引き受け日時)}</dd>
               </div>
 
               <div className="inquiry-detail-item">
@@ -255,7 +256,7 @@ export default function InquiryView({
 
               <div className="inquiry-detail-item">
                 <dt>対応完了日時</dt>
-                <dd>{selectedInquiry.対応完了日時 || '—'}</dd>
+                <dd>{formatApiDateTimeInJapan(selectedInquiry.対応完了日時)}</dd>
               </div>
 
               <div className="inquiry-detail-item inquiry-detail-full">

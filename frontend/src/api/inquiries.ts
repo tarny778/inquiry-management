@@ -7,6 +7,7 @@ import type {
   InquiryCreateForm,
   InquiryEditForm,
 } from '../types'
+import { localDateTimeToApi } from '../dateTime'
 
 // 初期表示用の問い合わせ一覧を取得する
 export async function getInitialInquiries(
@@ -63,14 +64,14 @@ export async function getSearchInquiries(
   if (filters.receivedFrom) {
     params.set(
         '受信日時開始',
-        `${filters.receivedFrom}T00:00:00`,
+        `${filters.receivedFrom}T00:00:00+09:00`,
     )
   }
 
   if (filters.receivedTo) {
     params.set(
         '受信日時終了',
-        `${filters.receivedTo}T23:59:59.999999`,
+        `${filters.receivedTo}T23:59:59.999999+09:00`,
     )
   }
 
@@ -107,7 +108,7 @@ export async function createNewInquiry(
   }
 
   if (createForm.受付経路 !== '電話') {
-    payload.受信日時 = createForm.受信日時
+    payload.受信日時 = localDateTimeToApi(createForm.受信日時)
   }
 
   const result = await apiRequest<{ 問い合わせ番号: number }>(
@@ -137,7 +138,7 @@ export async function editInquiry(
       緊急度: Number(editForm.緊急度),
       受付時の処理: Number(editForm.受付時の処理),
       問い合わせ詳細: editForm.問い合わせ詳細.trim() || null,
-      受信日時: editForm.受信日時,
+      受信日時: localDateTimeToApi(editForm.受信日時),
   }
 
   const result = await apiRequest<{ 問い合わせ番号: number }>(

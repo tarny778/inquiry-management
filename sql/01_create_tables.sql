@@ -3,19 +3,22 @@
 -- DB再構築用DDL
 --
 -- 目的：
---   最新の03_DB設計.mdに基づき、問い合わせ管理システムの
+--   docs/13_データベース設計.mdに基づき、問い合わせ管理システムの
 --   業務テーブルと認証関連テーブルを構築する。
 --
 -- 注意：
 --   本DDLは既存テーブルを削除して再作成する。
---   開発初期段階・テスト用データベースでの利用を想定する。
---   実行すると、対象テーブル内のデータは削除される。
+--   実行すると、定義対象テーブルおよび旧名称テーブルのデータは削除される。
+--   実行対象DBを確認し、明示的な承認を得てから実行すること。
 
 -- =========================================================
 -- 既存テーブル削除
 -- 外部キーで参照される側より、参照する側を先に削除する。
 -- =========================================================
 DROP TABLE IF EXISTS "問い合わせ調査";
+DROP TABLE IF EXISTS "問い合わせ問題調査";
+DROP TABLE IF EXISTS "対応担当者変更履歴";
+DROP TABLE IF EXISTS "問題調査";
 DROP TABLE IF EXISTS "調査";
 DROP TABLE IF EXISTS "問い合わせ";
 DROP TABLE IF EXISTS "ログインセッション";
@@ -98,10 +101,10 @@ CREATE TABLE "問い合わせ" (
     "問い合わせ詳細" VARCHAR(1000),
     "受付担当者" VARCHAR(20),
     "対応担当者" VARCHAR(20),
-    "受信日時" TIMESTAMP NOT NULL,
-    "登録日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "引き受け日時" TIMESTAMP,
-    "対応完了日時" TIMESTAMP,
+    "受信日時" TIMESTAMPTZ NOT NULL,
+    "登録日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "引き受け日時" TIMESTAMPTZ,
+    "対応完了日時" TIMESTAMPTZ,
 
     CONSTRAINT "fk_問い合わせ_問い合わせ職員"
         FOREIGN KEY ("問い合わせ職員番号")
@@ -131,11 +134,11 @@ CREATE TABLE "調査" (
     "問い合わせ者側で必要な対応" VARCHAR(1000),
     "調査状態" INTEGER NOT NULL DEFAULT 1
         CHECK ("調査状態" IN (1, 2, 3)),
-    "調査開始日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "対応案策定予定日時" TIMESTAMP,
-    "進捗更新の次回更新予定日時" TIMESTAMP,
-    "リアクション要求日時" TIMESTAMP,
-    "調査断念日時" TIMESTAMP,
+    "調査開始日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "対応案策定予定日時" TIMESTAMPTZ,
+    "進捗更新の次回更新予定日時" TIMESTAMPTZ,
+    "リアクション要求日時" TIMESTAMPTZ,
+    "調査断念日時" TIMESTAMPTZ,
     "最新移行先の調査番号" INTEGER,
 
     CONSTRAINT "fk_調査_最新移行先"
@@ -155,10 +158,10 @@ CREATE TABLE "問い合わせ調査" (
     "問い合わせ番号" INTEGER NOT NULL,
     "問い合わせ調査状態" INTEGER NOT NULL DEFAULT 1
         CHECK ("問い合わせ調査状態" IN (1, 2, 3, 4, 5)),
-    "調査開始日時" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "断念日時" TIMESTAMP,
-    "リアクション被要求日時" TIMESTAMP,
-    "リアクション日時" TIMESTAMP,
+    "調査開始日時" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "断念日時" TIMESTAMPTZ,
+    "リアクション被要求日時" TIMESTAMPTZ,
+    "リアクション日時" TIMESTAMPTZ,
     "リアクション内容" INTEGER
         CHECK ("リアクション内容" IN (1, 2)),
     "NGでの移行先調査番号" INTEGER,

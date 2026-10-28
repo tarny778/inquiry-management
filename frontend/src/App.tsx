@@ -47,6 +47,7 @@ import {
   logout,
 } from './api/auth'
 import { ApiError } from './api/client'
+import { apiDateTimeToLocal } from './dateTime'
 import type {
   Inquiry,
   LoginUser,
@@ -415,8 +416,7 @@ function App() {
           String(selectedInquiry.受付時の処理 ?? '2'),
         問い合わせ詳細:
           selectedInquiry.問い合わせ詳細 ?? '',
-        受信日時:
-          (selectedInquiry.受信日時 ?? '').split('.')[0],
+        受信日時: apiDateTimeToLocal(selectedInquiry.受信日時),
       })
 
     setScreenMode('edit')
@@ -1751,9 +1751,9 @@ function App() {
               '問い合わせ者側で必要な対応':
                 selectedInvestigation['問い合わせ者側で必要な対応'] ?? '',
               '対応案策定予定日時':
-                selectedInvestigation['対応案策定予定日時'] ?? '',
+                apiDateTimeToLocal(selectedInvestigation['対応案策定予定日時']),
               '進捗更新の次回更新予定日時':
-                selectedInvestigation['進捗更新の次回更新予定日時'] ?? '',
+                apiDateTimeToLocal(selectedInvestigation['進捗更新の次回更新予定日時']),
             })
 
             setInvestigationScreenMode('edit')

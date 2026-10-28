@@ -87,6 +87,7 @@ export default function InquiryCreate({
               )}
               <input
                 type="datetime-local"
+                step={1}
                 value={createForm.受信日時}
                 onChange={(event) =>
                   setCreateForm({

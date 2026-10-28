@@ -3,6 +3,7 @@ import type {
   InvestigationRelatedInquiry,
   LoginUser,
 } from '../../types'
+import { formatApiDateTimeInJapan } from '../../dateTime'
 
 type InvestigationRelatedInquiriesProps = {
   relatedInquiries: InvestigationRelatedInquiry[]
@@ -147,7 +148,7 @@ export default function InvestigationRelatedInquiries({
                       {hasReaction ? (
                         <div className="related-reaction-details">
                           <span>
-                            {relatedInquiry['リアクション日時'] ?? '日時不明'}
+                            {formatApiDateTimeInJapan(relatedInquiry['リアクション日時'])}
                           </span>
                           <span>
                             {{
@@ -203,7 +204,7 @@ export default function InvestigationRelatedInquiries({
 
                     <td className="related-abandon-cell">
                       {relatedInquiry['断念日時'] !== null ? (
-                        relatedInquiry['断念日時']
+                        formatApiDateTimeInJapan(relatedInquiry['断念日時'])
                       ) : canAbandonRelated ? (
                         <button
                           className="button-secondary"

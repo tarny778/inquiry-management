@@ -86,6 +86,7 @@ export default function InquiryUpdate({
                 受信日時
                 <input
                   type="datetime-local"
+                  step={1}
                   value={editForm.受信日時}
                   onChange={(event) =>
                     setEditForm({

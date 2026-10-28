@@ -25,7 +25,7 @@ DECLARE
     v_target_investigation_no
         "調査"."調査番号"%TYPE;
 
-    v_now TIMESTAMP := CURRENT_TIMESTAMP;
+    v_now TIMESTAMPTZ := CURRENT_TIMESTAMP;
 BEGIN
     -- =====================================================
     -- ① 今回の調査と問い合わせ調査を取得する

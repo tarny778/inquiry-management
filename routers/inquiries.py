@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import main
 import psycopg
@@ -94,7 +94,7 @@ def create_inquiry_api(
 
 
     # 5. 日時を決定
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
 
     # 受信日時
     if request.受付経路 == "電話":
@@ -264,7 +264,7 @@ def accept_inquiries_bulk_api(
                 )
 
             # 6. 全件を更新
-            accepted_at = datetime.now()
+            accepted_at = datetime.now(timezone.utc)
 
             cur.execute(
                 '''
@@ -886,7 +886,7 @@ def update_inquiry_api(
 
                 # 即時解決（1）または他部署へ引き継ぎ（3）なら完了扱いにする
                 if request.受付時の処理 in (1, 3):
-                    new_completed_at = datetime.now()
+                    new_completed_at = datetime.now(timezone.utc)
                 else:
                     new_completed_at = None
 

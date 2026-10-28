@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from schemas.string_normalization import blank_string_to_none
+from schemas.datetime_utils import require_aware_datetime
 
 
 class InvestigationUpdate(BaseModel):
@@ -40,3 +41,11 @@ class InvestigationUpdate(BaseModel):
     @classmethod
     def normalize_optional_text(cls, value):
         return blank_string_to_none(value)
+
+    @field_validator(
+        "対応案策定予定日時",
+        "進捗更新の次回更新予定日時",
+    )
+    @classmethod
+    def require_timezone(cls, value):
+        return require_aware_datetime(value)
