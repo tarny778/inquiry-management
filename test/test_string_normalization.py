@@ -73,7 +73,7 @@ def test_inquiry_search_blank_strings_mean_no_filter(blank):
         assert getattr(search, field) is None
 
 
-@pytest.mark.parametrize("blank", ["", "   ", "\t\n", "　"])
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n", "　", None])
 def test_investigation_update_rejects_blank_name(blank):
     with pytest.raises(ValidationError):
         InvestigationUpdate(**{"調査の名称": blank})
