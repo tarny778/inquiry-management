@@ -108,26 +108,6 @@ class InquiryBulkComplete(BaseModel):
     問い合わせ番号一覧: list[int] = Field(min_length=1)
 
 
-class InvestigationCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    調査の名称: str = Field(
-        min_length=1,
-        max_length=30,
-    )
-
-    @field_validator("調査の名称")
-    @classmethod
-    def validate_調査の名称(cls, value):
-        value = value.strip()
-
-        if not value:
-            raise ValueError(
-                "調査の名称は空白だけでは登録できません"
-            )
-
-        return value
-
 class BulkInvestigationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
