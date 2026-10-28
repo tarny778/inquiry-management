@@ -174,7 +174,7 @@ CREATE TABLE "問い合わせ調査" (
 
     CONSTRAINT "fk_問い合わせ調査_NG移行先"
         FOREIGN KEY ("NGでの移行先調査番号")
-        REFERENCES "調査" ("調査番号")
+        REFERENCES "調査" ("調査番号"),
 
     CONSTRAINT "uq_問い合わせ調査_問い合わせ_調査"
         UNIQUE ("問い合わせ番号", "調査番号"),
