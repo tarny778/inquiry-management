@@ -22,12 +22,6 @@ def inquiry_create_payload(**overrides):
     return payload
 
 
-@pytest.mark.parametrize("blank", ["", "   ", "\t\n", "　"])
-def test_required_inquiry_fields_reject_blank_strings(blank):
-    for field in ("問い合わせ職員番号", "件名"):
-        with pytest.raises(ValidationError):
-            InquiryCreate(**inquiry_create_payload(**{field: blank}))
-
 
 @pytest.mark.parametrize("blank", ["", "   ", "\t\n", "　", None])
 def test_required_inquiry_fields_reject_blank_or_none(blank):
