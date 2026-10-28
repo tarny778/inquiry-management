@@ -3,6 +3,7 @@ import psycopg
 from psycopg import sql
 from schemas.schemas_investigations import InvestigationUpdate
 import main
+from schemas.string_normalization import blank_string_to_none
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,11 @@ def search_investigations_api(
     page_size: int = Query(default=50, ge=1, le=100),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
+    # 空白のみの文字列検索条件は、指定なし（None）として扱う。
+    調査の名称 = blank_string_to_none(調査の名称)
+    問い合わせ職員番号 = blank_string_to_none(問い合わせ職員番号)
+    対応担当者職員番号 = blank_string_to_none(対応担当者職員番号)
+
     # ログイン中の職員を取得
     操作者職員番号 = current_user.職員番号
 

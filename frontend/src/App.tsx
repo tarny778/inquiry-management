@@ -177,6 +177,10 @@ function App() {
       '対応案策定予定日時': '',
       '進捗更新の次回更新予定日時': '',
     })
+  const [
+    hasInitializedInvestigationList,
+    setHasInitializedInvestigationList,
+  ] = useState(false)
 
 
   async function refreshCurrentInquiryList(): Promise<boolean> {
@@ -275,12 +279,21 @@ function App() {
     }
   }
 
-  // 調査一覧へ移動し、現在の検索条件で一覧を再取得する
+  // 調査一覧へ移動する
   async function handleOpenInvestigations() {
     setError('')
     setSelectedNumbers([])
     setActionMessage('')
     setMainScreen('investigation')
+
+    // 初回だけ初期条件を適用する
+    if (!hasInitializedInvestigationList) {
+      setHasInitializedInvestigationList(true)
+      await applyInitialInvestigationCondition()
+      return
+    }
+
+    // 2回目以降は現在の検索条件で再取得する
     setInvestigationLoading(true)
 
     try {
@@ -1119,18 +1132,16 @@ function App() {
     setInvestigationCurrentPage(1)
   }
 
-  // 初期条件ボタンを押した時に、初期条件を検索条件にsetし、一覧取得を呼ぶ
+  // 初期条件ボタン：確認後に初期条件を適用する
   async function handleApplyInitialInvestigationCondition() {
     if (!user) {
       return
     }
 
-    const isInformationSystems =
+    const msgShozoku =
       user.所属 === '情報システム課'
-
-    const msgShozoku = isInformationSystems
-      ? '対応担当者'
-      : '問い合わせ者'
+        ? '対応担当者'
+        : '問い合わせ者'
 
     const confirmed = window.confirm(
       `初期条件での検索として、${msgShozoku}が操作者本人で、` +
@@ -1140,6 +1151,18 @@ function App() {
     if (!confirmed) {
       return
     }
+
+    await applyInitialInvestigationCondition()
+  }
+
+  // 初期条件を設定して検索する（確認メッセージなし）
+  async function applyInitialInvestigationCondition() {
+    if (!user) {
+      return
+    }
+
+    const isInformationSystems =
+      user.所属 === '情報システム課'
 
     const filters = {
       investigationNumber: '',
@@ -1168,7 +1191,7 @@ function App() {
     investigationList.setInvestigationStatus('')
     investigationList.setKeyword('')
 
-    // 検索条件を確定して検索する
+    // 検索条件を確定する
     investigationList.setAppliedFilters(filters)
 
     // 初期条件で1ページ目を検索する

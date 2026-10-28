@@ -1,6 +1,8 @@
 
 from datetime import datetime
 
+from schemas.string_normalization import blank_string_to_none
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -35,6 +37,16 @@ class InquiryCreate(BaseModel):
         max_length=1000,
     )
     受信日時: datetime | None = None
+
+    @field_validator("問い合わせ職員番号", "件名", mode="before")
+    @classmethod
+    def normalize_required_strings(cls, value):
+        return blank_string_to_none(value)
+
+    @field_validator("問い合わせ詳細", mode="before")
+    @classmethod
+    def normalize_optional_detail(cls, value):
+        return blank_string_to_none(value)
 
     @field_validator("受付経路")
     @classmethod
@@ -190,6 +202,16 @@ class InquiryUpdate(BaseModel):
     )
     受信日時: datetime
 
+    @field_validator("問い合わせ職員番号", "件名", mode="before")
+    @classmethod
+    def normalize_required_strings(cls, value):
+        return blank_string_to_none(value)
+
+    @field_validator("問い合わせ詳細", mode="before")
+    @classmethod
+    def normalize_optional_detail(cls, value):
+        return blank_string_to_none(value)
+
     @field_validator("受付経路")
     @classmethod
     def validate_受付経路(cls, value):
@@ -256,6 +278,18 @@ class InquirySearch(BaseModel):
 
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=50, ge=1, le=100)
+
+    @field_validator(
+        "問い合わせ職員番号",
+        "問い合わせ当時の所属",
+        "件名",
+        "受付担当者",
+        "対応担当者",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_search_strings(cls, value):
+        return blank_string_to_none(value)
 
     @field_validator("受付経路")
     @classmethod

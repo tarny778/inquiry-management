@@ -2,6 +2,8 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from schemas.string_normalization import blank_string_to_none
+
 
 class InvestigationUpdate(BaseModel):
     """調査編集APIの入力スキーマ。"""
@@ -23,7 +25,18 @@ class InvestigationUpdate(BaseModel):
 
     @field_validator("調査の名称", mode="before")
     @classmethod
-    def reject_null_name(cls, value):
+    def reject_blank_name(cls, value):
+        value = blank_string_to_none(value)
         if value is None:
-            raise ValueError("調査の名称はnullにできません。")
+            raise ValueError("調査の名称は空文字列・空白のみ・nullにできません。")
         return value
+
+    @field_validator(
+        "原因仮説",
+        "情シス側での対応",
+        "問い合わせ者側で必要な対応",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_text(cls, value):
+        return blank_string_to_none(value)
