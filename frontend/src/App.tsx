@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import './App.css'
 
+// componentのインポート
 import AppHeader from './components/AppHeader'
 import PageHeader from './components/PageHeader'
 
@@ -16,10 +17,27 @@ import InvestigationTable from './components/investigations/investigationTable'
 import InvestigationDetailView from './components/investigations/InvestigationDetailView'
 import InvestigationUpdate  from './components/investigations/InvestigationUpdate'
 
-import { useInquiryList } from './useInquiryList'
+// typeのインポート
+import type {
+  LoginUser,
+  InquiryDetail,
+  ScreenMode,
+  InquiryCreateForm,
+  InquiryEditForm,
+  Investigation,
+  InvestigationFilters,
+  InvestigationDetail,
+  InvestigationEditForm,
+} from './types'
+
+// apiのインポート
 import {
-  getInitialInquiries,
-  getSearchInquiries,
+  checkSession,
+  login,
+  logout,
+} from './api/auth'
+import { ApiError } from './api/client'
+import {
   getInquiryDetail,
   createNewInquiry,
   editInquiry,
@@ -39,27 +57,14 @@ import {
     answerRelatedInquiryOk,
     answerRelatedInquiryNg,
   } from './api/investigations'
+
+// カスタムフックのインポート
+import { useInquiryList } from './useInquiryList'
 import useInvestigationList  from './useInvestigationList'
 
-import {
-  checkSession,
-  login,
-  logout,
-} from './api/auth'
-import { ApiError } from './api/client'
+// 共通関数のインポート
 import { apiDateTimeToLocal } from './dateTime'
-import type {
-  Inquiry,
-  LoginUser,
-  InquiryDetail,
-  ScreenMode,
-  InquiryCreateForm,
-  InquiryEditForm,
-  Investigation,
-  InvestigationFilters,
-  InvestigationDetail,
-  InvestigationEditForm,
-} from './types'
+
 
 function App() {
   const [職員番号, set職員番号] = useState('')
@@ -74,9 +79,6 @@ function App() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [loading, setLoading] = useState(false)
 
-  const [inquiries, setInquiries] = useState<Inquiry[]>([])
-  const [total, setTotal] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
   const [selectedInquiry, setSelectedInquiry] =
     useState<InquiryDetail | null>(null)
 
@@ -104,15 +106,6 @@ function App() {
 
   // 初期条件：初期表示はチェックあり
   const [initialCondition, setInitialCondition] = useState(true)
-  // 一覧がどこから取得されたか
-  const [listDisplayMode, setListDisplayMode] = useState<
-    'initial' | 'search'
-  >('initial')
-  const listDescription = initialCondition
-    ? initialConditionDescription
-    : listDisplayMode === 'initial'
-      ? '初期条件による結果（検索ボタンを押すと更新）'
-      : '検索結果'
 
   // 一括操作の対象として選択された問い合わせ番号
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([])
@@ -128,8 +121,10 @@ function App() {
   useState('')
   const [newInvestigationName, setNewInvestigationName] = useState('')
 
-  // 入力中の検索条件
+  // カスタムフックを宣言
+  const inquiryList = useInquiryList()
   const {
+    // 検索条件
     keyword,
     setKeyword,
     statusFilter,
@@ -149,9 +144,28 @@ function App() {
     showAdvancedSearch,
     setShowAdvancedSearch,
     appliedFilters,
-    setAppliedFilters,
     clearSearchFilters,
-  } = useInquiryList()
+
+    // 一覧の状態
+    inquiries,
+    total,
+    currentPage,
+    listDisplayMode,
+
+    // 一覧の取得・更新
+    loadInitialInquiries,
+    searchInquiries,
+    refreshCurrentInquiryList: refreshInquiryList,
+    goToPage,
+    clearInquiryList,
+    resetCurrentPage,
+  } = inquiryList
+
+  const listDescription = initialCondition
+    ? initialConditionDescription
+    : listDisplayMode === 'initial'
+      ? '初期条件による結果（検索ボタンを押すと更新）'
+      : '検索結果'
 
   const [error, setError] = useState('')
   const [loginError, setLoginError] = useState('')
@@ -184,80 +198,138 @@ function App() {
   ] = useState(false)
 
 
+  
+  // 現在表示している一覧を再取得する
   async function refreshCurrentInquiryList(): Promise<boolean> {
-    if (listDisplayMode === 'initial') {
-      return await loadInquiries(currentPage)
-    }
+    const wasSearch = listDisplayMode === 'search'
+    const result = await refreshInquiryList()
 
-    return await fetchSearchResults(
-      appliedFilters,
-      currentPage,
-    )
-  }
-
-  // 初期表示では、APIが職員の権限に応じて抽出した一覧を取得する。
-  async function loadInquiries(pageNumber = 1) {
-    try {
-      const result = await getInitialInquiries(pageNumber)
-
-      setInquiries(result.items)
-      setTotal(result.total)
-      setCurrentPage(pageNumber)
-      setListDisplayMode('initial')
-      setAuthenticated(true)
-
-      return true
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setInquiries([])
-        setTotal(0)
-        return false
+    if (result.ok) {
+      if (wasSearch) {
+        setError('')
+        setSelectedNumbers([])
+        setActionMessage('')
       }
 
-      throw error
+      return true
     }
+
+    if (result.reason === 'unauthorized') {
+      setAuthenticated(false)
+      setUser(null)
+
+      if (wasSearch) {
+        setSelectedNumbers([])
+      }
+
+      return false
+    }
+
+    if (wasSearch) {
+      setError(
+        result.error instanceof Error
+          ? result.error.message
+          : 'サーバーに接続できません。',
+      )
+
+      return false
+    }
+
+    // 初期条件による取得で発生したエラーは、
+    // これまでどおり呼び出し元へ伝える
+    throw result.error
   }
+
+
   
-  // 検索条件に基づく検索一覧を取得し画面状態へ反映させる。
+  // 初期条件による一覧を取得する
+  async function loadInquiries(pageNumber = 1): Promise<boolean> {
+    const result = await loadInitialInquiries(pageNumber)
+
+    if (result.ok) {
+      setAuthenticated(true)
+      return true
+    }
+
+    if (result.reason === 'unauthorized') {
+      setAuthenticated(false)
+      setUser(null)
+      return false
+    }
+
+    // 従来どおり、通常エラーは呼び出し元へ伝える
+    throw result.error
+  }
+
+  
+  
+  // 検索条件に基づく一覧を取得し、画面状態へ反映する
   async function fetchSearchResults(
     filters: typeof appliedFilters,
     pageNumber = 1,
-  ) {
+  ): Promise<boolean> {
     setError('')
 
-    try {
-      const result = await getSearchInquiries(filters, pageNumber)
+    const result = await searchInquiries(filters, pageNumber)
 
-      setInquiries(result.items)
-      setTotal(result.total)
-      setCurrentPage(pageNumber)
-      setListDisplayMode('search')
+    if (result.ok) {
       setSelectedNumbers([])
       setActionMessage('')
-
       return true
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+    }
+
+    if (result.reason === 'unauthorized') {
+      setAuthenticated(false)
+      setUser(null)
+      setSelectedNumbers([])
+      return false
+    }
+
+    setError(
+      result.error instanceof Error
+        ? result.error.message
+        : 'サーバーに接続できません。',
+    )
+    return false
+  }
+
+  async function handlePageChange(
+    pageNumber: number,
+  ): Promise<void> {
+    if (loading) return
+
+    setSelectedNumbers([])
+    setActionMessage('')
+    setLoading(true)
+
+    try {
+      const result = await goToPage(pageNumber)
+
+      if (result.ok) {
+        setError('')
+        return
+      }
+
+      if (result.reason === 'unauthorized') {
         setAuthenticated(false)
         setUser(null)
-        setInquiries([])
-        setTotal(0)
         setSelectedNumbers([])
-        return false
+        return
       }
 
       setError(
-        err instanceof Error
-          ? err.message
+        result.error instanceof Error
+          ? result.error.message
           : 'サーバーに接続できません。',
       )
-      return false
+    } finally {
+      setLoading(false)
     }
   }
 
+
   
+  // 検索ボタンが押された際に、検索条件をまとめて検索する
   async function handleSearch() {
     const filters = {
       keyword: keyword.trim(),
@@ -270,7 +342,6 @@ function App() {
       receivedTo,
     }
 
-    setAppliedFilters(filters)
     setLoading(true)
 
     try {
@@ -280,71 +351,10 @@ function App() {
     }
   }
 
-  // 調査一覧へ移動する
-  async function handleOpenInvestigations() {
-    setError('')
-    setSelectedNumbers([])
-    setActionMessage('')
-    setMainScreen('investigation')
 
-    // 初回だけ初期条件を適用する
-    if (!hasInitializedInvestigationList) {
-      setHasInitializedInvestigationList(true)
-      await applyInitialInvestigationCondition()
-      return
-    }
+  
 
-    // 2回目以降は現在の検索条件で再取得する
-    setInvestigationLoading(true)
-
-    try {
-      await fetchInvestigationSearchResults(
-        investigationList.appliedFilters,
-        investigationCurrentPage,
-      )
-    } finally {
-      setInvestigationLoading(false)
-    }
-  }
-
-  // 関連する調査の詳細画面を開く
-  async function openRelatedInvestigation(
-    investigationNumber: number,
-  ) {
-    setError('')
-    setInvestigationLoading(true)
-
-    try {
-      const detail = await getInvestigationDetail(
-        investigationNumber,
-      )
-
-      setSelectedInvestigation(detail)
-      setSelectedInquiry(null)
-      setInvestigationScreenMode('view')
-      setMainScreen('investigation')
-    } catch (err) {
-      // セッション切れ
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthenticated(false)
-        setUser(null)
-        setSelectedInvestigation(null)
-        setSelectedInquiry(null)
-        return
-      }
-
-      // その他のAPIエラー
-      setError(
-        err instanceof Error
-          ? err.message
-          : '調査詳細の取得に失敗しました。',
-      )
-    } finally {
-      setInvestigationLoading(false)
-    }
-  }
-
-  // 問い合わせ詳細データを取得する
+  // 問い合わせ番号で、問い合わせ詳細データを取得する
   async function fetchInquiryDetail(
     inquiryNumber: number,
   ): Promise<InquiryDetail | null> {
@@ -355,8 +365,7 @@ function App() {
       if (error instanceof ApiError && error.status === 401) {
         setAuthenticated(false)
         setUser(null)
-        setInquiries([])
-        setTotal(0)
+        clearInquiryList()
         setSelectedInquiry(null)
         return null
       }
@@ -366,7 +375,7 @@ function App() {
     }
   }
 
-  // 問い合わせ詳細画面を開く
+  // クリックされた時、問い合わせ詳細画面を開く
   async function openInquiryDetail(
     inquiryNumber: number
   ): Promise<boolean> {
@@ -398,6 +407,57 @@ function App() {
     }
   }
 
+  // 問い合わせ一覧へ移動し、現在の表示条件で一覧を再取得する
+  async function handleOpenInquiryList() {
+    setError('')
+    setMainScreen('inquiry')
+    setSelectedNumbers([])
+    setActionMessage('')
+    setLoading(true)
+
+    try {
+      await refreshCurrentInquiryList()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'サーバーに接続できません。',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 関連する問い合わせの詳細画面を開く
+  async function openRelatedInquiry(
+    inquiryNumber: number,
+  ) {
+    setError('')
+    setLoading(true)
+
+    try {
+      const detail = await fetchInquiryDetail(inquiryNumber)
+
+      if (detail === null) {
+        return
+      }
+
+      setSelectedInquiry(detail)
+      setSelectedInvestigation(null)
+      setScreenMode('view')
+      setMainScreen('inquiry')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : '問い合わせ詳細の取得に失敗しました。',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 問い合わせ現状をフォームにセットし、編集画面を開く
   function openInquiryEdit() {
     if (!selectedInquiry) return
 
@@ -422,6 +482,7 @@ function App() {
     setScreenMode('edit')
   }
 
+  // 新規登録フォームを開く
   function openNewInquiry() {
     setError('')
     setSelectedInquiry(null)
@@ -438,7 +499,7 @@ function App() {
     setScreenMode('new')
   }
 
-  // 問い合わせを新規作成し、画面へ反映
+  // 問い合わせを新規作成apiへ投げ、１ページ目へ戻り、作成した新規の詳細取得を呼ぶ
   async function handleCreateInquiry(
     event: React.FormEvent<HTMLFormElement>,
   ) {
@@ -459,8 +520,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedInquiry(null)
           setScreenMode('list')
           return
@@ -470,7 +530,7 @@ function App() {
       }
 
       // 新規登録後は一覧の1ページ目に戻る
-      setCurrentPage(1)
+      resetCurrentPage()
 
       // 登録した問い合わせの詳細を取得する
       setScreenMode('view')
@@ -494,6 +554,7 @@ function App() {
     }
   }
 
+  // 更新apiに投げ、編集した詳細取得を呼ぶ
   async function handleUpdateInquiry(
     event: React.FormEvent<HTMLFormElement>,
   ) {
@@ -517,8 +578,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedInquiry(null)
           setScreenMode('list')
           return
@@ -550,6 +610,7 @@ function App() {
     }
   }
 
+  // 一括引き受けボタンにて、引き受けを呼ぶ
   async function handleBulkAccept() {
     if (selectedNumbers.length === 0 || loading) {
       return
@@ -566,6 +627,7 @@ function App() {
     await acceptInquiries(selectedNumbers)
   }
 
+  // 個別引き受けボタンにて、引き受けを呼ぶ
   async function handleAcceptInquiry(inquiryNumber: number) {
     if (loading) {
       return
@@ -582,6 +644,7 @@ function App() {
     await acceptInquiries([inquiryNumber],true)
   }
 
+  // ローディングにし、引き受けapiへ投げ、詳細取得と一覧取得を呼ぶ
   async function acceptInquiries(
     inquiryNumbers: number[],
     returnToDetail = false,
@@ -604,8 +667,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedNumbers([])
           setSelectedInquiry(null)
           setScreenMode('list')
@@ -656,7 +718,7 @@ function App() {
     }
   }
 
-
+  // 一括完了ボタンにて、完了を呼ぶ
   async function handleBulkComplete() {
     if (selectedNumbers.length === 0 || loading) {
       return
@@ -673,6 +735,7 @@ function App() {
     await completeInquiries(selectedNumbers)
   }
 
+  // 個別完了ボタンにて、完了を呼ぶ
   async function handleCompleteInquiry(inquiryNumber: number) {
     if (loading) {
       return
@@ -689,6 +752,7 @@ function App() {
     await completeInquiries([inquiryNumber], true)
   }
 
+  // ローディングし、完了apiに投げ、詳細取得と一覧取得を呼ぶ
   async function completeInquiries(
     inquiryNumbers: number[],
     returnToDetail = false,
@@ -711,8 +775,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedNumbers([])
           setSelectedInquiry(null)
           setScreenMode('list')
@@ -763,6 +826,7 @@ function App() {
     }
   }
 
+  // 再開apiへ投げ、詳細取得を呼ぶ
   async function handleReopenInquiry(inquiryNumber: number) {
     if (loading) {
       return
@@ -790,8 +854,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedNumbers([])
           setSelectedInquiry(null)
           setScreenMode('list')
@@ -834,6 +897,7 @@ function App() {
     }
   }
 
+  // ローディング、既存関連付けapi投げ、一覧取得呼ぶ
   async function handleBulkLinkInvestigation() {
     const investigationNumber = Number(existingInvestigationNumber)
 
@@ -869,8 +933,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedNumbers([])
           setSelectedInquiry(null)
           setScreenMode('list')
@@ -902,6 +965,7 @@ function App() {
     }
   }
 
+  // ローディング、新規関連付けapiなげ、詳細取得
   async function handleBulkCreateInvestigation() {
     if (
       selectedNumbers.length === 0 ||
@@ -934,8 +998,7 @@ function App() {
         if (error instanceof ApiError && error.status === 401) {
           setAuthenticated(false)
           setUser(null)
-          setInquiries([])
-          setTotal(0)
+          clearInquiryList()
           setSelectedNumbers([])
           setSelectedInquiry(null)
           setScreenMode('list')
@@ -967,6 +1030,7 @@ function App() {
     }
   }
 
+  // 初期条件ありにクリックにて、一覧取得を呼ぶ
   const handleInitialConditionChange = async (checked: boolean) => {
     // なし → あり：確認後に初期条件で再検索
     if (checked) {
@@ -1009,6 +1073,7 @@ function App() {
     setError('')
   }
 
+  
   // ページを開いたとき、既存セッションがあれば職員情報と一覧を取得する。
   useEffect(() => {
     let cancelled = false
@@ -1024,18 +1089,31 @@ function App() {
         setAuthenticated(true)
 
         // セッション確認後に問い合わせ一覧を取得する。
-        const result = await getInitialInquiries(1)
+        const result = await loadInitialInquiries(1)
 
         if (cancelled) return
 
-        setInquiries(result.items)
-        setTotal(result.total)
+        if (!result.ok) {
+          if (result.reason === 'unauthorized') {
+            setAuthenticated(false)
+            setUser(null)
+            clearInquiryList()
+            return
+          }
+
+          setError(
+            result.error instanceof Error
+              ? result.error.message
+              : 'サーバーに接続できません。',
+          )
+        }
       } catch (err) {
         if (cancelled) return
 
         if (err instanceof ApiError && err.status === 401) {
           setAuthenticated(false)
           setUser(null)
+          clearInquiryList()
           return
         }
 
@@ -1230,56 +1308,6 @@ function App() {
     }
   }
 
-  // 問い合わせ一覧へ移動し、現在の表示条件で一覧を再取得する
-  async function handleOpenInquiryList() {
-    setError('')
-    setMainScreen('inquiry')
-    setSelectedNumbers([])
-    setActionMessage('')
-    setLoading(true)
-
-    try {
-      await refreshCurrentInquiryList()
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'サーバーに接続できません。',
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 関連する問い合わせの詳細画面を開く
-  async function openRelatedInquiry(
-    inquiryNumber: number,
-  ) {
-    setError('')
-    setLoading(true)
-
-    try {
-      const detail = await fetchInquiryDetail(inquiryNumber)
-
-      if (detail === null) {
-        return
-      }
-
-      setSelectedInquiry(detail)
-      setSelectedInvestigation(null)
-      setScreenMode('view')
-      setMainScreen('inquiry')
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : '問い合わせ詳細の取得に失敗しました。',
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // 調査の詳細を取得する
   async function handleSelectInvestigation(
     investigationNumber: number,
@@ -1306,6 +1334,70 @@ function App() {
         err instanceof Error
           ? err.message
           : 'サーバーに接続できません。',
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 調査一覧へ移動する、初回かどうか判定し、現在の検索条件で調査を取得を呼ぶ
+  async function handleOpenInvestigations() {
+    setError('')
+    setSelectedNumbers([])
+    setActionMessage('')
+    setMainScreen('investigation')
+
+    // 初回だけ初期条件を適用する
+    if (!hasInitializedInvestigationList) {
+      setHasInitializedInvestigationList(true)
+      await applyInitialInvestigationCondition()
+      return
+    }
+
+    // 2回目以降は現在の検索条件で再取得する
+    setInvestigationLoading(true)
+
+    try {
+      await fetchInvestigationSearchResults(
+        investigationList.appliedFilters,
+        investigationCurrentPage,
+      )
+    } finally {
+      setInvestigationLoading(false)
+    }
+  }
+
+  // 関連する調査の詳細画面を開く、調査番号で調査を取得
+  async function openRelatedInvestigation(
+    investigationNumber: number,
+  ) {
+    setError('')
+    setInvestigationLoading(true)
+
+    try {
+      const detail = await getInvestigationDetail(
+        investigationNumber,
+      )
+
+      setSelectedInvestigation(detail)
+      setSelectedInquiry(null)
+      setInvestigationScreenMode('view')
+      setMainScreen('investigation')
+    } catch (err) {
+      // セッション切れ
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthenticated(false)
+        setUser(null)
+        setSelectedInvestigation(null)
+        setSelectedInquiry(null)
+        return
+      }
+
+      // その他のAPIエラー
+      setError(
+        err instanceof Error
+          ? err.message
+          : '調査詳細の取得に失敗しました。',
       )
     } finally {
       setInvestigationLoading(false)
@@ -1611,8 +1703,7 @@ function App() {
 
       setAuthenticated(false)
       setUser(null)
-      setInquiries([])
-      setTotal(0)
+      clearInquiryList()
       setKeyword('')
       setStatusFilter('')
       set職員番号('')
@@ -1972,17 +2063,12 @@ function App() {
     <InquiryListPage
       user={user}
       loading={loading}
-      setLoading={setLoading}
       error={error}
       setError={setError}
       inquiries={inquiries}
       total={total}
       currentPage={currentPage}
-      listDisplayMode={listDisplayMode}
       listDescription={listDescription}
-      appliedFilters={appliedFilters}
-      loadInquiries={loadInquiries}
-      fetchSearchResults={fetchSearchResults}
       openNewInquiry={openNewInquiry}
       openInquiryDetail={openInquiryDetail}
       handleInitialConditionChange={handleInitialConditionChange}
@@ -2025,6 +2111,7 @@ function App() {
       newInvestigationName={newInvestigationName}
       setNewInvestigationName={setNewInvestigationName}
       onOpenInvestigations={handleOpenInvestigations}
+      handlePageChange={handlePageChange}
     />
     </div>
   )

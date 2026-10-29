@@ -1,5 +1,4 @@
 import type {
-  InquiryFilters,
   Inquiry,
 } from '../../types'
 
@@ -17,23 +16,13 @@ type InquiryListPageProps = {
   } | null
 
   loading: boolean
-  setLoading: (loading: boolean) => void
   error: string
   setError: (error: string) => void
 
   inquiries: Inquiry[]
   total: number
   currentPage: number
-
-  listDisplayMode: string
   listDescription: string
-  appliedFilters: InquiryFilters
-
-  loadInquiries: (pageNumber?: number) => Promise<boolean>
-  fetchSearchResults: (
-    filters: InquiryFilters,
-    pageNumber?: number,
-  ) => Promise<boolean>
 
   openNewInquiry: () => void
   openInquiryDetail: (inquiryNumber: number) => void
@@ -87,22 +76,18 @@ type InquiryListPageProps = {
   setNewInvestigationName: (value: string) => void
 
   onOpenInvestigations: () => void
+  handlePageChange: (nextPage: number) => void
 }
 
 export default function InquiryListPage({
   user,
   loading,
-  setLoading,
   error,
   setError,
   inquiries,
   total,
   currentPage,
-  listDisplayMode,
   listDescription,
-  appliedFilters,
-  loadInquiries,
-  fetchSearchResults,
   openNewInquiry,
   openInquiryDetail,
   handleInitialConditionChange,
@@ -145,6 +130,7 @@ export default function InquiryListPage({
   newInvestigationName,
   setNewInvestigationName,
   onOpenInvestigations,
+  handlePageChange,
 }: InquiryListPageProps) {
   return (
     <div className="app">
@@ -273,25 +259,7 @@ export default function InquiryListPage({
           <div className="pagination">
             <button
               type="button"
-              onClick={async () => {
-                const nextPage = currentPage - 1
-
-                if (nextPage < 1 || loading) return
-
-                setSelectedNumbers([])
-                setActionMessage('')
-                setLoading(true)
-
-                try {
-                  if (listDisplayMode === 'initial') {
-                    await loadInquiries(nextPage)
-                  } else {
-                    await fetchSearchResults(appliedFilters, nextPage)
-                  }
-                } finally {
-                  setLoading(false)
-                }
-              }}
+              onClick={() => handlePageChange(currentPage-1)}
               disabled={currentPage <= 1 || loading}
             >
               前へ
@@ -303,29 +271,8 @@ export default function InquiryListPage({
 
             <button
               type="button"
-              onClick={async () => {
-                const nextPage = currentPage + 1
-                const totalPages = Math.ceil(total / 50)
-
-                if (nextPage > totalPages || loading) return
-
-                setSelectedNumbers([])
-                setActionMessage('')
-                setLoading(true)
-
-                try {
-                  if (listDisplayMode === 'initial') {
-                    await loadInquiries(nextPage)
-                  } else {
-                    await fetchSearchResults(appliedFilters, nextPage)
-                  }
-                } finally {
-                  setLoading(false)
-                }
-              }}
-              disabled={
-                currentPage >= Math.ceil(total / 50) || loading
-              }
+              onClick={() => handlePageChange(currentPage+1)}
+              disabled={currentPage <= 1 || loading}
             >
               次へ
             </button>
