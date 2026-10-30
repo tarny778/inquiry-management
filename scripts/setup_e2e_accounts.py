@@ -17,8 +17,10 @@ STAFF = [
 
 def get_database_url():
     url = os.getenv("E2E_DATABASE_URL")
+
     if not url:
         raise RuntimeError("E2E_DATABASE_URL が設定されていません。")
+
     return url
 
 
@@ -33,9 +35,9 @@ def validate_database(conn):
         )
 
 
-def prompt_password(staff_number):
+def prompt_password():
     while True:
-        password = getpass(f"{staff_number} のパスワード: ")
+        password = getpass("E2Eテスト用パスワード: ")
         confirmation = getpass("確認のため再入力: ")
 
         if not password:
@@ -55,14 +57,18 @@ def prompt_password(staff_number):
 
 def main():
     database_url = get_database_url()
+    password = prompt_password()
     hasher = argon2.PasswordHasher()
 
     with psycopg.connect(database_url) as conn:
         validate_database(conn)
 
         with conn.cursor() as cur:
+            # 対象職員が職員マスタに存在することを確認
             cur.execute('SELECT "職員番号" FROM "職員"')
-            existing_staff = {row[0] for row in cur.fetchall()}
+            existing_staff = {
+                row[0] for row in cur.fetchall()
+            }
 
             for staff_number, _ in STAFF:
                 if staff_number not in existing_staff:
@@ -70,25 +76,29 @@ def main():
                         f"職員テーブルに {staff_number} がありません。"
                     )
 
+            # 既存の認証情報を確認
             cur.execute(
                 'SELECT "職員番号", "ログイン可否" '
                 'FROM "職員認証情報"'
             )
+
             accounts = {
                 row[0]: row[1]
                 for row in cur.fetchall()
             }
 
-            for staff_number, staff_name in STAFF:
-                if staff_number in accounts:
-                    if not accounts[staff_number]:
-                        raise RuntimeError(
-                            f"{staff_number} はログイン不可に設定されています。"
-                        )
-                    print(f"{staff_number} {staff_name}: 既存情報を維持")
-                    continue
+            # ログイン不可のアカウントは変更しない
+            for staff_number, _ in STAFF:
+                if (
+                    staff_number in accounts
+                    and not accounts[staff_number]
+                ):
+                    raise RuntimeError(
+                        f"{staff_number} はログイン不可に設定されています。"
+                    )
 
-                password = prompt_password(staff_number)
+            # 3人に同じパスワードを設定
+            for staff_number, staff_name in STAFF:
                 password_hash = hasher.hash(password)
 
                 cur.execute(
@@ -98,12 +108,19 @@ def main():
                         "パスワードハッシュ"
                     )
                     VALUES (%s, %s)
+                    ON CONFLICT ("職員番号")
+                    DO UPDATE SET
+                        "パスワードハッシュ" = EXCLUDED."パスワードハッシュ"
                     ''',
                     (staff_number, password_hash),
                 )
-                print(f"{staff_number} {staff_name}: 登録しました")
 
-    print("E2E用認証情報の確認が完了しました。")
+                if staff_number in accounts:
+                    print(f"{staff_number} {staff_name}: パスワードを更新しました")
+                else:
+                    print(f"{staff_number} {staff_name}: 登録しました")
+
+    print("E2E用3アカウントのパスワード統一が完了しました。")
 
 
 if __name__ == "__main__":

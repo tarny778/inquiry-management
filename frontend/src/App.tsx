@@ -460,6 +460,7 @@ function App() {
   // 問い合わせ現状をフォームにセットし、編集画面を開く
   function openInquiryEdit() {
     if (!selectedInquiry) return
+      setError('')
 
       setEditForm({
         問い合わせ職員番号:
@@ -1818,6 +1819,7 @@ function App() {
           investigation={selectedInvestigation}
           user={user}
           loading={investigationLoading}
+          error={error}
           onBack={async () => {
             setInvestigationLoading(true)
 
@@ -1832,6 +1834,7 @@ function App() {
             }
           }}
           onEdit={() => {
+            setError('')
             setInvestigationEditForm({
               '調査の名称':
                 selectedInvestigation['調査の名称'],
@@ -1903,9 +1906,13 @@ function App() {
           editForm={investigationEditForm}
           setEditForm={setInvestigationEditForm}
           onSubmit={handleSaveInvestigation}
-          onCancel={() => setInvestigationScreenMode('view')}
+          onCancel={() => {
+            setError('')
+            setInvestigationScreenMode('view')
+          }}
           loading={investigationLoading}
           user={user}
+          error={error}
         />
         </div>
       )
@@ -1934,6 +1941,31 @@ function App() {
               </button>
             }
           />
+          {error && (
+            <div className="modal-overlay">
+              <section
+                className="error-dialog"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="error-dialog-title"
+                aria-describedby="error-dialog-message"
+              >
+                <h2 id="error-dialog-title">エラー</h2>
+
+                <p id="error-dialog-message">
+                  {error}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setError('')}
+                  autoFocus
+                >
+                  閉じる
+                </button>
+              </section>
+            </div>
+          )}
 
           <InvestigationSearch
             loading={investigationLoading}
@@ -2013,7 +2045,10 @@ function App() {
         loading={loading}
         error={error}
         onSubmit={handleUpdateInquiry}
-        onCancel={() => setScreenMode('view')}
+        onCancel={() => {
+          setError('')
+          setScreenMode('view')
+        }}
       />
       </div>
     )
@@ -2036,6 +2071,7 @@ function App() {
         loading={loading}
         setLoading={setLoading}
         error={error}
+        setError={setError}
         listDisplayMode={listDisplayMode}
         currentPage={currentPage}
         appliedFilters={appliedFilters}

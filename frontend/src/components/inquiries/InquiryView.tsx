@@ -15,6 +15,7 @@ type InquiryViewProps = {
   loading: boolean
   setLoading: (loading: boolean) => void
   error: string
+  setError: (error: string) => void
   listDisplayMode: string
   currentPage: number
   appliedFilters: InquiryFilters
@@ -46,6 +47,7 @@ export default function InquiryView({
   loading,
   setLoading,
   error,
+  setError,
   refreshCurrentInquiryList,
   openInquiryEdit,
   handleAcceptInquiry,
@@ -129,8 +131,8 @@ export default function InquiryView({
                     type="button"
                     onClick={async () => {
                         setLoading(true)
-
                         try {
+                        setError('')
                         await refreshCurrentInquiryList()
                         setSelectedInquiry(null)
                         setScreenMode('list')

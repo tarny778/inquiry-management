@@ -9,6 +9,7 @@ type InvestigationDetailViewProps = {
   investigation: InvestigationDetail
   user: LoginUser | null
   loading: boolean
+  error: string
   onBack: () => Promise<void>
   onEdit: () => void
   onAbandon:() => Promise<void>
@@ -24,6 +25,7 @@ export default function InvestigationDetailView({
   investigation,
   user,
   loading,
+  error,
   onBack,
   onEdit,
   onAbandon,
@@ -95,6 +97,11 @@ export default function InvestigationDetailView({
             </>
           }
         />
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
 
         <InvestigationInfo
           investigation={investigation}

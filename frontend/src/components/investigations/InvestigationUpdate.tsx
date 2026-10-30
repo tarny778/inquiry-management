@@ -18,6 +18,7 @@ type InvestigationUpdateProps = {
   onCancel: () => void
   loading: boolean
   user: LoginUser | null
+  error: string
 }
 
 export default function InvestigationUpdate({
@@ -27,6 +28,7 @@ export default function InvestigationUpdate({
   onSubmit,
   onCancel,
   loading,
+  error,
 }: InvestigationUpdateProps) {
   return (
     <div className="app">
@@ -47,6 +49,11 @@ export default function InvestigationUpdate({
               </button>
             }
           />
+          {error && (
+            <p className="error-message" role="alert">
+              {error}
+            </p>
+          )}
           <p>調査番号：{investigation.調査番号}</p>
 
           
