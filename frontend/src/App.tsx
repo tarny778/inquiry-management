@@ -680,13 +680,23 @@ function App() {
 
       // 詳細画面からの単一引き受け
       if (returnToDetail) {
-        // 引き受け後の詳細を再取得する
-        const detail = await fetchInquiryDetail(inquiryNumbers[0])
+        let detail: InquiryDetail | null
 
-        if (detail === null) {
+        try {
+          // 引き受け後の詳細を再取得する
+          detail = await fetchInquiryDetail(inquiryNumbers[0])
+        } catch (err) {
+          // 引き受けAPIは成功済み。詳細取得だけが失敗した
           setError(
-            '引き受けは完了しましたが、問い合わせ詳細の再取得に失敗しました。',
+            err instanceof Error
+              ? `引き受けは完了しましたが、問い合わせ詳細の再取得に失敗しました。(${err.message})`
+              : '引き受けは完了しましたが、問い合わせ詳細の再取得に失敗しました。',
           )
+          return
+        }
+
+        // nullはセッション切れによる取得不能
+        if (detail === null) {
           return
         }
 
@@ -786,15 +796,25 @@ function App() {
         throw error
       }
 
-      // 詳細画面からの単一引き受け
+      // 詳細画面からの単一完了
       if (returnToDetail) {
-        // 完了後の詳細を再取得する
-        const detail = await fetchInquiryDetail(inquiryNumbers[0])
+        let detail: InquiryDetail | null
 
-        if (detail === null) {
+        try {
+          // 完了後の詳細を再取得する
+          detail = await fetchInquiryDetail(inquiryNumbers[0])
+        } catch (err) {
+          // 完了APIは成功済み。詳細取得だけが失敗した
           setError(
-            '完了はできましたが、問い合わせ詳細の再取得に失敗しました。',
+            err instanceof Error
+              ? `完了はできましたが、問い合わせ詳細の再取得に失敗しました。(${err.message})`
+              : '完了はできましたが、問い合わせ詳細の再取得に失敗しました。',
           )
+          return
+        }
+
+        // nullはセッション切れによる取得不能
+        if (detail === null) {
           return
         }
 
@@ -865,14 +885,27 @@ function App() {
         throw error
       }
 
-      const detail = await fetchInquiryDetail(inquiryNumber)
+      let detail: InquiryDetail | null
 
-      if (detail === null) {
+      try {
+        // 再開後の詳細を再取得する
+        detail = await fetchInquiryDetail(inquiryNumber)
+      } catch (err) {
+        // 再開APIは成功済み。詳細取得だけが失敗した
         setError(
-          '再開できましたが、問い合わせ詳細の再取得に失敗しました。',
+          err instanceof Error
+            ? `再開できましたが、問い合わせ詳細の再取得に失敗しました。(${err.message})`
+            : '再開できましたが、問い合わせ詳細の再取得に失敗しました。',
         )
         return
       }
+
+      // nullはセッション切れによる取得不能
+      if (detail === null) {
+        return
+      }
+
+      setSelectedInquiry(detail)
 
       setSelectedInquiry(detail)
 
@@ -1463,9 +1496,24 @@ function App() {
       await abandonInvestigation(investigationNumber)
 
       // 断念後の詳細を再取得する
-      const detail = await getInvestigationDetail(
-        investigationNumber,
-      )
+      let detail: InvestigationDetail
+
+      try {
+        detail = await getInvestigationDetail(investigationNumber)
+      } catch (err) {
+        // セッション切れは外側のcatchに処理を任せる
+        if (err instanceof ApiError && err.status === 401) {
+          throw err
+        }
+
+        // 断念APIは成功済み。詳細取得だけが失敗した
+        setError(
+          err instanceof Error
+            ? `断念は完了しましたが、調査詳細の再取得に失敗しました。(${err.message})`
+            : '断念は完了しましたが、調査詳細の再取得に失敗しました。',
+        )
+        return
+      }
 
       setSelectedInvestigation(detail)
     } catch (err) {
@@ -1503,14 +1551,26 @@ function App() {
       // リアクション要求APIを呼び出す
       await requestReactionInvestigation(investigationNumber)
 
-      // 断念後の詳細を再取得する
-      const detail = await getInvestigationDetail(
-        investigationNumber,
-      )
+      // API成功後、最新の詳細を再取得する
+      let detail: InvestigationDetail
+
+      try {
+        detail = await getInvestigationDetail(investigationNumber)
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          throw err
+        }
+
+        setError(
+          err instanceof Error
+            ? `リアクション要求は完了しましたが、調査詳細の再取得に失敗しました。(${err.message})`
+            : 'リアクション要求は完了しましたが、調査詳細の再取得に失敗しました。',
+        )
+        return
+      }
 
       setSelectedInvestigation(detail)
     } catch (err) {
-      // セッション切れ
       if (err instanceof ApiError && err.status === 401) {
         setAuthenticated(false)
         setUser(null)
@@ -1552,11 +1612,26 @@ function App() {
       // 個別断念APIを呼び出す
       await abandonRelatedInvestigation(relationNumber)
 
-      // 詳細情報を再取得する
+      // API成功後、最新の詳細を再取得する
       // 関連一覧も最新状態になる
-      const detail = await getInvestigationDetail(
-        selectedInvestigation['調査番号'],
-      )
+      let detail: InvestigationDetail
+
+      try {
+        detail = await getInvestigationDetail(
+          selectedInvestigation['調査番号'],
+        )
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          throw err
+        }
+
+        setError(
+          err instanceof Error
+            ? `個別断念は完了しましたが、調査詳細の再取得に失敗しました。(${err.message})`
+            : '個別断念は完了しましたが、調査詳細の再取得に失敗しました。',
+        )
+        return
+      }
 
       setSelectedInvestigation(detail)
     } catch (err) {
@@ -1591,12 +1666,28 @@ function App() {
     setInvestigationLoading(true)
 
     try {
+      // OK回答APIを呼び出す
       await answerRelatedInquiryOk(relationId)
 
-      // 詳細情報を再取得する
-      const detail = await getInvestigationDetail(
-        selectedInvestigation['調査番号'],
-      )
+      // API成功後、最新の詳細を再取得する
+      let detail: InvestigationDetail
+
+      try {
+        detail = await getInvestigationDetail(
+          selectedInvestigation['調査番号'],
+        )
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          throw err
+        }
+
+        setError(
+          err instanceof Error
+            ? `OK回答は完了しましたが、調査詳細の再取得に失敗しました。(${err.message})`
+            : 'OK回答は完了しましたが、調査詳細の再取得に失敗しました。',
+        )
+        return
+      }
 
       setSelectedInvestigation(detail)
     } catch (err) {
@@ -1630,12 +1721,28 @@ function App() {
     setInvestigationLoading(true)
 
     try {
+      // NG回答APIを呼び出す
       await answerRelatedInquiryNg(relationId)
 
-      // 詳細情報を再取得する
-      const detail = await getInvestigationDetail(
-        selectedInvestigation['調査番号'],
-      )
+      // API成功後、最新の詳細を再取得する
+      let detail: InvestigationDetail
+
+      try {
+        detail = await getInvestigationDetail(
+          selectedInvestigation['調査番号'],
+        )
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          throw err
+        }
+
+        setError(
+          err instanceof Error
+            ? `NG回答は完了しましたが、調査詳細の再取得に失敗しました。(${err.message})`
+            : 'NG回答は完了しましたが、調査詳細の再取得に失敗しました。',
+        )
+        return
+      }
 
       setSelectedInvestigation(detail)
     } catch (err) {
