@@ -272,7 +272,7 @@ export default function InquiryListPage({
             <button
               type="button"
               onClick={() => handlePageChange(currentPage+1)}
-              disabled={currentPage <= 1 || loading}
+              disabled={currentPage >= (Math.max(1, Math.ceil(total / 50))) || loading}
             >
               次へ
             </button>
