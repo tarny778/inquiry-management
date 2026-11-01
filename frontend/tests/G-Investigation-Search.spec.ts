@@ -27,7 +27,7 @@ function getE2ETestPassword(): string {
 
 // 情報システム課職員J0001としてログインする
 async function loginAsJ0001(page: Page): Promise<void> {
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
   await loginAs(page, 'J0001', getE2ETestPassword())
 
   await expect(
@@ -40,7 +40,7 @@ async function loginAsJ0001(page: Page): Promise<void> {
 
 // 一般職員T0001としてログインする
 async function loginAsT0001(page: Page): Promise<void> {
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
   await loginAs(page, 'T0001', getE2ETestPassword())
 
   await expect(

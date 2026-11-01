@@ -17,8 +17,7 @@ function getE2ETestPassword(): string {
 
 // A-01 未ログイン状態でのアクセス
 test('A-01 未ログイン状態でアクセスするとログイン画面が表示される', async ({ page }) => {
-  await page.goto('http://localhost:5173')
-
+  await page.goto('http://127.0.0.1:5173')
   // ログイン画面の表示を確認
   await expect(
     page.getByRole('heading', { name: 'ログイン', level: 2 }),
@@ -39,7 +38,7 @@ test('A-01 未ログイン状態でアクセスするとログイン画面が表
 test('A-02 正常ログインすると問い合わせ一覧が表示される', async ({ page }) => {
   const password = getE2ETestPassword()
 
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
 
   await loginAs(page, 'J0001', password)
 
@@ -55,7 +54,7 @@ test('A-02 正常ログインすると問い合わせ一覧が表示される', 
 
 // A-03 ログイン失敗
 test('A-03 誤ったパスワードではログインできない', async ({ page }) => {
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
 
   await page.getByLabel('職員番号').fill('J0001')
   await page.getByLabel('パスワード').fill(
@@ -85,7 +84,7 @@ test('A-03 誤ったパスワードではログインできない', async ({ pag
 test('A-04 ログアウトするとログイン画面に戻る', async ({ page }) => {
   const password = getE2ETestPassword()
 
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
 
   await loginAs(page, 'J0001', password)
 
@@ -108,7 +107,7 @@ test('A-04 ログアウトするとログイン画面に戻る', async ({ page }
 test('A-05 ページ再読み込み後もログイン状態が復元される', async ({ page }) => {
   const password = getE2ETestPassword()
 
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
 
   await loginAs(page, 'J0001', password)
 
@@ -134,7 +133,7 @@ test('A-05 ページ再読み込み後もログイン状態が復元される', 
 test('A-06 問い合わせ一覧と調査一覧を切り替えられる', async ({ page }) => {
   const password = getE2ETestPassword()
 
-  await page.goto('http://localhost:5173')
+  await page.goto('http://127.0.0.1:5173')
 
   await loginAs(page, 'J0001', password)
 
