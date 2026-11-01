@@ -1,3 +1,4 @@
+
 import argparse
 import os
 import subprocess
@@ -32,6 +33,7 @@ ENVIRONMENTS = {
 
 
 def main():
+    # 1. コマンドライン引数を受け取る
     parser = argparse.ArgumentParser(
         description="安全確認付きdbmate実行スクリプト"
     )
@@ -50,14 +52,14 @@ def main():
 
     args = parser.parse_args()
 
-    # 1. 対象環境の設定を取得
+    # 2. 対象環境の設定を取得
     environment = ENVIRONMENTS[args.environment]
     env_file = PROJECT_ROOT / environment["file"]
 
     if not env_file.is_file():
         sys.exit(f"エラー: 環境ファイルがありません: {env_file}")
 
-    # 2. 環境ファイルを読み込む
+    # 3. 環境ファイルを読み込む
     env_values = dotenv_values(env_file, interpolate=False)
 
     app_env = env_values.get("APP_ENV")
@@ -66,14 +68,14 @@ def main():
     if not app_env or not database_url:
         sys.exit("エラー: APP_ENV または DATABASE_URL が設定されていません。")
 
-    # 3. APP_ENVを検証
+    # 4. APP_ENVを検証
     if app_env != environment["app_env"]:
         sys.exit(
             f"エラー: APP_ENVが一致しません。"
             f"期待値={environment['app_env']}, 実際={app_env}"
         )
 
-    # 4. DATABASE_URLからDB名を取得
+    # 5. DATABASE_URLからDB名を取得して検証
     try:
         connection_info = conninfo_to_dict(database_url)
     except Exception:
@@ -87,17 +89,27 @@ def main():
             f"期待値={environment['database']}, 実際={database_name}"
         )
 
-    # 5. 検証結果を表示
+    # 6. 検証結果を表示
     print(f"環境: {app_env}")
     print(f"接続先DB: {database_name}")
     print(f"実行コマンド: dbmate {args.command}")
     print()
 
-    # 6. dbmateを実行
-    # 環境ファイルのDATABASE_URLを子プロセスにも明示する。
+    # 7. migrateの場合は実行前に最終確認
+    if args.command == "migrate":
+        print("これから上記のDBにマイグレーションを適用します。")
+        confirmation = input(
+            f"実行する場合はDB名を入力してください: "
+        )
+
+        if confirmation != database_name:
+            sys.exit("入力されたDB名が一致しないため、処理を中止しました。")
+
+    # 8. dbmateに渡す環境変数を準備
     child_env = os.environ.copy()
     child_env["DATABASE_URL"] = database_url
 
+    # 9. dbmateを実行
     try:
         result = subprocess.run(
             [
@@ -113,7 +125,7 @@ def main():
     except FileNotFoundError:
         sys.exit("エラー: dbmateが見つかりません。")
 
-    # 7. dbmateの終了コードを引き継ぐ
+    # 10. dbmateの終了コードを引き継ぐ
     sys.exit(result.returncode)
 
 
