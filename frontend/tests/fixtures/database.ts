@@ -8,10 +8,10 @@ const EXPECTED_DATABASE = 'inquiry_management_e2e'
  * 接続後、実際のDB名を検証する。
  */
 export async function connectE2EDatabase(): Promise<Client> {
-  const connectionString = process.env.E2E_DATABASE_URL
+  const connectionString = process.env.DATABASE_URL
 
   if (!connectionString) {
-    throw new Error('E2E_DATABASE_URL が設定されていません。')
+    throw new Error('DATABASE_URL が設定されていません。')
   }
 
   const client = new Client({

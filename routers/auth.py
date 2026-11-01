@@ -1,7 +1,7 @@
 
 import hashlib
-import os
 import secrets
+from config import settings
 from datetime import datetime, timedelta, timezone
 
 import argon2
@@ -44,7 +44,7 @@ def authenticate_session(request: Request) -> main.CurrentUser:
 
     now = datetime.now(timezone.utc)
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -123,7 +123,7 @@ def login(
     """職員番号とパスワードで認証し、セッションを発行する。"""
 
     with psycopg.connect(
-        dbname=main.DATABASE_NAME
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -183,7 +183,7 @@ def login(
     absolute_expiry = now + ABSOLUTE_TIMEOUT
 
     with psycopg.connect(
-        dbname=main.DATABASE_NAME
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -212,7 +212,7 @@ def login(
         key=SESSION_COOKIE_NAME,
         value=session_id,
         httponly=True,
-        secure=os.getenv("ENVIRONMENT") == "production",
+        secure=settings.app_env == "production",
         samesite="lax",
         max_age=int(ABSOLUTE_TIMEOUT.total_seconds()),
         path="/",
@@ -246,7 +246,7 @@ def logout(
 
         # セッションを削除せず、失効日時を記録する。
         with psycopg.connect(
-            dbname=main.DATABASE_NAME
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -265,7 +265,7 @@ def logout(
         key=SESSION_COOKIE_NAME,
         path="/",
         httponly=True,
-        secure=os.getenv("ENVIRONMENT") == "production",
+        secure=settings.app_env == "production",
         samesite="lax",
     )
 

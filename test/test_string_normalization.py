@@ -1,5 +1,6 @@
 import pytest
 from pydantic import ValidationError
+from config import settings
 
 from schemas.schemas_auth import LoginRequest
 from schemas.schemas_inquiries import InquiryCreate, InquiryUpdate, InquirySearch

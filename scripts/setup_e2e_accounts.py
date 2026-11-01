@@ -1,10 +1,16 @@
 
+from pathlib import Path
 import os
-from getpass import getpass
 
 import argon2
 import psycopg
+from dotenv import load_dotenv
 
+# プロジェクトルートの .env.e2e を読み込む
+ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env.e2e", override=True)
+
+from config import settings
 
 EXPECTED_DATABASE = "inquiry_management_e2e"
 
@@ -13,16 +19,6 @@ STAFF = [
     ("J0002", "情シス次郎"),
     ("T0001", "山田太郎"),
 ]
-
-
-def get_database_url():
-    url = os.getenv("E2E_DATABASE_URL")
-
-    if not url:
-        raise RuntimeError("E2E_DATABASE_URL が設定されていません。")
-
-    return url
-
 
 def validate_database(conn):
     with conn.cursor() as cur:
@@ -34,33 +30,26 @@ def validate_database(conn):
             f"接続先が違います: {database_name}"
         )
 
-
-def prompt_password():
-    while True:
-        password = getpass("E2Eテスト用パスワード: ")
-        confirmation = getpass("確認のため再入力: ")
-
-        if not password:
-            print("パスワードは空にできません。")
-            continue
-
-        if len(password) > 128:
-            print("パスワードは128文字以内にしてください。")
-            continue
-
-        if password != confirmation:
-            print("パスワードが一致しません。")
-            continue
-
-        return password
-
-
 def main():
-    database_url = get_database_url()
-    password = prompt_password()
+    if settings.app_env != "e2e":
+        raise RuntimeError(
+            "APP_ENV が e2e ではありません。処理を中止します。"
+        )
+
+    password = os.environ.get("E2E_TEST_PASSWORD")
+
+    if not password:
+        raise RuntimeError(
+            "E2E_TEST_PASSWORD が設定されていません。"
+        )
+
+    if len(password) > 128:
+        raise RuntimeError(
+            "E2E_TEST_PASSWORD は128文字以内にしてください。"
+        )
     hasher = argon2.PasswordHasher()
 
-    with psycopg.connect(database_url) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         validate_database(conn)
 
         with conn.cursor() as cur:

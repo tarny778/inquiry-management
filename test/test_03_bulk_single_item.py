@@ -1,8 +1,6 @@
 """一括引き受け・一括完了APIの1件指定を確認する。"""
 
-import os
-
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
+from config import settings
 
 import psycopg
 import pytest
@@ -12,7 +10,6 @@ import main
 from main import app
 
 
-DATABASE_NAME = "inquiry_management_test"
 ORIGINAL_GET_CURRENT_USER = main.get_current_user
 
 
@@ -62,7 +59,7 @@ def pending_inquiry(client):
 
     yield inquiry_number
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 'DELETE FROM "問い合わせ" WHERE "問い合わせ番号" = %s',
@@ -73,7 +70,7 @@ def pending_inquiry(client):
 @pytest.fixture
 def in_progress_inquiry(client, pending_inquiry):
     """完了操作用に、テスト問い合わせをJ0001の対応中へ設定する。"""
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -106,7 +103,7 @@ def test_bulk_accept_one_inquiry_updates_that_record(
     assert result["対応担当者"] == "J0001"
     assert result["問い合わせ番号一覧"] == [pending_inquiry]
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -137,7 +134,7 @@ def test_bulk_complete_one_inquiry_updates_that_record(
     assert response.status_code == 200, response.text
     assert response.json()["問い合わせ番号一覧"] == [in_progress_inquiry]
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''

@@ -1,9 +1,7 @@
 """実セッションの境界と保護APIの認証を確認するテスト。"""
 
 import hashlib
-import os
-
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
+from config import settings
 
 import argon2
 import psycopg
@@ -34,7 +32,7 @@ def auth_account():
     """テスト用ログイン情報を一時設定し、終了後に元の状態へ戻す。"""
     password_hash = argon2.PasswordHasher().hash(TEST_PASSWORD)
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -67,7 +65,7 @@ def auth_account():
             "session_hashes": created_session_hashes,
         }
     finally:
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 if created_session_hashes:
                     cur.execute(
@@ -172,7 +170,7 @@ def test_expired_session_limit_is_rejected(
         session_id.encode("utf-8")
     ).hexdigest()
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             if expired_limit == "idle":
                 cur.execute(

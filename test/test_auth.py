@@ -1,10 +1,6 @@
-
-import os
-
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
+from config import settings
 
 import hashlib
-import secrets
 
 import argon2
 import psycopg
@@ -29,7 +25,7 @@ def auth_account():
 
     try:
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -52,7 +48,7 @@ def auth_account():
 
     finally:
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -74,7 +70,7 @@ def auth_account():
 def auth_test_inquiry(auth_account):
     """詳細APIの認証テスト用問い合わせを作成し、終了後に削除する。"""
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -110,7 +106,7 @@ def auth_test_inquiry(auth_account):
 
     yield inquiry_number
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -144,7 +140,7 @@ def test_login_success(auth_account):
     ).hexdigest()
 
     with psycopg.connect(
-        "dbname=inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -203,7 +199,7 @@ def test_login_disabled_account(auth_account):
     """ログイン禁止アカウントは認証を拒否する。"""
 
     with psycopg.connect(
-        "dbname=inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -272,7 +268,7 @@ def test_logout_revokes_session_and_deletes_cookie(auth_account):
 
     # DBに失効日時が記録されたことを確認する。
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(

@@ -1,7 +1,5 @@
-import os
 from datetime import datetime
-
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
+from config import settings
 
 import psycopg
 from fastapi.testclient import TestClient
@@ -37,7 +35,7 @@ def pending_inquiry_number():
     yield inquiry_number
 
     # テスト終了後にデータを削除する
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -82,7 +80,7 @@ def search_test_inquiries():
 
         # 2. 2件目を対応中、3件目を対応完了にする
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -115,7 +113,7 @@ def search_test_inquiries():
     finally:
         # 3. テストで作成したデータを削除する
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 for inquiry_number in inquiry_numbers:
@@ -161,7 +159,7 @@ def detail_test_inquiries():
             inquiry_numbers.append(inquiry_number)
 
         # 2. 2件目を対応中、3件目を対応完了にする
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -190,7 +188,7 @@ def detail_test_inquiries():
 
     finally:
         # 3. テストで作成した問い合わせを削除する
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 for inquiry_number in inquiry_numbers:
                     cur.execute(
@@ -224,7 +222,7 @@ def completion_test_inquiries():
 
     pending_number, in_progress_number, completed_number = inquiry_numbers
 
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 対応中の問い合わせを作成
             cur.execute(
@@ -259,7 +257,7 @@ def completion_test_inquiries():
     }
 
     # テストデータを削除
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             for inquiry_number in inquiry_numbers:
                 cur.execute(
@@ -278,7 +276,7 @@ def inquiry_problem_investigation_factory():
 
     def create(inquiry_number, state):
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 # 1. 調査を作成
@@ -321,7 +319,7 @@ def inquiry_problem_investigation_factory():
 
         # 外部キー制約があるため、関連レコードから先に削除
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             for investigation_id in created_investigation_ids:
@@ -372,7 +370,7 @@ def bulk_completion_test_inquiries():
 
     # 2件を対応中、1件を対応完了にする
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -407,7 +405,7 @@ def bulk_completion_test_inquiries():
 
     # テストデータを削除
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             for inquiry_number in inquiry_numbers:
@@ -425,7 +423,7 @@ def unlinked_investigation_factory():
     created_investigation_numbers = []
 
     def create_investigation(state=1):
-        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -446,7 +444,7 @@ def unlinked_investigation_factory():
     yield create_investigation
 
     # APIが作成した関連レコードを先に削除する
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             for investigation_number in created_investigation_numbers:
                 cur.execute(
@@ -501,7 +499,7 @@ def _make_second_in_progress_inquiry(completion_test_inquiries):
     """引き受け待ちのテスト問い合わせを、対応中に変更する。"""
     inquiry_number = completion_test_inquiries["pending"]
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -528,7 +526,7 @@ def bulk_created_investigation_cleanup():
 
     yield register
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             for investigation_number in investigation_numbers:
                 cur.execute(
@@ -556,7 +554,7 @@ def detail_test_investigation_links(detail_test_inquiries):
 
     try:
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 # 調査を2件作成
@@ -602,7 +600,7 @@ def detail_test_investigation_links(detail_test_inquiries):
     finally:
         # 関連レコードを先に削除し、その後に調査を削除
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -719,7 +717,7 @@ def test_create_inquiry_success(monkeypatch):
 
         # テスト用DBに実際に保存されたか確認する
         with psycopg.connect(
-            "dbname=inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -761,7 +759,7 @@ def test_create_inquiry_success(monkeypatch):
         # テストで登録したデータを削除して後片付けする
         if inquiry_number is not None:
             with psycopg.connect(
-                "dbname=inquiry_management_test"
+                settings.database_url
             ) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
@@ -799,7 +797,7 @@ def delete_inquiries_for_bulk_test(inquiry_numbers):
     if not inquiry_numbers:
         return
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -831,7 +829,7 @@ def test_bulk_accept_inquiries_success(monkeypatch,pending_inquiry_number):
             inquiry_numbers
         )
 
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -865,7 +863,7 @@ def test_bulk_accept_rejects_all_if_one_already_accepted(monkeypatch,
 
     try:
         # 2件目を先に引き受け済みにする
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -887,7 +885,7 @@ def test_bulk_accept_rejects_all_if_one_already_accepted(monkeypatch,
         assert response.status_code == 409
 
         # 1件目も更新されていないことを確認
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -939,7 +937,7 @@ def test_bulk_accept_rejects_all_if_number_missing(monkeypatch,
 
     assert response.status_code == 404
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -973,7 +971,7 @@ def test_bulk_accept_rejects_duplicate_numbers(monkeypatch,
 
     assert response.status_code == 400
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -997,7 +995,7 @@ def test_bulk_accept_rejects_general_staff(
     _set_test_user(monkeypatch, "T0001")
 
     # 操作前の状態を取得
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1022,7 +1020,7 @@ def test_bulk_accept_rejects_general_staff(
     )
 
     # 操作後の状態を取得
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1067,7 +1065,7 @@ def test_bulk_complete_inquiries_success(
 
     # DB上でも2件とも対応完了になったことを確認
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1108,7 +1106,7 @@ def test_bulk_complete_forbidden_for_other_handler(
 
     # 2件目だけ別の職員を対応担当者にする
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1132,7 +1130,7 @@ def test_bulk_complete_forbidden_for_other_handler(
 
     # 正常な問い合わせも含め、全件が未完了のままであること
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1177,7 +1175,7 @@ def test_bulk_complete_conflict_when_already_completed(
 
     # 対応中だった2件が更新されていないこと
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1220,7 +1218,7 @@ def test_bulk_complete_conflict_when_not_accepted(
 
     # 対応中だった2件が更新されていないこと
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1273,7 +1271,7 @@ def test_bulk_complete_conflict_when_unfinished_investigation_exists(
 
     # 1件目も含め、両方とも未完了のままであること
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1316,7 +1314,7 @@ def test_bulk_complete_bad_request_when_duplicate_numbers(
 
     # 対象が更新されていないこと
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1359,7 +1357,7 @@ def test_bulk_complete_not_found_when_number_does_not_exist(
 
     # 存在する2件が更新されていないこと
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1408,7 +1406,7 @@ def test_reopen_inquiry_success(
 
     # 再開前の対応担当者・引き受け日時を取得
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1438,7 +1436,7 @@ def test_reopen_inquiry_success(
 
     # 再開後の状態を確認
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1478,7 +1476,7 @@ def test_reopen_inquiry_forbidden_for_other_handler(
 
     # 対応完了状態が維持されていること
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1513,7 +1511,7 @@ def test_reopen_inquiry_conflict_when_not_completed(
 
     # 対応中の状態が維持されていること
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1571,7 +1569,7 @@ def test_reopen_inquiry_conflict_when_expired(
 
     # 対応完了日時を8日前に設定
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1591,7 +1589,7 @@ def test_reopen_inquiry_conflict_when_expired(
 
     # 対応完了状態が維持されていること
     with psycopg.connect(
-        dbname="inquiry_management_test"
+        settings.database_url
     ) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1642,7 +1640,7 @@ def test_bulk_create_investigation_success(
         for item in data["関連付け一覧"]
     } == {inquiry1, inquiry2}
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1722,7 +1720,7 @@ def test_bulk_create_investigation_missing_inquiry_returns_404(
 
     assert response.status_code == 404
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1755,7 +1753,7 @@ def test_bulk_create_investigation_pending_inquiry_returns_409(
 
     assert response.status_code == 409
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1874,7 +1872,7 @@ def _get_bulk_link_relation_count(
     inquiry_numbers,
 ):
     """指定した調査と問い合わせの関連付け件数を取得する。"""
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1910,7 +1908,7 @@ def test_bulk_link_existing_investigation_success(
             state=1,
         )
 
-        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -1924,7 +1922,7 @@ def test_bulk_link_existing_investigation_success(
 
         # 追加対象をJ0001の対応中に変更
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -1963,7 +1961,7 @@ def test_bulk_link_existing_investigation_success(
     finally:
         # 問い合わせ調査の関連レコードを先に削除
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -1998,7 +1996,7 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
             state=1,
         )
 
-        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -2012,7 +2010,7 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
 
         # 追加対象をJ0001の対応中に変更
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -2051,7 +2049,7 @@ def test_bulk_link_existing_investigation_single_inquiry_success(
     finally:
         # 関連レコードを先に削除
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -2095,7 +2093,7 @@ def test_bulk_link_existing_investigation_inquiry_not_found(
     missing_number = 999999999
     #既存の問い合わせ調査を作成
     existing_inquiry_number = completion_test_inquiries["pending"]
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 # 対応中の問い合わせを作成
                 cur.execute(
@@ -2115,7 +2113,7 @@ def test_bulk_link_existing_investigation_inquiry_not_found(
         state=1,
     )
     # 関連レコード番号から調査番号を取得
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -2206,7 +2204,7 @@ def test_bulk_link_existing_investigation_wrong_handler(
     inquiry_number = completion_test_inquiries["in_progress"]
     #既存の問い合わせ調査を作成
     existing_inquiry_number = completion_test_inquiries["pending"]
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 # 対応中の問い合わせを作成
                 cur.execute(
@@ -2226,7 +2224,7 @@ def test_bulk_link_existing_investigation_wrong_handler(
         state=1,
     )
     # 関連レコード番号から調査番号を取得
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -2271,7 +2269,7 @@ def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns
             state=1,
         )
 
-        with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -2285,7 +2283,7 @@ def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns
 
         # 既存の関連付け済み問い合わせを別担当者J0002に変更
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -2329,7 +2327,7 @@ def test_bulk_link_existing_investigation_existing_inquiry_other_handler_returns
     finally:
         # 関連レコードを先に削除してから問い合わせを削除する
         with psycopg.connect(
-            dbname="inquiry_management_test"
+            settings.database_url
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -2358,7 +2356,7 @@ def test_bulk_link_existing_investigation_already_linked(
         state=1,
     )
 
-    with psycopg.connect(dbname=main.DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -2453,7 +2451,7 @@ def test_update_pending_inquiry_success(pending_inquiry_number,monkeypatch):
     result = response.json()
     assert result["問い合わせ番号"] == pending_inquiry_number
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2489,7 +2487,7 @@ def test_update_pending_inquiry_to_immediate_resolution(
 
     assert response.status_code == 200, response.text
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2513,7 +2511,7 @@ def test_update_in_progress_inquiry_success(
 ):
     """対応担当者本人は対応中の問い合わせを編集できる。"""
     # J0002を対応担当者として設定する
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2538,7 +2536,7 @@ def test_update_in_progress_inquiry_success(
 
     assert response.status_code == 200, response.text
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2562,7 +2560,7 @@ def test_update_in_progress_cannot_change_initial_handling(
     pending_inquiry_number,monkeypatch
 ):
     """対応中に受付時の処理を変更すると、更新全体が拒否される。"""
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2589,7 +2587,7 @@ def test_update_in_progress_cannot_change_initial_handling(
     assert response.status_code == 409
 
     # 件名も受付時の処理も変更されていないことを確認する
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2624,7 +2622,7 @@ def test_update_inquiry_by_unauthorized_staff(
 
     assert response.status_code == 403
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2644,7 +2642,7 @@ def test_update_completed_inquiry_rejected(
     pending_inquiry_number,monkeypatch
 ):
     """対応完了済みの問い合わせは編集できない。"""
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -2667,7 +2665,7 @@ def test_update_completed_inquiry_rejected(
 
     assert response.status_code == 409
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''

@@ -3,12 +3,11 @@ import psycopg
 from psycopg import sql
 from schemas.schemas_investigations import InvestigationUpdate
 import main
+from config import settings
 from schemas.string_normalization import blank_string_to_none
 import logging
 
 logger = logging.getLogger(__name__)
-
-DATABASE_NAME = main.DATABASE_NAME
 
 router = APIRouter()
 
@@ -144,7 +143,7 @@ def search_investigations_api(
     offset = (page - 1) * page_size
 
     # データベースから総件数と一覧データを取得
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
 
             # 検索結果の総件数を取得
@@ -240,7 +239,7 @@ def get_investigation_api(
     # ログイン中の職員を取得
     操作者職員番号 = current_user.職員番号
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
 
             # 1. 調査そのものの詳細を取得
@@ -413,7 +412,7 @@ def update_investigation_api(
         sql.Identifier(column) for column in returning_columns
     )
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 対象行をロックし、存在・権限・状態を確認
             cur.execute(
@@ -499,7 +498,7 @@ def abandon_investigation_api(
     # ログイン中の職員を取得
     操作者職員番号 = current_user.職員番号
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 対象の調査をロックし、存在・権限・状態を確認
             cur.execute(
@@ -629,7 +628,7 @@ def request_reaction_investigation_api(
     # ログイン中の職員を取得
     操作者職員番号 = current_user.職員番号
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 対象の調査をロックし、存在・権限・状態を確認
             cur.execute(
@@ -795,7 +794,7 @@ def abandon_inquiry_problem_investigation_api(
 ):
     """問い合わせ調査を個別断念にする。"""
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 1. 親の調査番号を取得する
             # この段階ではロックせず、親を特定するために使う
@@ -939,7 +938,7 @@ def ok_inquiry_problem_investigation_api(
 ):
     """問い合わせ調査にOKと回答する。"""
 
-    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 1. 対象の関連レコードから旧調査番号を取得する
             cur.execute(
@@ -1084,7 +1083,7 @@ def ng_inquiry_problem_investigation_api(
 ):
     """問い合わせ調査にNGと回答し、次の調査先へ移行する。"""
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 1. 対象の関連レコードから旧調査番号を取得する
             cur.execute(

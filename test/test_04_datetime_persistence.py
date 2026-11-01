@@ -1,9 +1,7 @@
 """タイムゾーン付き日時の更新・DB保存・API返却を確認する。"""
-
-import os
+from config import settings
 from datetime import datetime, timezone
 
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
 
 import psycopg
 import pytest
@@ -13,7 +11,6 @@ import main
 from main import app
 
 
-DATABASE_NAME = "inquiry_management_test"
 ORIGINAL_GET_CURRENT_USER = main.get_current_user
 INQUIRY_TIMESTAMP_INPUT = "2026-07-08T14:25:36+09:00"
 INVESTIGATION_TIMESTAMP_INPUT = "2026-07-09T09:15:00+09:00"
@@ -24,7 +21,7 @@ INVESTIGATION_TIMESTAMP_INPUT = "2026-07-09T09:15:00+09:00"
 
 @pytest.fixture
 def client():
-    """日時更新テスト用HTTPクライアントを提供する。"""
+    """一括APIテスト用HTTPクライアントを提供する。"""
     with TestClient(app) as test_client:
         yield test_client
 
@@ -65,7 +62,7 @@ def editable_inquiry(client):
 
     yield inquiry_number
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 'DELETE FROM "問い合わせ" WHERE "問い合わせ番号" = %s',
@@ -94,7 +91,7 @@ def editable_investigation(client):
 
     investigation_number = None
     try:
-        with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -125,7 +122,7 @@ def editable_investigation(client):
 
         yield investigation_number
     finally:
-        with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 if investigation_number is not None:
                     cur.execute(
@@ -169,7 +166,7 @@ def test_updated_inquiry_datetime_round_trips_as_same_instant(
         INQUIRY_TIMESTAMP_INPUT
     ).astimezone(timezone.utc)
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 'SELECT "受信日時" FROM "問い合わせ" WHERE "問い合わせ番号" = %s',
@@ -204,7 +201,7 @@ def test_updated_investigation_datetime_round_trips_as_same_instant(
         INVESTIGATION_TIMESTAMP_INPUT
     ).astimezone(timezone.utc)
 
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 'SELECT "対応案策定予定日時" FROM "調査" WHERE "調査番号" = %s',

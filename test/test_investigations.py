@@ -1,6 +1,4 @@
-import os
-
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
+from config import settings
 
 import psycopg
 from fastapi.testclient import TestClient
@@ -82,7 +80,7 @@ def investigation_search_test_data():
                 response.json()["問い合わせ番号"]
             )
 
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 # 問い合わせAの問い合わせ者をJ0001にする
                 # 3件とも対応担当者をJ0001にする
@@ -177,7 +175,7 @@ def investigation_search_test_data():
 
     finally:
         # 4. 関連レコードから順番に削除する
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 if link_numbers:
                     cur.execute(
@@ -234,7 +232,7 @@ def ok_ng_test_data():
         inquiry_number = response.json()["問い合わせ番号"]
 
         # 2. リアクション要求済みの調査を登録
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -275,7 +273,7 @@ def ok_ng_test_data():
         # 4. テストで作成された調査番号を収集して削除
         if inquiry_number is not None:
             with psycopg.connect(
-                "dbname=inquiry_management_test"
+                settings.database_url
             ) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
@@ -692,7 +690,7 @@ def test_get_investigation_not_found():
 # 関連する問い合わせ調査がなくても詳細を取得できる
 def test_get_investigation_without_related_inquiries():
     # 関連レコードを持たない調査をテスト用に作成
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -722,7 +720,7 @@ def test_get_investigation_without_related_inquiries():
 
     finally:
         # このテストで作成した調査を削除
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -790,7 +788,7 @@ def test_update_investigation_without_related_inquiries(
     _set_test_user(monkeypatch, "J0001")
 
     # 関連レコードを持たない調査を作成
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -815,7 +813,7 @@ def test_update_investigation_without_related_inquiries(
         assert response.status_code == 403
 
     finally:
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -856,7 +854,7 @@ def test_update_investigation_not_editable_state(
     )
 
     # テスト対象の調査を指定した状態に変更
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -989,7 +987,7 @@ def test_update_investigation_preserves_omitted_fields(
     )
 
     # 更新前の値を設定
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1038,7 +1036,7 @@ def test_update_investigation_forbidden_when_handlers_differ(
     )
 
     # 関連する問い合わせのうち1件を別の担当者に変更
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1082,7 +1080,7 @@ def test_abandon_investigation_success(
     assert result["調査断念日時"] is not None
 
     # 調査本体の状態を確認
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1136,7 +1134,7 @@ def test_abandon_investigation_without_related_inquiries(
     """関連する問い合わせがない調査は断念できない。"""
     _set_test_user(monkeypatch, "J0001")
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1158,7 +1156,7 @@ def test_abandon_investigation_without_related_inquiries(
         assert response.status_code == 403
 
     finally:
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -1193,7 +1191,7 @@ def test_abandon_investigation_invalid_state(
         investigation_search_test_data["investigation_numbers"][0]
     )
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1230,7 +1228,7 @@ def test_abandon_investigation_detects_inconsistent_related_state(
 
     # 本来は状態1または2のはずの関連レコードに、
     # 設計上想定しない状態3を意図的に設定する
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1251,7 +1249,7 @@ def test_abandon_investigation_detects_inconsistent_related_state(
     assert "データ整合性エラー" in response.json()["detail"]
 
     # 調査本体が状態1のまま、断念日時も未設定であることを確認
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1310,7 +1308,7 @@ def test_request_reaction_investigation_success(
     )
 
     # 事前に1件を個別断念（状態2）にしておく
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1334,7 +1332,7 @@ def test_request_reaction_investigation_success(
     assert result["調査状態"] == 2
     assert result["リアクション要求日時"] is not None
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 調査本体が状態2になったことを確認
             cur.execute(
@@ -1403,7 +1401,7 @@ def test_request_reaction_investigation_without_related_inquiries(
     """関連する問い合わせがない調査は要求できない。"""
     _set_test_user(monkeypatch, "J0001")
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1425,7 +1423,7 @@ def test_request_reaction_investigation_without_related_inquiries(
         assert response.status_code == 403
 
     finally:
-        with psycopg.connect("dbname=inquiry_management_test") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     '''
@@ -1460,7 +1458,7 @@ def test_request_reaction_investigation_invalid_state(
         investigation_search_test_data["investigation_numbers"][0]
     )
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1498,7 +1496,7 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
     )
 
     # 設計上想定しない関連レコードの状態を意図的に設定
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1519,7 +1517,7 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
     assert "データ整合性エラー" in response.json()["detail"]
 
     # 調査本体は更新されていないことを確認
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1562,7 +1560,7 @@ def test_request_reaction_investigation_detects_inconsistent_related_state(
 
 def _get_relation_id(investigation_number, inquiry_number):
     """調査番号と問い合わせ番号から関連レコード番号を取得する。"""
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1610,7 +1608,7 @@ def test_abandon_inquiry_problem_investigation_success(
     assert result["調査番号"] == investigation_number
     assert result["問い合わせ調査状態"] == 2
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1661,7 +1659,7 @@ def test_abandon_inquiry_problem_investigation_other_handler_returns_403(
         investigation_number, inquiry_number
     )
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1678,7 +1676,7 @@ def test_abandon_inquiry_problem_investigation_other_handler_returns_403(
 
     assert response.status_code == 403
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1705,7 +1703,7 @@ def test_abandon_inquiry_problem_investigation_parent_not_in_progress_returns_40
         investigation_number, inquiry_number
     )
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1722,7 +1720,7 @@ def test_abandon_inquiry_problem_investigation_parent_not_in_progress_returns_40
 
     assert response.status_code == 409
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1749,7 +1747,7 @@ def test_abandon_inquiry_problem_investigation_relation_not_in_progress_returns_
         investigation_number, inquiry_number
     )
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1766,7 +1764,7 @@ def test_abandon_inquiry_problem_investigation_relation_not_in_progress_returns_
 
     assert response.status_code == 409
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1813,7 +1811,7 @@ def test_ok_investigation_relation_success(
     assert result["問い合わせ番号"] == inquiry_number
     assert result["問い合わせ調査状態"] == 4
 
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1854,7 +1852,7 @@ def test_ok_investigation_relation_invalid_state(
     relation_id = ok_ng_test_data["relation_id"]
 
     # リアクション待ち以外の状態に変更する
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1897,7 +1895,7 @@ def test_ng_investigation_relation_reuses_latest_destination(
     inquiry_number = ok_ng_test_data["inquiry_number"]
     old_relation_id = ok_ng_test_data["relation_id"]
 
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1948,7 +1946,7 @@ def test_ng_investigation_relation_reuses_latest_destination(
     assert result["新しい調査番号"] == destination_id
     assert result["新しい問い合わせ調査状態"] == 1
 
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1972,7 +1970,7 @@ def test_ng_investigation_relation_creates_new_destination(
     inquiry_number = ok_ng_test_data["inquiry_number"]
     old_relation_id = ok_ng_test_data["relation_id"]
 
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -2002,7 +2000,7 @@ def test_ng_investigation_relation_creates_new_destination(
     assert result["NGでの移行先調査番号"] == new_investigation_id
     assert result["新しい問い合わせ調査状態"] == 1
 
-    with psycopg.connect(dbname="inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -2050,7 +2048,7 @@ def test_ng_investigation_relation_invalid_state(
 
     relation_id = ok_ng_test_data["relation_id"]
     # リアクション待ち以外の状態に変更する
-    with psycopg.connect("dbname=inquiry_management_test") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

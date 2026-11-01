@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import main
 import psycopg
 from fastapi import Depends, APIRouter, HTTPException, Path, Query
+from config import settings
 
 from schemas.schemas_inquiries import (
     ALLOWED_INQUIRY_CATEGORIES,
@@ -16,8 +17,6 @@ from schemas.schemas_inquiries import (
 )
 from typing import Annotated
 
-DATABASE_NAME = main.DATABASE_NAME
-
 router = APIRouter()
 
 
@@ -29,7 +28,7 @@ def create_inquiry_api(
 ):
 
     # 1. 問い合わせ職員の存在確認と所属の取得
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -66,7 +65,7 @@ def create_inquiry_api(
 
     
     # 4. 受付担当者の存在確認と所属確認
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -115,7 +114,7 @@ def create_inquiry_api(
     accepted_at = None
 
     # 問い合わせを登録
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -176,7 +175,7 @@ def accept_inquiries_bulk_api(
     操作者職員番号 = current_user.職員番号
 
     # 1. 操作者の存在確認と所属確認
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -310,7 +309,7 @@ def complete_inquiries_bulk_api(
             detail="問い合わせ番号が重複しています。",
         )
 
-    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 3. 全件をロックして状態を確認
             cur.execute(
@@ -433,7 +432,7 @@ def reopen_inquiry_api(
 ):
     # 1. 操作者をログイン情報から取得
 
-    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 2. 問い合わせをロックして現在の状態を取得
             cur.execute(
@@ -514,7 +513,7 @@ def bulk_create_investigation_api(
 ):
     inquiry_numbers = request.問い合わせ番号一覧
 
-    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 1. 対象の問い合わせを取得してロックする
             cur.execute(
@@ -626,7 +625,7 @@ def bulk_link_existing_investigation_api(
     inquiry_numbers = request.問い合わせ番号一覧
     investigation_number = request.調査番号
 
-    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 1. 既存の調査をロックして状態を確認
             cur.execute(
@@ -828,7 +827,7 @@ def update_inquiry_api(
     inquiry_number: int = Path(ge=1),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    with psycopg.connect(dbname=DATABASE_NAME) as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # 1. 現在の問い合わせ状態を取得し、更新中の競合を防ぐ
             cur.execute(
@@ -989,7 +988,7 @@ def search_inquiries_api(
     操作者職員番号 = current_user.職員番号
 
     # 1. 操作者の存在確認と所属取得
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -1132,7 +1131,7 @@ def search_inquiries_api(
     offset = (search.page - 1) * search.page_size
 
     # 4. 件数と一覧データを取得する
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 f"""
@@ -1211,10 +1210,9 @@ def get_inquiry_api(
     inquiry_number: int = Path(ge=1),
     current_user: main.CurrentUser = Depends(main.get_current_user),
 ):
-    print(f"詳細取得APIのDB: {DATABASE_NAME}")
 
     # 1. 指定された問い合わせを取得する
-    with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+    with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''

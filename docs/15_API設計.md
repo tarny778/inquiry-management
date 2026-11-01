@@ -34,7 +34,7 @@
 
 リクエストは `職員番号`（1〜20文字）と `パスワード`（1〜128文字）。空白だけの値は無効。アカウント不存在、ログイン不可、パスワード不一致は同じ401応答とする。成功時は `message`、職員番号、氏名、所属を返し、セッションIDはレスポンス本文ではなくCookieへ設定する。
 
-Cookie属性：HttpOnly、SameSite=Lax、Path=/、最大有効期間12時間。Secureは `ENVIRONMENT=production` の場合に設定する。DBにはIDのSHA-256ハッシュのみ保存する。
+Cookie属性：HttpOnly、SameSite=Lax、Path=/、最大有効期間12時間。Secureは `APP_ENV=production` の場合に設定する。DBにはIDのSHA-256ハッシュのみ保存する。
 
 ### 3.2 セッション確認
 

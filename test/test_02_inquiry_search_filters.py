@@ -1,8 +1,6 @@
 """問い合わせ一覧の個別検索条件・組み合わせ・日時境界を確認する。"""
 
-import os
-
-os.environ["DATABASE_NAME"] = "inquiry_management_test"
+from config import settings
 
 import psycopg
 import pytest
@@ -11,8 +9,6 @@ from fastapi.testclient import TestClient
 import main
 from main import app
 
-
-DATABASE_NAME = "inquiry_management_test"
 ORIGINAL_GET_CURRENT_USER = main.get_current_user
 TEST_INQUIRIES = [
     {
@@ -106,7 +102,7 @@ def search_inquiries(client):
             assert response.status_code == 200, response.text
             inquiry_numbers[item["key"]] = response.json()["問い合わせ番号"]
 
-        with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+        with psycopg.connect(settings.database_url) as conn:
             with conn.cursor() as cur:
                 for item in TEST_INQUIRIES:
                     inquiry_number = inquiry_numbers[item["key"]]
@@ -128,7 +124,7 @@ def search_inquiries(client):
         yield inquiry_numbers
     finally:
         if inquiry_numbers:
-            with psycopg.connect(f"dbname={DATABASE_NAME}") as conn:
+            with psycopg.connect(settings.database_url) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         '''

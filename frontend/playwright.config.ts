@@ -1,70 +1,74 @@
-import { defineConfig, devices } from '@playwright/test';
 
-/**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
+import { defineConfig, devices } from '@playwright/test'
+import dotenv from 'dotenv'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-/**
- * See https://playwright.dev/docs/test-configuration.
- */
+// この設定ファイルが置かれているディレクトリ
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
+// プロジェクトルートの .env.e2e を読み込む。
+// override: true により、シェルに別の環境変数があってもE2E設定を優先する。
+const envPath = resolve(__dirname, '../.env.e2e')
+const envResult = dotenv.config({
+  path: envPath,
+  override: true,
+})
+
+if (envResult.error) {
+  throw new Error(`.env.e2e の読み込みに失敗しました: ${envResult.error.message}`)
+}
+
+// E2E環境以外ではテストを起動しない。
+if (process.env.APP_ENV !== 'e2e') {
+  throw new Error('APP_ENV が e2e ではありません。E2Eテストを中止します。')
+}
+
+if (
+  process.env.VITE_API_BASE_URL !== 'http://127.0.0.1:8000'
+) {
+  throw new Error(
+    'VITE_API_BASE_URL がE2E用の設定ではありません。'
+  )
+}
+
 export default defineConfig({
   testDir: './tests',
-  /* Run tests in files in parallel */
   fullyParallel: false,
   workers: 1,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
-  use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+  use: {
+    baseURL: 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
   },
 
-  /* Configure projects for major browsers */
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
-});
+  // E2Eテストの前に、FastAPIとViteを自動起動する。
+  // テスト終了後はPlaywrightが両方を停止する。
+  webServer: [
+    {
+      command: 'uvicorn main:app --host 127.0.0.1 --port 8000',
+      cwd: resolve(__dirname, '..'),
+      url: 'http://127.0.0.1:8000/docs',
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+    {
+      command:
+        'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort',
+      cwd: __dirname,
+      url: 'http://127.0.0.1:5173',
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+  ],
+})
