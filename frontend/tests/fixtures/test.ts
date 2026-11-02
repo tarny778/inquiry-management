@@ -24,6 +24,8 @@ type TestFixtures = {
  * 5. DB接続を閉じる
  */
 export const test = base.extend<TestFixtures>({
+  // Playwrightのfixture仕様上、空のオブジェクト分割代入が必要なため、この行だけESLintを抑制する
+  // eslint-disable-next-line no-empty-pattern
   db: async ({}, provide) => {
     const client = await connectE2EDatabase()
 
