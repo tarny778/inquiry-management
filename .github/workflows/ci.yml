@@ -1,0 +1,117 @@
+
+name: CI
+
+# mainへのプッシュ、mainを対象とするプルリクエストで実行
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# リポジトリの読み取りだけを許可
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and Build
+    runs-on: ubuntu-latest
+
+    # CI専用のPostgreSQLデータベース
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inquiry_management_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d inquiry_management_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/inquiry_management_test?sslmode=disable
+
+    steps:
+      # GitHubに保存されているコードを取得
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Python環境を用意
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Go環境を用意（dbmateのインストールに使用）
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      # dbmateをインストール
+      - name: Install dbmate
+        run: |
+          go install github.com/amacneil/dbmate/v2@v2.37.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # CI専用DBにマイグレーションを適用
+      - name: Run database migrations
+        env:
+          DBMATE_MIGRATIONS_DIR: db/migrations
+        run: dbmate up
+
+      # テストで使用する職員マスタを登録
+      - name: Seed test staff
+        run: |
+          psql "$DATABASE_URL" <<'SQL'
+          INSERT INTO "職員" ("職員番号", "氏名", "所属")
+          VALUES
+            ('T0001', '山田太郎', '総務課'),
+            ('J0001', '情シス太郎', '情報システム課'),
+            ('J0002', '情シス次郎', '情報システム課');
+          SQL
+
+      # pytestが必要とするテスト環境設定を作成
+      - name: Create test environment file
+        run: |
+          cat > .env.test <<'EOF'
+          APP_ENV=test
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inquiry_management_test?sslmode=disable
+          CORS_ORIGINS=http://localhost:5173
+          EOF
+
+      # Pythonライブラリをインストール
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # バックエンドのテスト
+      - name: Run backend tests
+        run: python -m pytest -v
+
+      # Node.js環境を用意
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # フロントエンドのライブラリをインストール
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # ESLintによるコードチェック
+      - name: Run frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      # TypeScriptの確認と本番用ビルド
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
