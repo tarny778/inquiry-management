@@ -1,6 +1,6 @@
 \restrict dbmate
 
--- Dumped from database version 18.6 (Homebrew)
+-- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.6 (Homebrew)
 
 SET statement_timeout = 0;
@@ -24,7 +24,7 @@ SET default_table_access_method = heap;
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying(128) NOT NULL
+    version character varying NOT NULL
 );
 
 

@@ -29,6 +29,11 @@ ENVIRONMENTS = {
         "app_env": "e2e",
         "database": "inquiry_management_e2e",
     },
+    "docker": {
+        "file": ".env.docker",
+        "app_env": "development",
+        "database": "inquiry_management_dev",
+    },
 }
 
 

@@ -1,5 +1,4 @@
 __pycache__/
 *.pyc
 .env
-.env.test
-.env.e2e
+.env.*
