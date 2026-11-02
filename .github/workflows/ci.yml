@@ -33,10 +33,15 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # pytest用DBを標準の接続先とする
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/inquiry_management_test?sslmode=disable
 
     steps:
+      # --------------------------------------------------
+      # 1. 環境の準備
+      # --------------------------------------------------
+
       # GitHubに保存されているコードを取得
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -59,13 +64,43 @@ jobs:
           go install github.com/amacneil/dbmate/v2@v2.37.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      # CI専用DBにマイグレーションを適用
+      # --------------------------------------------------
+      # 2. データベースの準備
+      # --------------------------------------------------
+
+      # E2Eテスト用データベースを作成
+      - name: Create E2E database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql \
+            --host localhost \
+            --username postgres \
+            --dbname postgres \
+            --command "CREATE DATABASE inquiry_management_e2e;"
+
+      # --------------------------------------------------
+      # 3. マイグレーション
+      # --------------------------------------------------
+
+      # pytest用DBにマイグレーションを適用
       - name: Run database migrations
         env:
           DBMATE_MIGRATIONS_DIR: db/migrations
         run: dbmate up
 
-      # テストで使用する職員マスタを登録
+      # E2E用DBにマイグレーションを適用
+      - name: Run E2E migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/inquiry_management_e2e?sslmode=disable
+          DBMATE_MIGRATIONS_DIR: db/migrations
+        run: dbmate up
+
+      # --------------------------------------------------
+      # 4. 職員マスタの登録
+      # --------------------------------------------------
+
+      # pytest用DBに職員マスタを登録
       - name: Seed test staff
         run: |
           psql "$DATABASE_URL" <<'SQL'
@@ -76,6 +111,23 @@ jobs:
             ('J0002', '情シス次郎', '情報システム課');
           SQL
 
+      # E2E用DBに職員マスタを登録
+      - name: Seed E2E staff
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/inquiry_management_e2e?sslmode=disable
+        run: |
+          psql "$DATABASE_URL" <<'SQL'
+          INSERT INTO "職員" ("職員番号", "氏名", "所属")
+          VALUES
+            ('T0001', '山田太郎', '総務課'),
+            ('J0001', '情シス太郎', '情報システム課'),
+            ('J0002', '情シス次郎', '情報システム課');
+          SQL
+
+      # --------------------------------------------------
+      # 5. Python環境の準備とバックエンドテスト
+      # --------------------------------------------------
+
       # pytestが必要とするテスト環境設定を作成
       - name: Create test environment file
         run: |
@@ -85,6 +137,28 @@ jobs:
           CORS_ORIGINS=http://localhost:5173
           EOF
 
+      # E2Eテストが必要とする環境設定を作成
+      - name: Create E2E environment file
+        env:
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          cat > .env.e2e <<EOF
+          APP_ENV=e2e
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inquiry_management_e2e?sslmode=disable
+          CORS_ORIGINS=http://127.0.0.1:5173
+          VITE_API_BASE_URL=http://127.0.0.1:8000
+          E2E_TEST_PASSWORD=$E2E_TEST_PASSWORD
+          EOF
+
+      # E2E環境設定ファイルが正しく生成されたか確認
+      - name: Verify E2E environment file
+        run: |
+          test -s .env.e2e
+          grep -q '^APP_ENV=e2e$' .env.e2e
+          grep -q '^DATABASE_URL=postgresql://postgres:postgres@localhost:5432/inquiry_management_e2e?sslmode=disable$' .env.e2e
+          grep -q '^E2E_TEST_PASSWORD=.' .env.e2e
+          echo ".env.e2e の生成と必須項目を確認しました（パスワードは表示していません）。"
+
       # Pythonライブラリをインストール
       - name: Install Python dependencies
         run: pip install -r requirements.txt
@@ -92,6 +166,14 @@ jobs:
       # バックエンドのテスト
       - name: Run backend tests
         run: python -m pytest -v
+
+      # E2E用の職員認証情報を登録
+      - name: Set up E2E accounts
+        run: python -m scripts.setup_e2e_accounts
+
+      # --------------------------------------------------
+      # 6. フロントエンド環境の準備と検査
+      # --------------------------------------------------
 
       # Node.js環境を用意
       - name: Set up Node.js
@@ -115,3 +197,17 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      # --------------------------------------------------
+      # 7. PlaywrightによるE2Eテスト
+      # --------------------------------------------------
+
+      # Chromiumと実行に必要なOS依存パッケージをインストール
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # E2Eテストを実行
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npm run test:e2e
