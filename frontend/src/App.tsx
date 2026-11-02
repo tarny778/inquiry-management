@@ -1168,7 +1168,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [clearInquiryList, loadInitialInquiries])
 
   // 以下調査関連のファンクション
   // 検索条件とページ番号に基づき、一覧を再読み込み

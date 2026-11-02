@@ -24,7 +24,7 @@ type TestFixtures = {
  * 5. DB接続を閉じる
  */
 export const test = base.extend<TestFixtures>({
-  db: async ({}, use) => {
+  db: async (_fixtures, provide) => {
     const client = await connectE2EDatabase()
 
     try {
@@ -32,7 +32,7 @@ export const test = base.extend<TestFixtures>({
       await resetE2EDatabase(client)
 
       // テスト本体にDB接続を渡す
-      await use(client)
+      await provide(client)
 
     } finally {
       try {

@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useCallback,useState } from 'react'
 import { ApiError } from './api/client'
 import {
   getInitialInquiries,
@@ -56,48 +56,46 @@ export function useInquiryList() {
     useState<'initial' | 'search'>('initial')
 
   // API取得失敗時の共通処理
-  function handleFetchError(error: unknown): InquiryListResult {
+  const handleFetchError = useCallback((
+    error: unknown,
+  ): InquiryListResult => {
     if (error instanceof ApiError && error.status === 401) {
       setInquiries([])
       setTotal(0)
       setCurrentPage(1)
       setListDisplayMode('initial')
-
       return { ok: false, reason: 'unauthorized' }
     }
-
     return { ok: false, reason: 'error', error }
-  }
+  }, [])
 
   // 取得に成功したときだけ一覧状態を更新する
-  function applyListResult(
+  const applyListResult = useCallback((
     result: {
       items: Inquiry[]
       total: number
       page: number
     },
     mode: 'initial' | 'search',
-  ) {
+  ) => {
     setInquiries(result.items)
     setTotal(result.total)
     setCurrentPage(result.page)
     setListDisplayMode(mode)
-  }
+  }, [])
 
   // 初期条件による一覧を取得する
-  async function loadInitialInquiries(
+  const loadInitialInquiries = useCallback(async (
     pageNumber = 1,
-  ): Promise<InquiryListResult> {
+  ): Promise<InquiryListResult> => {
     try {
       const result = await getInitialInquiries(pageNumber)
-
       applyListResult(result, 'initial')
-
       return { ok: true }
     } catch (error) {
       return handleFetchError(error)
     }
-  }
+  }, [applyListResult, handleFetchError])
 
   // 検索条件による一覧を取得する
   async function searchInquiries(
