@@ -150,12 +150,12 @@ export function useInquiryList() {
   }
 
   // 一覧データをクリアする（認証切れなど）
-  function clearInquiryList() {
+  const clearInquiryList = useCallback(() => {
     setInquiries([])
     setTotal(0)
     setCurrentPage(1)
     setListDisplayMode('initial')
-  }
+  }, [])
 
   // 現在ページを1ページ目に戻す
   function resetCurrentPage() {
