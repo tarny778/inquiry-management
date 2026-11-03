@@ -12,20 +12,6 @@ WORKDIR /app
 COPY requirements-prod.txt .
 RUN pip install --no-cache-dir -r requirements-prod.txt
 
-
-FROM python:3.12-slim
-
-# Pythonの動作設定
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# コンテナ内の作業場所
-WORKDIR /app
-
-# 本番用ライブラリをインストール
-COPY requirements-prod.txt .
-RUN pip install --no-cache-dir -r requirements-prod.txt
-
 # アプリ専用ユーザーを作成
 RUN useradd --create-home app
 
