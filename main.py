@@ -1,3 +1,4 @@
+from pathlib import Path
 import logging
 from dataclasses import dataclass
 
@@ -29,14 +30,22 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-# ファイル出力用ハンドラー
-file_handler = logging.FileHandler("logs/app.log", encoding="utf-8")
-file_handler.setFormatter(
-    logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-)
+# 開発・テスト環境ではファイルにもログを出力する。
+# 本番環境では標準出力・標準エラー出力のみとする。
+if settings.app_env != "production":
+    Path("logs").mkdir(parents=True, exist_ok=True)
 
-# ルートロガーにファイル出力を追加
-logging.getLogger().addHandler(file_handler)
+    file_handler = logging.FileHandler(
+        "logs/app.log",
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s"
+        )
+    )
+
+    logging.getLogger().addHandler(file_handler)
 
 logger = logging.getLogger(__name__)
 

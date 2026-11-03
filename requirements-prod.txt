@@ -1,0 +1,13 @@
+# API・Webサーバー
+fastapi==0.142.2
+uvicorn==0.54.0
+
+# データ検証・データベース接続
+pydantic==2.13.5
+psycopg[binary]==3.3.6
+
+# 認証・セキュリティ
+argon2-cffi==25.1.0
+
+# 環境変数ファイルの読み込み
+python-dotenv==1.2.1
