@@ -3,6 +3,7 @@ import hashlib
 import secrets
 from config import settings
 from datetime import datetime, timedelta, timezone
+import logging
 
 import argon2
 import psycopg
@@ -13,6 +14,7 @@ from schemas.schemas_auth import LoginRequest
 
 
 router = APIRouter(prefix="/api/auth", tags=["認証"])
+logger = logging.getLogger(__name__)
 
 # セッションの有効期間
 IDLE_TIMEOUT = timedelta(minutes=30)
@@ -145,6 +147,7 @@ def login(
     # アカウントが存在しない場合も、ログイン不可の場合も
     # 利用者には同じエラーを返す。
     if account is None:
+        logger.warning("ログイン失敗（アカウントなし）: 職員番号=%r", request.職員番号)
         raise HTTPException(
             status_code=401,
             detail="職員番号またはパスワードが正しくありません。",
@@ -153,6 +156,7 @@ def login(
     password_hash, login_allowed, name, department = account
 
     if not login_allowed:
+        logger.warning("ログイン失敗（ログイン不可）: 職員番号=%r", request.職員番号)
         raise HTTPException(
             status_code=401,
             detail="職員番号またはパスワードが正しくありません。",
@@ -165,6 +169,7 @@ def login(
         )
     except (argon2.exceptions.VerifyMismatchError,
             argon2.exceptions.VerificationError):
+        logger.warning("ログイン失敗（パスワード不一致）: 職員番号=%r", request.職員番号)
         raise HTTPException(
             status_code=401,
             detail="職員番号またはパスワードが正しくありません。",
@@ -218,6 +223,7 @@ def login(
         path="/",
     )
 
+    logger.info("ログイン成功: 職員番号=%r", request.職員番号)
     return {
         "message": "ログインしました。",
         "職員番号": request.職員番号,

@@ -1,10 +1,11 @@
-
+import logging
 from dataclasses import dataclass
 
 from config import settings
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 @dataclass
 class CurrentUser:
@@ -22,8 +23,33 @@ def get_current_user(request: Request) -> CurrentUser:
 
     return authenticate_session(request)
 
+# ログの基本設定
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
+# ファイル出力用ハンドラー
+file_handler = logging.FileHandler("logs/app.log", encoding="utf-8")
+file_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+)
+
+# ルートロガーにファイル出力を追加
+logging.getLogger().addHandler(file_handler)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+@app.exception_handler(Exception)
+async def unexpected_exception_handler(request: Request, exc: Exception):
+    logger.exception("予期しない例外が発生しました")
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "サーバー内部でエラーが発生しました"},
+    )
 
 # フロントエンドからのアクセスを許可する。
 app.add_middleware(
