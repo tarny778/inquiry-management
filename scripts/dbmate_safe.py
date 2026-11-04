@@ -51,7 +51,7 @@ def main():
 
     parser.add_argument(
         "command",
-        choices=["status", "migrate"],
+        choices=["status", "migrate", "up"],
         help="dbmateのサブコマンド",
     )
 
@@ -101,7 +101,7 @@ def main():
     print()
 
     # 7. migrateの場合は実行前に最終確認
-    if args.command == "migrate":
+    if args.command in ("migrate", "up"):
         print("これから上記のDBにマイグレーションを適用します。")
         confirmation = input(
             f"実行する場合はDB名を入力してください: "

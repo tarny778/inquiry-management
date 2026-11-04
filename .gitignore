@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-.env
-.env.docker
-.env.e2e
-.env.test
+.env*
+!.env*.example
+logs/

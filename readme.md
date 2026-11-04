@@ -115,100 +115,153 @@
 | `15_API設計.md` | API設計 |
 | `16_Playwrightテスト仕様書.md` | E2Eテストの仕様 |
 
-## ローカルでの起動方法
+## ローカルでの実行方法
 
-自分のPCにコンテナを立てて、動かす手順です。
+自分のPCで、このアプリを動かしたり、テストしたりする手順です。
+
+### どこで何が動くか
+
+実行の目的によって、アプリとDBが動く場所が変わります。
+
+| やりたいこと | バックエンド / フロントエンド | DB |
+|---|---|---|
+| 画面を触って試す | コンテナ | コンテナ |
+| API テスト(pytest) | 自分のPC(テストの中から直接呼び出す) | コンテナ |
+| E2E テスト(Playwright) | 自分のPC(テスト開始時に自動で起動・終了) | コンテナ |
+
+DBは、どの場合も、Dockerの `db` コンテナを使います(PCには、PostgreSQLを入れる必要はありません)。
+
+使用するポートは、次のとおりです。**他のアプリや、別のコンテナが同じポートを使っていると、起動できません。**
+
+| ポート | 用途 |
+|---|---|
+| 5433 | PostgreSQL(コンテナ) |
+| 8000 | バックエンド(FastAPI) |
+| 5173 | フロントエンド(Vite) |
+
+画面を触って試す場合と、E2Eテストは、8000番と5173番を使うので、同時には実行できません。
 
 ### 事前に必要なもの
 
 - Docker / Docker Compose
-- Python(アカウント登録スクリプトと、マイグレーション用スクリプトを、自分のPCで実行するため)
+- Python 3.10 以上
+- Node.js(E2Eテストのみ)
 - [dbmate](https://github.com/amacneil/dbmate)(マイグレーションツール)
 
-### 手順
+### 1. 準備(最初に1回)
 
-1. リポジトリを取得し、Pythonの依存ライブラリをインストールする
+リポジトリを取得し、Python の仮想環境を作って、ライブラリをインストールします。
+
+```bash
+git clone https://github.com/tarny778/inquiry-management.git
+cd inquiry-management
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+次に、環境変数ファイルを作ります。`.env.docker.example` を `.env.docker` という名前でコピーし、パスワードを書き換えます。
+
+- パスワードは、`DOCKER_POSTGRES_PASSWORD` と `DATABASE_URL` の2か所に、同じ値を書きます。
+- パスワードには、英数字だけを使ってください(記号があると、URLとして読めなくなります)。
+
+`.env.docker` は、Git の管理外です。
+
+### 2. 画面を触って試す
+
+1. コンテナを起動する(DB、バックエンド、フロントエンドの3つが起動します)
 
    ```bash
-   git clone https://github.com/tarny778/inquiry-management.git
-   cd inquiry-management
-   pip install -r requirements.txt
+   docker compose --env-file .env.docker up -d --build
    ```
 
-2. 環境変数ファイルを作成する
-
-   `.env.docker.example` を `.env.docker` という名前でコピーし、パスワードを書き換えます(Git管理外)。
-   パスワードは、`DOCKER_POSTGRES_PASSWORD` と `DATABASE_URL` の2か所に、同じ値を書きます。
-
-3. コンテナを起動する
-
-   ```bash
-   docker compose --env-file .env.docker up --build
-   ```
-
-   `db`(PostgreSQL)、`backend`(FastAPI)、`frontend`(React)の3つのコンテナが起動します。
-   DBの準備ができてから、バックエンドが起動します。
-
-4. テーブルを作成する(マイグレーション)
+2. テーブルを作成する(DB名の入力を求められます)
 
    ```bash
    python scripts/dbmate_safe.py docker migrate
    ```
 
-   接続先のDBと環境を確認したうえで、実行します。ここで、DB名の入力を求められます。
-
-5. 開発用の職員データとアカウントを登録する
+3. 開発用の職員データとアカウントを登録する(パスワードの入力を求められます)
 
    ```bash
    python scripts/setup_docker_accounts.py
    ```
 
-   パスワードの入力を求められます。開発用の職員3名を登録し、入力したパスワードでログインできるようにします。何度実行しても安全です。
-
-6. ブラウザで開く
+4. ブラウザで開く
 
    | 内容 | URL |
    |---|---|
    | フロントエンド | http://localhost:5173 |
    | API(Swagger UI) | http://localhost:8000/docs |
-   | PostgreSQL(自分のPCから接続する場合) | localhost:5433 |
 
-## テスト
+   ログインには、手順3で登録した職員番号(`J0001`、`J0002`、`T0001`)と、入力したパスワードを使います。
 
-### API のテスト
+5. 終わったら、コンテナを止める
+
+   ```bash
+   docker compose --env-file .env.docker stop
+   ```
+
+   DBのデータは、残ります。データごと消す場合は、`docker compose --env-file .env.docker down -v` を実行します。
+
+### 3. テストを実行する
+
+テストに必要なのは、DBのコンテナだけです。DBだけを起動します。
 
 ```bash
-python -m pytest -v
+docker compose --env-file .env.docker up -d db
 ```
 
-### E2E テスト(Playwright)
+#### API テスト(pytest)
 
-E2Eテストは、専用のDB(`inquiry_management_e2e`)と、専用の環境変数ファイル(`.env.e2e`)を使います。開発用のデータには、影響しません。
+1. `.env.test.example` を `.env.test` としてコピーし、`DATABASE_URL` のパスワードを、`.env.docker` と同じ値にする
+2. テスト用DBを作成して、テーブルを作る(DBがなければ自動で作成されます)
 
-1. `.env.e2e.example` を `.env.e2e` としてコピーし、値を設定する
-2. E2E用DBを作成し、テーブルを作成する(DBがなければ自動で作成されます)
+   ```bash
+   python scripts/dbmate_safe.py test up
+   ```
+
+3. テストを実行する(職員データは、テストが自動で用意します)
+
+   ```bash
+   python -m pytest -v
+   ```
+
+#### E2E テスト(Playwright)
+
+E2Eテストは、専用のDB(`inquiry_management_e2e`)と、専用の設定ファイル(`.env.e2e`)を使うので、開発用のデータには影響しません。
+
+1. 「2 画面を触って試す」で、バックエンドとフロントエンドのコンテナを起動していた場合は、止める(ポートが重なるため)
+
+   ```bash
+   docker compose --env-file .env.docker stop backend frontend
+   ```
+
+2. `.env.e2e.example` を `.env.e2e` としてコピーし、`DATABASE_URL` のパスワードを、`.env.docker` と同じ値にする。`E2E_TEST_PASSWORD`(E2E用アカウントのパスワード)も設定する
+3. E2E用DBを作成して、テーブルを作る
 
    ```bash
    python scripts/dbmate_safe.py e2e up
    ```
 
-3. E2E用のアカウントを登録する(パスワードは `.env.e2e` から読み込みます)
+4. E2E用のアカウントを登録する(パスワードは `.env.e2e` から読み込みます)
 
    ```bash
    python scripts/setup_e2e_accounts.py
    ```
 
-4. `frontend/` でテストを実行する
+5. テストを実行する(初回のみ、テスト用ブラウザの取得に時間がかかります)
 
    ```bash
    cd frontend
    npm install
-   npx playwright install   # 初回のみ(テスト用ブラウザの取得)
+   npx playwright install
    npm run test:e2e
    ```
 
-   テスト開始時に、FastAPIとViteが自動で起動し、終了時に自動で停止します。事前にアプリを起動する必要はありません。
-   E2Eテストおよびpytestは、GitHub Actionsで自動実行されます。ローカルで実行する場合は、PythonとNode.jsが必要です。
+   テスト開始時に、バックエンドとフロントエンドが自動で起動し、終了時に自動で停止します。
+
+これらのテストは、GitHub Actions でも、自動で実行されます。
 
 ## 今後の予定
 
