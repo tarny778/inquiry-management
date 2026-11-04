@@ -46,11 +46,7 @@ export default function InvestigationRelatedInquiries({
 
   return (
     <section className="list-section">
-      <h3>関連する問い合わせ調査</h3>
-
-      <p className="list-count">
-        関連件数：{relatedInquiries.length} 件
-      </p>
+      <h3>関連する問い合わせ調査：{relatedInquiries.length} 件</h3>
 
       <div className="related-inquiries-table-wrap">
         <table className="related-inquiries-table">
