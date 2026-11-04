@@ -1,3 +1,13 @@
+"""Docker開発環境用の職員データと認証情報を登録するスクリプト。
+
+実行内容:
+  1. 職員テーブルに、開発用の職員を登録する(既に存在する場合は変更しない)
+  2. 入力されたパスワードをハッシュ化し、職員認証情報に登録する
+     (既に存在する場合は、パスワードを更新する)
+
+何度実行しても安全に動くようにしてある。
+"""
+
 from pathlib import Path
 import sys
 from getpass import getpass
@@ -18,10 +28,12 @@ from config import settings
 
 EXPECTED_DATABASE = "inquiry_management_dev"
 
+# (職員番号, 氏名, 所属)
+# ※所属は例です。実際の値に合わせて修正してください。
 STAFF = [
-    ("J0001", "情シス太郎"),
-    ("J0002", "情シス次郎"),
-    ("T0001", "山田太郎"),
+    ("J0001", "情シス太郎", "情報システム課"),
+    ("J0002", "情シス次郎", "情報システム課"),
+    ("T0001", "山田太郎", "総務課"),
 ]
 
 
@@ -31,7 +43,7 @@ def main():
         raise RuntimeError("APP_ENVがdevelopmentではありません。")
 
     password = getpass("3名に設定する開発用パスワード: ")
-    password_confirm = getpass("パスワード（確認）: ")
+    password_confirm = getpass("パスワード(確認): ")
 
     if not password:
         raise RuntimeError("パスワードが空です。")
@@ -46,53 +58,42 @@ def main():
 
     with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
-
             # 実際の接続先DBを確認
             cur.execute("SELECT current_database()")
             database_name = cur.fetchone()[0]
 
             if database_name != EXPECTED_DATABASE:
-                raise RuntimeError(
-                    f"接続先DBが違います: {database_name}"
-                )
-
-            # 職員マスタの存在確認
-            cur.execute('SELECT "職員番号" FROM "職員"')
-            existing_staff = {
-                row[0] for row in cur.fetchall()
-            }
-
-            for staff_number, _ in STAFF:
-                if staff_number not in existing_staff:
-                    raise RuntimeError(
-                        f"職員マスタに {staff_number} がありません。"
-                    )
+                raise RuntimeError(f"接続先DBが違います: {database_name}")
 
             # 既存アカウントのログイン可否を確認
             cur.execute(
-                'SELECT "職員番号", "ログイン可否" '
-                'FROM "職員認証情報"'
+                'SELECT "職員番号", "ログイン可否" FROM "職員認証情報"'
             )
+            accounts = {row[0]: row[1] for row in cur.fetchall()}
 
-            accounts = {
-                row[0]: row[1] for row in cur.fetchall()
-            }
-
-            for staff_number, _ in STAFF:
-                if (
-                    staff_number in accounts
-                    and not accounts[staff_number]
-                ):
+            for staff_number, _, _ in STAFF:
+                if staff_number in accounts and not accounts[staff_number]:
                     raise RuntimeError(
                         f"{staff_number} はログイン不可です。"
                     )
 
-            # パスワードをハッシュ化して登録
-            for staff_number, staff_name in STAFF:
+            # 1. 職員を登録(既にある場合は変更しない)
+            for staff_number, staff_name, department in STAFF:
+                cur.execute(
+                    """
+                    INSERT INTO "職員" ("職員番号", "氏名", "所属")
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT ("職員番号") DO NOTHING
+                    """,
+                    (staff_number, staff_name, department),
+                )
+
+            # 2. パスワードをハッシュ化して認証情報を登録
+            for staff_number, staff_name, _ in STAFF:
                 password_hash = hasher.hash(password)
 
                 cur.execute(
-                    '''
+                    """
                     INSERT INTO "職員認証情報" (
                         "職員番号",
                         "パスワードハッシュ"
@@ -103,7 +104,7 @@ def main():
                         "パスワードハッシュ" = EXCLUDED."パスワードハッシュ",
                         "更新日時" = CURRENT_TIMESTAMP,
                         "パスワード更新日時" = CURRENT_TIMESTAMP
-                    ''',
+                    """,
                     (staff_number, password_hash),
                 )
 
