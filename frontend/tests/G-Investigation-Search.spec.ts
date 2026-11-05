@@ -909,7 +909,7 @@ test(
     // -----------------------------------------------------
 
     await expect(
-      page.getByText('関連する問い合わせ：2 件'),
+      page.getByText('関連件数：2 件'),
     ).toBeVisible()
 
     const okRow = getRelatedInquiryRow(
