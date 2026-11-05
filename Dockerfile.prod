@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # アプリ専用ユーザーを作成
 RUN useradd --create-home app
+RUN mkdir -p /app/logs && chown app:app /app/logs
 
 # アプリのファイルをコピー
 COPY --chown=app:app . .

@@ -1,0 +1,67 @@
+# 本番(AWS)用の compose。開発用の compose.yaml とは、独立している。
+#
+#   docker compose --env-file .env.docker -f compose.prod.yaml up -d --build
+#
+# 公開するのは web の 80 番だけ。DB と backend は、外に公開しない。
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inquiry_management_dev
+      POSTGRES_USER: inquiry_app
+      POSTGRES_PASSWORD: ${DOCKER_POSTGRES_PASSWORD:?DOCKER_POSTGRES_PASSWORDを.env.dockerに設定してください}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inquiry_app -d inquiry_management_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      # HTTP で公開する間は development のままにする。
+      # production にすると Cookie が Secure になり、HTTP ではログインできなくなる。
+      APP_ENV: development
+      DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management_dev?sslmode=disable
+      CORS_ORIGINS: http://localhost
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ""
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - backend
+
+  # マイグレーション用(普段は起動しない)
+  #   docker compose --env-file .env.docker -f compose.prod.yaml --profile tools run --rm migrate
+  migrate:
+    image: ghcr.io/amacneil/dbmate
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management_dev?sslmode=disable
+    volumes:
+      - ./db:/db
+    depends_on:
+      db:
+        condition: service_healthy
+    command: migrate
+
+volumes:
+  postgres_data:

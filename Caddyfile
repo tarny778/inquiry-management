@@ -1,0 +1,22 @@
+# 本番用の入口。画面のファイルを配り、/api/ で始まるものだけを backend へ中継する。
+:80 {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# API は backend(FastAPI)へ中継する
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# それ以外は、ビルド済みの画面を返す(存在しないパスは index.html へ)
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
