@@ -453,8 +453,8 @@ test('E-04 調査一覧から詳細を開き、関連問い合わせを確認で
   ).toContainText('調査中')
 
   await expect(
-    page.locator('.list-count'),
-  ).toContainText('1 件')
+    page.locator('.list-section'),
+  ).toContainText('関連する問い合わせ調査：1 件')
 })
 
 
