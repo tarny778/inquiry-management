@@ -1,0 +1,18 @@
+# AWS(EC2)用の追加設定
+#
+# compose.yaml に重ねて使う。
+#   docker compose --env-file .env.docker -f compose.yaml -f compose.aws.yaml up -d
+#
+# restart: unless-stopped
+#   サーバーが起動したとき、Dockerが自動でコンテナを立ち上げる。
+#   手動で `docker compose stop` したものは、起動し直さない。
+
+services:
+  db:
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+
+  frontend:
+    restart: unless-stopped
