@@ -1,5 +1,9 @@
 # 本番用の入口。画面のファイルを配り、/api/ で始まるものだけを backend へ中継する。
-:80 {
+#
+# SITE_ADDRESS に、ドメイン名(例: xxx.duckdns.org)を指定すると、
+# Caddy が証明書を自動で取得して、HTTPS で配信する(80番は、HTTPSへ転送される)。
+# 未指定のときは、HTTP の80番だけで動く。
+{$inquirymngmt::80} {
 	encode gzip
 
 	header {

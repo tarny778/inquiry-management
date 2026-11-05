@@ -1,21 +1,25 @@
 # 本番(AWS)用の compose。開発用の compose.yaml とは、独立している。
 #
+# 必要な環境変数(.env.docker):
+#   DOCKER_POSTGRES_PASSWORD  DBのパスワード
+#   SITE_ADDRESS              公開するドメイン名(例: xxx.duckdns.org)
+#
 #   docker compose --env-file .env.docker -f compose.prod.yaml up -d --build
 #
-# 公開するのは web の 80 番だけ。DB と backend は、外に公開しない。
+# 公開するのは web の 80/443 番だけ。DB と backend は、外に公開しない。
 
 services:
   db:
     image: postgres:18
     restart: unless-stopped
     environment:
-      POSTGRES_DB: inquiry_management_dev
+      POSTGRES_DB: inquiry_management
       POSTGRES_USER: inquiry_app
       POSTGRES_PASSWORD: ${DOCKER_POSTGRES_PASSWORD:?DOCKER_POSTGRES_PASSWORDを.env.dockerに設定してください}
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U inquiry_app -d inquiry_management_dev"]
+      test: ["CMD-SHELL", "pg_isready -U inquiry_app -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,11 +30,10 @@ services:
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     environment:
-      # HTTP で公開する間は development のままにする。
-      # production にすると Cookie が Secure になり、HTTP ではログインできなくなる。
-      APP_ENV: development
-      DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management_dev?sslmode=disable
-      CORS_ORIGINS: http://localhost
+      # production にすると、ログインの Cookie が Secure になる(HTTPS 専用)。
+      APP_ENV: production
+      DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management?sslmode=disable
+      CORS_ORIGINS: https://${SITE_ADDRESS:?SITE_ADDRESSを.env.dockerに設定してください}
     depends_on:
       db:
         condition: service_healthy
@@ -42,26 +45,34 @@ services:
       args:
         VITE_API_BASE_URL: ""
     restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 証明書を保存する(消すと、再取得になり、発行の回数制限に当たることがある)
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
 
-  # マイグレーション用(普段は起動しない)
+  # マイグレーション用(普段は起動しない)。DB が無ければ作成してから、テーブルを作る。
   #   docker compose --env-file .env.docker -f compose.prod.yaml --profile tools run --rm migrate
   migrate:
     image: ghcr.io/amacneil/dbmate
     profiles: ["tools"]
     environment:
-      DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management_dev?sslmode=disable
+      DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management?sslmode=disable
     volumes:
       - ./db:/db
     depends_on:
       db:
         condition: service_healthy
-    command: migrate
+    command: up
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
