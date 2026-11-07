@@ -334,13 +334,97 @@ AWS(EC2)に、Docker Composeでデプロイしています。使うときだけ�
 - 公開しているデータは、ダミーのみです。
 - `config.py` が、環境名とDB名の組み合わせを検証するため、本番の設定で、開発用のDBに接続することはありません。
 
-## 今後の予定
+## インフラのコード化(Terraform)
+
+AWS(東京リージョン)の EC2 は、Terraform で構築しています。コードは `infra/` にあります。画面の手作業で作るのではなく、コードにしたことで、同じ環境を何度でも作り直せて、不要になれば1コマンドで削除できます。
+
+### 作成するもの
+
+| リソース | 内容 |
+|---|---|
+| キーペア | 手元の公開鍵を登録する(秘密鍵は登録しない) |
+| セキュリティグループ | SSH(22番)は自分のIPのみ、HTTP(80番)とHTTPS(443番)は全体に公開 |
+| EC2 | `t3.small`、Amazon Linux 2023、ディスク20GiB(gp3) |
+
+EC2 には、次の設定を入れています。
+
+- メタデータの取得に、トークンを必須にする(IMDSv2)
+- OS からシャットダウンしたときは、削除ではなく「停止」にする
+
+### 起動時の自動設定(`user_data`)
+
+EC2 の初回起動時に、次の作業が自動で実行されます。
+
+- Docker、Git、Docker Compose、buildx のインストール
+- アプリのリポジトリの取得
+- 起動から一定時間(初期値は180分)後に、自動で停止する設定
+- 起動のたびに、DuckDNS のドメインを新しい IP に更新する設定(`/etc/duckdns.env` があるときだけ動く)
+
+秘密情報(DB のパスワード、DuckDNS のトークン)は、コードにも状態ファイルにも残らないように、`user_data` には含めていません。サーバーができたあとに、手作業で設定します。
+
+### 状態ファイルの管理
+
+Terraform の状態ファイル(`terraform.tfstate`)は、S3 に保存しています(`infra/backend.tf`)。
+
+- バージョニングを有効にし、上書きしても過去の版が残る
+- パブリックアクセスをすべてブロックしている
+- `use_lockfile` により、同時に実行しても状態が壊れない
+
+状態を預けるバケットは、Terraform では作れません(状態の保存先が先にないと、Terraform 自体が動かないため)。そのため、最初に一度だけ、次のコマンドで作成します。バケット名は世界で1つだけの名前にする必要があるので、ランダムな文字列を付けます。
+
+```bash
+BUCKET=inquiry-tfstate-$(openssl rand -hex 4)
+aws s3api create-bucket --bucket $BUCKET --region ap-northeast-1 \
+  --create-bucket-configuration LocationConstraint=ap-northeast-1
+aws s3api put-public-access-block --bucket $BUCKET \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-versioning --bucket $BUCKET \
+  --versioning-configuration Status=Enabled
+```
+
+作成したバケット名は、`infra/backend.tf` の `bucket` に書きます。このバケットは Terraform の管理外のため、`terraform destroy` を実行しても削除されません。
+
+### 実行の手順
+
+Terraform は、AWS CloudShell(ブラウザ上のターミナル)から実行します。CloudShell は、ログイン中の IAM ユーザーの権限で動くため、アクセスキーを発行する必要がありません。
+
+コードの編集は手元で行い、GitHub にプッシュします。CloudShell では、取得して実行するだけです。
+
+```bash
+git clone https://github.com/tarny778/inquiry-management.git ~/repo
+cd ~/repo/infra
+export TF_VAR_ssh_public_key="公開鍵の1行"
+export TF_VAR_my_ip_cidr="自分のIP/32"
+terraform init
+terraform plan
+terraform apply
+```
+
+- 公開鍵は、`ssh-keygen -y -f ~/.ssh/<秘密鍵のファイル>` で取り出せます。
+- 自宅の IP アドレスは、数日で変わることがあります。SSH が通らなくなったら、`TF_VAR_my_ip_cidr` を新しい値にして、`terraform apply` を実行します。
+- `terraform plan` は、何を作る(変える・消す)予定かを表示するだけで、実際には何も変更しません。`apply` の前に、必ず内容を確認します。
+
+### サーバーができたあとの手作業
+
+SSH で入り、次を設定します。
+
+1. `.env.docker` を作る(`DOCKER_POSTGRES_PASSWORD` と `SITE_ADDRESS`。パスワードは `openssl rand -hex 16` で生成)
+2. `/etc/duckdns.env` を作る(DuckDNS のサブドメイン名とトークン。権限は `600`)
+3. コンテナを起動し、マイグレーションとアカウント登録を実行する(前節の「運用」を参照)
+
+### 設計で意識したこと
+
+- 秘密情報をコードや状態に残さないため、手作業の部分を、あえて残している
+- 状態ファイルは、実行環境(CloudShell)が消えても失われないよう、S3 に置いている
+- `terraform plan` で内容を確認してから、`apply` を実行する
 
 ## 今後の予定
 
 - [x] AWS での公開(EC2、Docker Compose、HTTPS)
+- [x] Terraform によるインフラのコード化(状態ファイルは S3 で管理)
 - [ ] GitHub Actions による自動デプロイ(CD)
-- [ ] AWS上での構成の見直し(マネージドDB、ロードバランサーなど、サービスを分けた構成)
+- [ ] SSH を開けない運用(AWS Systems Manager の Session Manager)
+- [ ] サービスを分けた構成(マネージドDB、ロードバランサーなど)の検証
 - [ ] 記録の活用(将来構想): 蓄積した記録を定期的に(年1回など)出力し、生成AIの力を借りて、似た項目のまとめや意味づけを行い、汎用的なFAQとして整理する。FAQが充実すれば、一般職員は自分で調べられ、情シス職員も即答できるようになる
 
 ## 作者
