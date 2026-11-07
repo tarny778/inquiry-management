@@ -92,4 +92,8 @@ resource "aws_instance" "this" {
   tags = {
     Name = "inquiry-demo"
   }
+  
+  lifecycle {
+    ignore_changes = [associate_public_ip_address]
+  }
 }
