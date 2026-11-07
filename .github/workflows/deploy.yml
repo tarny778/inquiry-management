@@ -1,0 +1,61 @@
+name: Deploy
+
+# CI が main で成功したあとに、イメージを作って ECR に保存する
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  id-token: write # AWS に、一時的な身分証を出すために必要
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+
+jobs:
+  push-images:
+    name: Build and push images to ECR
+    runs-on: ubuntu-latest
+    # テストが成功した、main へのプッシュのときだけ実行する
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push'
+    steps:
+      # テストを通ったコミットを取得する
+      - name: Checkout the tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # アクセスキーを使わず、OIDC で AWS に入る
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          IMAGE="$REGISTRY/inquiry-management/backend"
+          docker build -f Dockerfile.prod -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+      - name: Build and push web image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          IMAGE="$REGISTRY/inquiry-management/web"
+          docker build -f frontend/Dockerfile.prod -t "$IMAGE:$TAG" -t "$IMAGE:latest" frontend
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
