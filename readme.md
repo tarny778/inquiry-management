@@ -285,11 +285,62 @@ E2Eテストは、専用のDB(`inquiry_management_e2e`)と、専用の設定フ�
 
 これらのテストは、GitHub Actions でも、自動で実行されます。
 
+## AWSでの運用
+
+AWS(EC2)に、Docker Composeでデプロイしています。使うときだけ起動する運用で、停止中は、コンピューターの料金がかかりません。
+
+### 構成
+
+```
+ブラウザ ─HTTPS(443)→ web(Caddy) ─/api/*→ backend(FastAPI) → db(PostgreSQL)
+```
+
+| コンテナ | 役割 |
+|---|---|
+| web | Caddy。ビルド済みの画面を配信し、`/api/` で始まる通信だけを backend へ中継する。HTTPSの証明書(Let's Encrypt)は自動で取得・更新する |
+| backend | FastAPI(`Dockerfile.prod`)。一般ユーザーで実行する |
+| db | PostgreSQL。ボリュームにデータを保存する |
+
+- インスタンスは `t3.small`(Amazon Linux 2023)、ドメインは DuckDNS の無料サブドメインです。
+- 外部に公開するのは、80番と443番だけです。DB(5432番)と backend(8000番)は、コンテナの内部にとどめています。SSH(22番)は、自分のIPだけを許可しています。
+
+### 開発用との違い
+
+| | 開発(`compose.yaml`) | AWS(`compose.prod.yaml`) |
+|---|---|---|
+| フロントエンド | Vite の開発用サーバー | ビルド済みのファイルを Caddy で配信 |
+| 通信 | HTTP | HTTPS(ログインの Cookie は `Secure`) |
+| 環境名とDB | `development` / `inquiry_management_dev` | `production` / `inquiry_management` |
+| 公開ポート | 5173、8000、5433 | 80、443のみ |
+
+画面と API を、同じ入口(同じURL)で配信しているため、CORSの設定に依存せず、APIの宛先もビルド時に固定する必要がありません。
+
+### 運用
+
+| やること | 内容 |
+|---|---|
+| 起動 | EC2を開始するだけです。コンテナは `restart: unless-stopped` により、自動で立ち上がります |
+| ドメインの更新 | 起動のたびに、systemd のサービスが、DuckDNS に新しいIPを登録します(停止して起動するとIPが変わるため) |
+| 自動停止 | 起動から3時間後に、サーバーが自動で停止します(止め忘れによる課金を防ぐため) |
+| デプロイ | サーバーで `git pull` し、`docker compose -f compose.prod.yaml up -d --build` を実行します |
+| マイグレーション | `docker compose -f compose.prod.yaml --profile tools run --rm migrate`(dbmate をコンテナで実行。DBがなければ作成します) |
+| アカウント登録 | `docker compose -f compose.prod.yaml exec backend python scripts/setup_demo_accounts.py` |
+
+### セキュリティ面で意識したこと
+
+- 管理用のIAMユーザーを作り、ルートユーザーと、IAMユーザーの両方に、多要素認証(MFA)を設定しました。
+- AWS Budgets で、予算の通知を設定しました。
+- 秘密情報(DBパスワード、DuckDNSのトークン)は、環境変数ファイルに置き、リポジトリには含めていません。
+- 公開しているデータは、ダミーのみです。
+- `config.py` が、環境名とDB名の組み合わせを検証するため、本番の設定で、開発用のDBに接続することはありません。
+
 ## 今後の予定
 
-- [ ] AWS での公開(必要なときだけ起動する構成)
+## 今後の予定
+
+- [x] AWS での公開(EC2、Docker Compose、HTTPS)
 - [ ] GitHub Actions による自動デプロイ(CD)
-- [ ] デモURL、画面のスクリーンショットの追加
+- [ ] AWS上での構成の見直し(マネージドDB、ロードバランサーなど、サービスを分けた構成)
 - [ ] 記録の活用(将来構想): 蓄積した記録を定期的に(年1回など)出力し、生成AIの力を借りて、似た項目のまとめや意味づけを行い、汎用的なFAQとして整理する。FAQが充実すれば、一般職員は自分で調べられ、情シス職員も即答できるようになる
 
 ## 作者

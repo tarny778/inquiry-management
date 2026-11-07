@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euxo pipefail
+
+# Docker と Git
+dnf install -y docker git
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+# Docker Compose と buildx
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+curl -SL https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-amd64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-buildx
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/lib/docker/cli-plugins/docker-buildx
+
+# アプリを取得する
+sudo -u ec2-user git clone https://github.com/tarny778/inquiry-management.git /home/ec2-user/inquiry-management
+
+# 起動から一定時間で、自動停止する
+SHUTDOWN=$(command -v shutdown)
+cat > /etc/systemd/system/auto-shutdown.service <<'UNIT_EOF'
+[Unit]
+Description=Schedule automatic shutdown after boot
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=__SHUTDOWN__ -h +${shutdown_minutes} "auto shutdown after boot"
+
+[Install]
+WantedBy=multi-user.target
+UNIT_EOF
+sed -i "s#__SHUTDOWN__#$SHUTDOWN#" /etc/systemd/system/auto-shutdown.service
+
+# DuckDNS を更新する(/etc/duckdns.env が、あるときだけ動く)
+cat > /usr/local/bin/duckdns-update.sh <<'SCRIPT_EOF'
+#!/bin/sh
+[ -f /etc/duckdns.env ] || exit 0
+. /etc/duckdns.env
+curl -sS "https://www.duckdns.org/update?domains=$DUCKDNS_DOMAIN&token=$DUCKDNS_TOKEN&ip="
+echo
+SCRIPT_EOF
+chmod 700 /usr/local/bin/duckdns-update.sh
+
+cat > /etc/systemd/system/duckdns-update.service <<'UNIT_EOF'
+[Unit]
+Description=Update DuckDNS record
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/duckdns-update.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT_EOF
+
+systemctl daemon-reload
+systemctl enable auto-shutdown.service duckdns-update.service
+systemctl start auto-shutdown.service
