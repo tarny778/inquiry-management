@@ -1,7 +1,7 @@
-variable "github_repository" {
-  description = "AWS への権限を与える GitHub リポジトリ(owner/name)"
+variable "github_oidc_subject" {
+  description = "ロールを引き受けられる GitHub Actions の識別子(sub)。オーナーとリポジトリの数値IDを含む形式"
   type        = string
-  default     = "tarny778/inquiry-management"
+  default     = "repo:tarny778@160378227/inquiry-management@1408267514:ref:refs/heads/main"
 }
 
 # GitHub Actions を、AWS が信頼できる発行元として登録する
@@ -29,7 +29,7 @@ data "aws_iam_policy_document" "github_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
+      values   = [var.github_oidc_subject]
     }
   }
 }
