@@ -71,6 +71,7 @@ resource "aws_instance" "this" {
   key_name                    = aws_key_pair.this.key_name
   vpc_security_group_ids      = [aws_security_group.web.id]
   associate_public_ip_address = true
+  iam_instance_profile = aws_iam_instance_profile.ec2.name
 
   # OSからシャットダウンしたとき、削除ではなく「停止」にする
   instance_initiated_shutdown_behavior = "stop"
@@ -95,5 +96,6 @@ resource "aws_instance" "this" {
   
   lifecycle {
     ignore_changes = [associate_public_ip_address]
+    ignore_changes = [associate_public_ip_address, ami]
   }
 }
