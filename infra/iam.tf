@@ -1,8 +1,3 @@
-resources = [
-    aws_ecr_repository.backend.arn,
-    aws_ecr_repository.web.arn,
-]
-
 data "aws_iam_policy_document" "ec2_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -39,7 +34,7 @@ data "aws_iam_policy_document" "ecr_pull" {
       "ecr:GetDownloadUrlForLayer",
       "ecr:BatchGetImage",
     ]
-    resources = [for r in data.aws_ecr_repository.app : r.arn]
+    resources = [for r in aws_ecr_repository.app : r.arn]
   }
 }
 

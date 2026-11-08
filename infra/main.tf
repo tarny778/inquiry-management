@@ -95,7 +95,6 @@ resource "aws_instance" "this" {
   }
   
   lifecycle {
-    ignore_changes = [associate_public_ip_address]
     ignore_changes = [associate_public_ip_address, ami]
   }
 }
