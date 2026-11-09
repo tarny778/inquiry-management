@@ -4,7 +4,8 @@
 #   DOCKER_POSTGRES_PASSWORD  DBのパスワード
 #   SITE_ADDRESS              公開するドメイン名(例: xxx.duckdns.org)
 #
-#   docker compose --env-file .env.docker -f compose.prod.yaml up -d --build
+#   docker compose --env-file .env.docker -f compose.prod.yaml pull
+#   docker compose --env-file .env.docker -f compose.prod.yaml up -d
 #
 # 公開するのは web の 80/443 番だけ。DB と backend は、外に公開しない。
 
@@ -25,9 +26,7 @@ services:
       retries: 10
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
+    image: ${ECR_REGISTRY:?ECR_REGISTRYを設定してください}/inquiry-management/backend:${IMAGE_TAG:?IMAGE_TAGを設定してください}
     restart: unless-stopped
     environment:
       # production にすると、ログインの Cookie が Secure になる(HTTPS 専用)。
@@ -39,11 +38,7 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-      args:
-        VITE_API_BASE_URL: ""
+    image: ${ECR_REGISTRY:?ECR_REGISTRYを設定してください}/inquiry-management/backend:${IMAGE_TAG:?IMAGE_TAGを設定してください}
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS}
