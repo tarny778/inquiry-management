@@ -34,14 +34,6 @@ resource "aws_security_group" "web" {
   description = "SSH from my IP, HTTP/HTTPS from anywhere"
 
   ingress {
-    description = "SSH (my IP only)"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.my_ip_cidr]
-  }
-
-  ingress {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
