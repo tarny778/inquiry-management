@@ -23,15 +23,9 @@ data "aws_ssm_parameter" "al2023" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
-# 手元の公開鍵を登録する(秘密鍵は、登録しない)
-resource "aws_key_pair" "this" {
-  key_name   = "inquiry-key"
-  public_key = var.ssh_public_key
-}
-
 resource "aws_security_group" "web" {
   name        = "inquiry-demo-sg"
-  description = "SSH from my IP, HTTP/HTTPS from anywhere"
+  description = "HTTP/HTTPS from anywhere; administration via SSM"
 
   ingress {
     description = "HTTP"
@@ -60,7 +54,6 @@ resource "aws_security_group" "web" {
 resource "aws_instance" "this" {
   ami                         = data.aws_ssm_parameter.al2023.value
   instance_type               = var.instance_type
-  key_name                    = aws_key_pair.this.key_name
   vpc_security_group_ids      = [aws_security_group.web.id]
   associate_public_ip_address = true
   iam_instance_profile = aws_iam_instance_profile.ec2.name
