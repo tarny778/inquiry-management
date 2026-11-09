@@ -290,23 +290,46 @@ E2Eテストは、専用のDB(`inquiry_management_e2e`)と、専用の設定フ�
 
 AWS(EC2)に、Docker Composeでデプロイしています。使うときだけ起動する運用で、停止中は、コンピューターの料金がかかりません。
 
-### 構成
+### 全体構成
 
+```mermaid
+flowchart LR
+  subgraph GH[GitHub]
+    PUSH[main へ push]
+    CI[CI: テスト]
+    CD[Deploy: ビルドと保存]
+    PUSH --> CI --> CD
+  end
+
+  subgraph AWS[AWS 東京リージョン]
+    ECR[(ECR<br/>backend / web)]
+    subgraph EC2[EC2 t3.small]
+      SCRIPT[deploy.sh]
+      subgraph DC[Docker Compose]
+        WEB[web: Caddy]
+        BE[backend: FastAPI]
+        DB[(db: PostgreSQL)]
+      end
+      SCRIPT --> DC
+    end
+    SSM[SSM]
+  end
+
+  DNS[DuckDNS]
+  USER[ブラウザ]
+
+  CD -->|OIDC で認証して<br/>イメージを保存| ECR
+  CD -->|EC2 が起動中なら<br/>更新を指示| SSM
+  SSM -->|deploy.sh を実行| SCRIPT
+  ECR -->|イメージを取得| SCRIPT
+  EC2 -.->|起動のたびに<br/>IPを登録| DNS
+  USER -->|HTTPS 443| WEB
+  WEB -->|/api/*| BE --> DB
 ```
-ブラウザ ─HTTPS(443)→ web(Caddy) ─/api/*→ backend(FastAPI) → db(PostgreSQL)
-```
 
-| コンテナ | 役割 |
-|---|---|
-| web | Caddy。ビルド済みの画面を配信し、`/api/` で始まる通信だけを backend へ中継する。HTTPSの証明書(Let's Encrypt)は自動で取得・更新する |
-| backend | FastAPI(`Dockerfile.prod`)。一般ユーザーで実行する |
-| db | PostgreSQL。ボリュームにデータを保存する |
-
-- インスタンスは `t3.small`(Amazon Linux 2023)、ドメインは DuckDNS の無料サブドメインです。
-- 外部に公開するのは、80番と443番だけです。
-  DB(5432番)と backend(8000番)は、コンテナの内部にとどめています。
-  EC2への管理接続には AWS Systems Manager の Session Manager を使用し、
-  SSH(22番)の受信は許可していません。
+- 実線の矢印は、通常の流れです。点線は、EC2の起動時に動く処理です。
+- 外部からの受信は、80番と443番だけです。SSH(22番)は閉じています。
+- EC2が停止中の push では、ECRへの保存までで終わり、次の起動時に `deploy.sh` が最新のイメージを取得します。
 
 ### 開発用との違い
 
