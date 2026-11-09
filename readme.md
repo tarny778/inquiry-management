@@ -319,12 +319,43 @@ AWS(EC2)に、Docker Composeでデプロイしています。使うときだけ�
 
 | やること | 内容 |
 |---|---|
-| 起動 | EC2を開始するだけです。コンテナは `restart: unless-stopped` により、自動で立ち上がります |
+| 起動 | EC2を開始するだけです。起動時に systemd のサービス(`inquiry-deploy`)が `scripts/deploy.sh` を実行し、ECRの最新イメージを取得してコンテナを更新します |
 | ドメインの更新 | 起動のたびに、systemd のサービスが、DuckDNS に新しいIPを登録します(停止して起動するとIPが変わるため) |
 | 自動停止 | 起動から3時間後に、サーバーが自動で停止します(止め忘れによる課金を防ぐため) |
-| デプロイ | サーバーで `git pull` し、`docker compose -f compose.prod.yaml up -d --build` を実行します |
+| デプロイ | `main` へのプッシュで自動実行されます(次節「自動デプロイ(CD)」)。手動で行うときは、サーバーで `bash scripts/deploy.sh [タグ]` を実行します |
 | マイグレーション | `docker compose -f compose.prod.yaml --profile tools run --rm migrate`(dbmate をコンテナで実行。DBがなければ作成します) |
 | アカウント登録 | `docker compose -f compose.prod.yaml exec backend python scripts/setup_demo_accounts.py` |
+
+### 自動デプロイ(CD)
+
+`main` にプッシュすると、テスト、イメージの作成、サーバーの更新までが自動で実行されます。
+
+```mermaid
+flowchart TD
+  A[main へ push] --> B[CI: テスト]
+  B -->|成功| C[Deploy: イメージをビルド]
+  C --> D[ECR に保存<br/>コミットSHA と latest のタグ]
+  D --> E{EC2 は起動中?}
+  E -->|はい| F[SSM で deploy.sh を実行]
+  E -->|いいえ| G[何もしない]
+  F --> I[ECR から取得して<br/>コンテナを更新]
+  G -.->|次の起動時| F[inquiry-deploy が<br/>deploy.sh を実行]
+  H --> I
+```
+
+| 設計判断 | 理由 |
+|---|---|
+| OIDC で AWS に認証する | アクセスキーを発行・保管しない。ロールは、このリポジトリの `main` ブランチからだけ引き受けられる |
+| イメージをECRに保存し、EC2では取得だけ行う | サーバー上でビルドしないので、t3.small の負荷とディスクを節約できる。CIを通ったイメージが、そのまま動く |
+| コミットSHAをタグにする | どの版かが分かる。タグを戻せば、ロールバックできる |
+| SSM でサーバーに更新を指示する | SSH の鍵を GitHub に渡さずに、サーバーでコマンドを実行できる。権限は、このEC2とシェル実行だけに絞っている |
+| 停止中は何もせず、起動時に追いつく | 使うときだけ起動する運用のため。起動のたびに、`deploy.sh` が最新のイメージを取得する |
+| 更新の手順を `deploy.sh` に集約する | 手動、起動時、Actions の3つの経路が、同じ手順になる。`flock` で同時実行も防ぐ |
+
+IAM の権限は、次のように最小限にしています。
+
+- EC2のロール: 2つのECRリポジトリからの取得と、SSMの管理対象になる権限のみ
+- GitHub Actions のロール: 2つのECRリポジトリへの保存と、このEC2へのSSMコマンド送信のみ
 
 ### セキュリティ面で意識したこと
 
@@ -422,8 +453,8 @@ SSH で入り、次を設定します。
 
 - [x] AWS での公開(EC2、Docker Compose、HTTPS)
 - [x] Terraform によるインフラのコード化(状態ファイルは S3 で管理)
-- [ ] GitHub Actions による自動デプロイ(CD)
-- [ ] SSH を開けない運用(AWS Systems Manager の Session Manager)
+- [x] GitHub Actions による自動デプロイ(CD。イメージはECRに保存し、SSMでサーバーを更新)
+- [ ] SSH を開けない運用(AWS Systems Manager の Session Manager。デプロイの指示には SSM を使用済み。22番ポートを閉じる運用は未実施)
 - [ ] サービスを分けた構成(マネージドDB、ロードバランサーなど)の検証
 - [ ] 記録の活用(将来構想): 蓄積した記録を定期的に(年1回など)出力し、生成AIの力を借りて、似た項目のまとめや意味づけを行い、汎用的なFAQとして整理する。FAQが充実すれば、一般職員は自分で調べられ、情シス職員も即答できるようになる
 
