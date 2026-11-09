@@ -338,9 +338,8 @@ flowchart TD
   D --> E{EC2 は起動中?}
   E -->|はい| F[SSM で deploy.sh を実行]
   E -->|いいえ| G[何もしない]
-  F --> I[ECR から取得して<br/>コンテナを更新]
+  F --> H[ECR から取得して<br/>コンテナを更新]
   G -.->|次の起動時| F[inquiry-deploy が<br/>deploy.sh を実行]
-  H --> I
 ```
 
 | 設計判断 | 理由 |
@@ -371,12 +370,21 @@ AWS(東京リージョン)の EC2 は、Terraform で構築しています。コ
 
 ### 作成するもの
 
-| リソース | 内容 |
-|---|---|
-| キーペア | 手元の公開鍵を登録する(秘密鍵は登録しない) |
-| セキュリティグループ | SSH(22番)は自分のIPのみ、HTTP(80番)とHTTPS(443番)は全体に公開 |
-| EC2 | `t3.small`、Amazon Linux 2023、ディスク20GiB(gp3) |
+| ファイル | リソース | 内容 |
+|---|---|---|
+| `main.tf` | キーペア | 手元の公開鍵を登録する(秘密鍵は登録しない) |
+| `main.tf` | セキュリティグループ | SSH(22番)は自分のIPのみ、HTTP(80番)とHTTPS(443番)は全体に公開 |
+| `main.tf` | EC2 | `t3.small`、Amazon Linux 2023、ディスク20GiB(gp3) |
+| `ecr.tf` | ECRリポジトリ(backend、web) | イメージの保存先。脆弱性スキャンを有効にし、古いイメージは自動で削除する(最新5件を残す) |
+| `iam.tf` | EC2用のIAMロールとインスタンスプロファイル | EC2が、ECRから取得する権限と、SSMの管理対象になる権限を持つ |
+| `github_oicd.tf` | GitHub OIDCプロバイダ、Actions用のIAMロール | GitHub Actions が、アクセスキーなしでAWSに入るための設定 |
+| `github_oicd.tf` | Actions用ロールの権限 | ECRへのイメージ保存と、このEC2へのSSMコマンド送信だけを許可 |
 
+EC2 には、次の設定を入れています。
+
+- メタデータの取得に、トークンを必須にする(IMDSv2)
+- OS からシャットダウンしたときは、削除ではなく「停止」にする
+- AMI の更新では、EC2 を作り直さない(`ignore_changes`。最新のAMIが出るたびに、稼働中のサーバーが置き換わるのを防ぐため)
 EC2 には、次の設定を入れています。
 
 - メタデータの取得に、トークンを必須にする(IMDSv2)
@@ -390,8 +398,10 @@ EC2 の初回起動時に、次の作業が自動で実行されます。
 - アプリのリポジトリの取得
 - 起動から一定時間(初期値は180分)後に、自動で停止する設定
 - 起動のたびに、DuckDNS のドメインを新しい IP に更新する設定(`/etc/duckdns.env` があるときだけ動く)
+- 起動のたびに、最新のイメージに更新する設定(`inquiry-deploy`。`scripts/deploy.sh` を実行する)
 
 秘密情報(DB のパスワード、DuckDNS のトークン)は、コードにも状態ファイルにも残らないように、`user_data` には含めていません。サーバーができたあとに、手作業で設定します。
+`user_data` は、EC2の初回起動時にしか実行されません。そのため、稼働中のEC2に対する `user_data` の変更は、Terraformで反映しても動作には影響しません(将来の再構築用の記録になります)。
 
 ### 状態ファイルの管理
 
@@ -439,9 +449,10 @@ terraform apply
 
 SSH で入り、次を設定します。
 
-1. `.env.docker` を作る(`DOCKER_POSTGRES_PASSWORD` と `SITE_ADDRESS`。パスワードは `openssl rand -hex 16` で生成)
+1. `.env.docker` を作る(`DOCKER_POSTGRES_PASSWORD`、`SITE_ADDRESS`、`ECR_REGISTRY`。パスワードは `openssl rand -hex 16` で生成。`ECR_REGISTRY` は `<アカウントID>.dkr.ecr.ap-northeast-1.amazonaws.com`)
 2. `/etc/duckdns.env` を作る(DuckDNS のサブドメイン名とトークン。権限は `600`)
-3. コンテナを起動し、マイグレーションとアカウント登録を実行する(前節の「運用」を参照)
+3. `bash scripts/deploy.sh` を実行する(ECRにログインして、イメージを取得し、コンテナを起動する)
+4. マイグレーションとアカウント登録を実行する(前節の「運用」を参照))
 
 ### 設計で意識したこと
 
