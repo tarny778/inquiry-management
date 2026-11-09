@@ -38,7 +38,7 @@ services:
         condition: service_healthy
 
   web:
-    image: ${ECR_REGISTRY:?ECR_REGISTRYを設定してください}/inquiry-management/backend:${IMAGE_TAG:?IMAGE_TAGを設定してください}
+    image: ${ECR_REGISTRY:?ECR_REGISTRYを設定してください}/inquiry-management/web:${IMAGE_TAG:?IMAGE_TAGを設定してください}
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS}
