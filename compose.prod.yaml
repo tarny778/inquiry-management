@@ -60,6 +60,7 @@ services:
     profiles: ["tools"]
     environment:
       DATABASE_URL: postgresql://inquiry_app:${DOCKER_POSTGRES_PASSWORD}@db:5432/inquiry_management?sslmode=disable
+      DBMATE_NO_DUMP_SCHEMA: "true"
     volumes:
       - ./db:/db
     depends_on:
