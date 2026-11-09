@@ -293,7 +293,7 @@ AWS(EC2)に、Docker Composeでデプロイしています。使うときだけ�
 ### 全体構成
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph GH[GitHub]
     PUSH[main へ push]
     CI[CI: テスト]
