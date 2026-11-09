@@ -112,9 +112,10 @@
 ├── db/                  # DB関連
 ├── docs/                # 設計書
 ├── frontend/            # React + TypeScript
+├── infra/               # Terraform(AWSのインフラ)
 ├── routers/             # FastAPI ルーター
 ├── schemas/             # リクエスト/レスポンスのスキーマ
-├── scripts/             # 補助スクリプト
+├── scripts/             # 補助スクリプト(アカウント登録、dbmate、デプロイ)
 ├── sql/                 # SQL
 ├── test/                # テスト(pytest / Playwright)
 ├── compose.yaml         # 開発用 Docker Compose
@@ -302,7 +303,10 @@ AWS(EC2)に、Docker Composeでデプロイしています。使うときだけ�
 | db | PostgreSQL。ボリュームにデータを保存する |
 
 - インスタンスは `t3.small`(Amazon Linux 2023)、ドメインは DuckDNS の無料サブドメインです。
-- 外部に公開するのは、80番と443番だけです。DB(5432番)と backend(8000番)は、コンテナの内部にとどめています。SSH(22番)は、自分のIPだけを許可しています。
+- 外部に公開するのは、80番と443番だけです。
+  DB(5432番)と backend(8000番)は、コンテナの内部にとどめています。
+  EC2への管理接続には AWS Systems Manager の Session Manager を使用し、
+  SSH(22番)の受信は許可していません。
 
 ### 開発用との違い
 
@@ -363,6 +367,10 @@ IAM の権限は、次のように最小限にしています。
 - 秘密情報(DBパスワード、DuckDNSのトークン)は、環境変数ファイルに置き、リポジトリには含めていません。
 - 公開しているデータは、ダミーのみです。
 - `config.py` が、環境名とDB名の組み合わせを検証するため、本番の設定で、開発用のDBに接続することはありません。
+- GitHub Actions は、アクセスキーを使わず、OIDC で一時的な認証情報を受け取ります。ロールは、このリポジトリの `main` ブランチからだけ引き受けられます。
+- IAM の権限は最小限にしています。EC2 のロールは、2つのECRリポジトリからの取得のみ。Actions のロールは、2つのECRリポジトリへの保存と、このEC2へのSSMコマンド送信のみです。
+- EC2 のメタデータは、トークンを必須にしています(IMDSv2)。
+- サーバーへの更新の指示は、SSH ではなく SSM で行います(SSHの鍵を GitHub に渡さないため)。
 
 ## インフラのコード化(Terraform)
 
@@ -372,23 +380,18 @@ AWS(東京リージョン)の EC2 は、Terraform で構築しています。コ
 
 | ファイル | リソース | 内容 |
 |---|---|---|
-| `main.tf` | キーペア | 手元の公開鍵を登録する(秘密鍵は登録しない) |
-| `main.tf` | セキュリティグループ | SSH(22番)は自分のIPのみ、HTTP(80番)とHTTPS(443番)は全体に公開 |
+| `main.tf` | セキュリティグループ | HTTP(80番)とHTTPS(443番)を全体に公開。SSH(22番)の受信は許可しない |
 | `main.tf` | EC2 | `t3.small`、Amazon Linux 2023、ディスク20GiB(gp3) |
 | `ecr.tf` | ECRリポジトリ(backend、web) | イメージの保存先。脆弱性スキャンを有効にし、古いイメージは自動で削除する(最新5件を残す) |
-| `iam.tf` | EC2用のIAMロールとインスタンスプロファイル | EC2が、ECRから取得する権限と、SSMの管理対象になる権限を持つ |
-| `github_oicd.tf` | GitHub OIDCプロバイダ、Actions用のIAMロール | GitHub Actions が、アクセスキーなしでAWSに入るための設定 |
-| `github_oicd.tf` | Actions用ロールの権限 | ECRへのイメージ保存と、このEC2へのSSMコマンド送信だけを許可 |
+| `iam.tf` | EC2用のIAMロールとインスタンスプロファイル | EC2がECRからイメージを取得し、Systems Managerの管理対象になるための権限 |
+| `github_oidc.tf` | GitHub OIDCプロバイダ、Actions用のIAMロール | GitHub Actionsが、アクセスキーなしでAWSに認証するための設定 |
+| `github_oidc.tf` | Actions用ロールの権限 | ECRへのイメージ保存と、このEC2へのSSMコマンド送信だけを許可 |
 
 EC2 には、次の設定を入れています。
 
 - メタデータの取得に、トークンを必須にする(IMDSv2)
 - OS からシャットダウンしたときは、削除ではなく「停止」にする
 - AMI の更新では、EC2 を作り直さない(`ignore_changes`。最新のAMIが出るたびに、稼働中のサーバーが置き換わるのを防ぐため)
-EC2 には、次の設定を入れています。
-
-- メタデータの取得に、トークンを必須にする(IMDSv2)
-- OS からシャットダウンしたときは、削除ではなく「停止」にする
 
 ### 起動時の自動設定(`user_data`)
 
@@ -434,20 +437,18 @@ Terraform は、AWS CloudShell(ブラウザ上のターミナル)から実行し
 ```bash
 git clone https://github.com/tarny778/inquiry-management.git ~/repo
 cd ~/repo/infra
-export TF_VAR_ssh_public_key="公開鍵の1行"
-export TF_VAR_my_ip_cidr="自分のIP/32"
 terraform init
 terraform plan
 terraform apply
 ```
-
-- 公開鍵は、`ssh-keygen -y -f ~/.ssh/<秘密鍵のファイル>` で取り出せます。
-- 自宅の IP アドレスは、数日で変わることがあります。SSH が通らなくなったら、`TF_VAR_my_ip_cidr` を新しい値にして、`terraform apply` を実行します。
+- SSH鍵の登録や、自分のIPアドレスの指定は不要です。
+- EC2への管理接続には、AWS Systems Manager の Session Manager を使用します。
 - `terraform plan` は、何を作る(変える・消す)予定かを表示するだけで、実際には何も変更しません。`apply` の前に、必ず内容を確認します。
 
 ### サーバーができたあとの手作業
 
-SSH で入り、次を設定します。
+AWSマネジメントコンソールからEC2を選択し、
+Session Managerで接続して、次の作業を行います。
 
 1. `.env.docker` を作る(`DOCKER_POSTGRES_PASSWORD`、`SITE_ADDRESS`、`ECR_REGISTRY`。パスワードは `openssl rand -hex 16` で生成。`ECR_REGISTRY` は `<アカウントID>.dkr.ecr.ap-northeast-1.amazonaws.com`)
 2. `/etc/duckdns.env` を作る(DuckDNS のサブドメイン名とトークン。権限は `600`)
@@ -460,12 +461,26 @@ SSH で入り、次を設定します。
 - 状態ファイルは、実行環境(CloudShell)が消えても失われないよう、S3 に置いている
 - `terraform plan` で内容を確認してから、`apply` を実行する
 
+## 既知の制約
+
+作ってみて分かった弱点です。
+
+| 項目 | 内容 | 影響 |
+|---|---|---|
+| 起動時は `latest` で動く | 起動時の更新は、ECRの `latest` タグを取得するため、どのコミットで動いているかが `.env.docker` から分からない | 動作には影響しない。ECRの `latest` が指すコミットを調べる形に改良できる |
+| 起動直後の push | 起動直後は、SSMへの登録が済んでいないことがあり、その間の push では、更新のジョブが失敗する | 起動時のサービスが最新に追いつくので、実害はない |
+| `user_data` の変更 | 稼働中のEC2には反映されない(初回起動時にしか実行されない) | サーバーを作り直すまで、コードと実機が食い違う可能性がある |
+| 再構築の手順 | 新しいEC2で、`user_data` と手作業の手順だけで再現できるかは、まだ確かめていない | 未検証 |
+| 初回構築の手作業 | `.env.docker` と `/etc/duckdns.env` は、秘密情報のため、手で置く | 意図した設計(コードにも状態にも残さない) |
+| SSH のポート | 22番は、自分のIPだけに開いている | SSM のセッションマネージャーに切り替えれば、閉じられる |
+| イメージの世代管理 | ライフサイクルポリシーが「最新5件」で、ビルドの付随データも数えるため、ロールバック先のイメージが早く消えることがある | 戻せるのは、直近の1〜2回分 |
+
 ## 今後の予定
 
 - [x] AWS での公開(EC2、Docker Compose、HTTPS)
 - [x] Terraform によるインフラのコード化(状態ファイルは S3 で管理)
 - [x] GitHub Actions による自動デプロイ(CD。イメージはECRに保存し、SSMでサーバーを更新)
-- [ ] SSH を開けない運用(AWS Systems Manager の Session Manager。デプロイの指示には SSM を使用済み。22番ポートを閉じる運用は未実施)
+- [x] SSHを開けない運用(AWS Systems ManagerのSession Managerで管理接続・デプロイを実施。22番ポートの受信は許可しない)
 - [ ] サービスを分けた構成(マネージドDB、ロードバランサーなど)の検証
 - [ ] 記録の活用(将来構想): 蓄積した記録を定期的に(年1回など)出力し、生成AIの力を借りて、似た項目のまとめや意味づけを行い、汎用的なFAQとして整理する。FAQが充実すれば、一般職員は自分で調べられ、情シス職員も即答できるようになる
 
