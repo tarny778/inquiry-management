@@ -65,3 +65,40 @@ resource "aws_iam_role_policy" "github_ecr_push" {
   role   = aws_iam_role.github_actions.id
   policy = data.aws_iam_policy_document.github_ecr_push.json
 }
+
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "github_ssm_deploy" {
+  # 状態の確認(リソース指定ができない)
+  statement {
+    actions = [
+      "ec2:DescribeInstances",
+      "ssm:DescribeInstanceInformation",
+    ]
+    resources = ["*"]
+  }
+
+  # コマンドの送信: このEC2と、シェル実行のドキュメントに限定
+  statement {
+    actions = ["ssm:SendCommand"]
+    resources = [
+      "arn:aws:ec2:ap-northeast-1:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.this.id}",
+      "arn:aws:ssm:ap-northeast-1::document/AWS-RunShellScript",
+    ]
+  }
+
+  # 実行結果の取得
+  statement {
+    actions = [
+      "ssm:GetCommandInvocation",
+      "ssm:ListCommandInvocations",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "github_ssm_deploy" {
+  name   = "ssm-deploy"
+  role   = aws_iam_role.github_actions.id
+  policy = data.aws_iam_policy_document.github_ssm_deploy.json
+}

@@ -57,6 +57,27 @@ ExecStart=/usr/local/bin/duckdns-update.sh
 WantedBy=multi-user.target
 UNIT_EOF
 
+# 起動のたびに、最新のイメージに追いつく
+cat > /etc/systemd/system/inquiry-deploy.service <<'UNIT_EOF'
+[Unit]
+Description=Pull latest images and start the app
+After=network-online.target docker.service duckdns-update.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=ec2-user
+ExecStart=/bin/bash /home/ec2-user/inquiry-management/scripts/deploy.sh
+RemainAfterExit=yes
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
+UNIT_EOF
+
 systemctl daemon-reload
-systemctl enable auto-shutdown.service duckdns-update.service
+systemctl enable auto-shutdown.service duckdns-update.service inquiry-deploy.service
 systemctl start auto-shutdown.service
+
+
