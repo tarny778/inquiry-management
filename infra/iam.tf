@@ -44,6 +44,32 @@ resource "aws_iam_role_policy" "ecr_pull" {
   policy = data.aws_iam_policy_document.ecr_pull.json
 }
 
+# DBバックアップ用。書き込みと、復元のための読み取りだけを許可する(削除は許可しない)
+data "aws_iam_policy_document" "s3_backup" {
+  statement {
+    sid       = "BackupObjects"
+    actions   = ["s3:PutObject", "s3:GetObject"]
+    resources = ["${aws_s3_bucket.backup.arn}/db/*"]
+  }
+
+  statement {
+    sid       = "BackupList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.backup.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["db/*"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "s3_backup" {
+  name   = "s3-backup"
+  role   = aws_iam_role.ec2.id
+  policy = data.aws_iam_policy_document.s3_backup.json
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "inquiry-demo-ec2-profile"
   role = aws_iam_role.ec2.name
